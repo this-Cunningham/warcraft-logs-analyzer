@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Logs / data
+*.log
+*.txt.gz
+
+# Environment
+.env
+.env.local

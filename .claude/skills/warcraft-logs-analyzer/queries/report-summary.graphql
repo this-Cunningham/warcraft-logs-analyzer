@@ -1,0 +1,32 @@
+# Report summary: metadata, fight list, and the player roster.
+# Variables: { "code": "aBcD1234" }
+# NOTE: verify field names against schema.json after introspection.
+query ReportSummary($code: String!) {
+  reportData {
+    report(code: $code) {
+      title
+      startTime
+      endTime
+      zone { id name }
+      fights {
+        id
+        name
+        encounterID
+        difficulty
+        kill
+        startTime
+        endTime
+        fightPercentage
+        averageItemLevel
+      }
+      masterData {
+        actors(type: "Player") {
+          id
+          name
+          type
+          subType
+        }
+      }
+    }
+  }
+}

@@ -13,3 +13,9 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# WCL token cache + generated artifacts
+.wcl-token.json
+schema.json
+reports/
+data/

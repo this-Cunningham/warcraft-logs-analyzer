@@ -1,0 +1,18 @@
+# Per-fight deep dive: pulls several tables + parses in ONE request via aliases
+# (cheaper on the points-per-hour budget than separate calls).
+# All `table`/`rankings` fields return untyped JSON — reason over the blobs.
+# Variables: { "code": "aBcD1234", "fightIDs": [12] }
+query FightAnalysis($code: String!, $fightIDs: [Int]!) {
+  reportData {
+    report(code: $code) {
+      title
+      damageDone:  table(dataType: DamageDone,  fightIDs: $fightIDs)
+      healing:     table(dataType: Healing,     fightIDs: $fightIDs)
+      damageTaken: table(dataType: DamageTaken, fightIDs: $fightIDs)
+      deaths:      table(dataType: Deaths,      fightIDs: $fightIDs)
+      interrupts:  table(dataType: Interrupts,  fightIDs: $fightIDs)
+      # Per-player percentile parses for these fights, vs the 2-week parse pool:
+      parses:      rankings(fightIDs: $fightIDs, compare: Parses)
+    }
+  }
+}

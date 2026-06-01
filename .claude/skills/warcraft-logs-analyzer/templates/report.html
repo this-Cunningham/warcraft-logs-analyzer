@@ -154,6 +154,25 @@
   .specrow .sname{font-weight:700}
   .specrow details{margin-top:7px} .specrow summary{cursor:pointer;font-size:12px;color:var(--muted)}
   .specrow .plist{font-size:12px;line-height:1.7;margin-top:5px}
+  /* Trash tab — per-pack pull breakdown. */
+  .trpull{border-top:1px solid rgba(38,47,64,.5);padding:9px 0 4px;margin-top:6px}
+  .trpull:first-of-type{border-top:none}
+  .trhead{font-size:13px;margin-bottom:4px}
+  .trseq{font-size:12px;color:var(--txt);line-height:1.8;margin:2px 0}
+  .trlbl{display:inline-block;min-width:74px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;vertical-align:top}
+  .trlbl.bad2{color:var(--bad)}
+  .boss details summary{cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
+  /* Trash — same-pack kill-order comparison (your sequence vs benchmark, mobs first→last). */
+  .tko{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin:2px 0 12px}
+  .tkpack{font-size:12.5px;font-weight:600;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .tkrow{font-size:13px;line-height:2;display:flex;gap:8px;align-items:flex-start}
+  .tkrow + .tkrow{margin-top:2px}
+  .tklbl{flex:0 0 76px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding-top:3px}
+  .tkseq{flex:1}
+  .tkmob{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--line);margin:2px 0}
+  .tkmob.div{border-color:var(--warn);color:#ffe08a;font-weight:600}
+  .tkarrow{color:var(--muted);margin:0 3px}
+  .ladder{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 8px;margin:2px 0 14px;overflow-x:auto}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px 44px;column-gap:5px}}
 </style>
@@ -764,6 +783,187 @@ function mountBosses(){
     el.querySelectorAll(`.bsub[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.bp===bp));
   }));
 }
+/* ---------- TRASH ---------- */
+function renderTrash(d){
+  const tr=d.deep&&d.deep.trash;
+  if(!tr||!tr.present) return `<h2 class="section">Trash</h2><p class="num" style="padding:8px 2px">No trash data in this report (the data was fetched before the Trash tab existed, or the report has no trash segments).</p>`;
+  const go=tr.glance.ours, gt=tr.glance.theirs;
+  const clearD=deltaLow(Math.round(go.clearMs/60000),Math.round(gt.clearMs/60000));
+  const deathD=deltaLow(go.deaths,gt.deaths);
+  const zones=asArr(tr.zones);
+  const zoneNote=zones.length?` Restricted to <b>${zones.map(esc).join(", ")}</b> — the zone${zones.length>1?"s":""} both raids cleared; each report's other content (e.g. a different wing) is excluded so the comparison is like-for-like.`:"";
+  let h=`<h2 class="section">Trash at a Glance<span class="hint">Trash pulls, time, and deaths, ours vs the benchmark.${zoneNote} Routes and skips still differ, so clear time is a rough proxy — deaths are the clean signal. Lower is better for time and deaths.</span></h2>
+  <div class="cards">
+    <div class="card"><div class="label">Trash Pulls</div><div class="vals"><span class="v ours">${go.packs}</span><span class="v theirs">${gt.packs}</span></div></div>
+    <div class="card"><div class="label">Trash Clear Time</div><div class="vals"><span class="v ours">${fmtMin(go.clearMs)}</span><span class="v theirs">${fmtMin(gt.clearMs)}</span><span class="delta ${clearD.cls}">${clearD.txt}m</span></div></div>
+    <div class="card"><div class="label">Trash Deaths</div><div class="vals"><span class="v ours">${go.deaths}</span><span class="v theirs">${gt.deaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
+  </div>`;
+
+  /* What's killing us on trash — same idea as the boss view, scoped to trash. */
+  const dc=rowsOf(tr.deathCauses);
+  if(dc.length){
+    h+=`<h2 class="section">What's Killing Us on Trash<span class="hint">Player deaths on trash by killing blow, tallied across every pull, ours vs the benchmark. A cause the benchmark takes 0 of is a mechanic to interrupt, CC, or position around. "Melee" usually means overpulling or sitting in a caster pack's melee. Lower is better.</span></h2>
+    <table><thead><tr><th>Killing blow</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+    for(const r of dc){
+      const dl=deltaLow(r.ours,r.theirs);
+      h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
+        <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+
+  // Kill Order — sub-tabs: Same-Pack Matches (default, clean 1:1) | Pairwise Priority (broad).
+  h+=`<h2 class="section">Kill Order vs Benchmark<span class="hint"><b>Same-Pack Matches</b> compares kill order only for packs both raids pulled with the exact same roster (mobs + counts) — a clean 1:1 comparison. <b>Pairwise Priority</b> is the broader view across every pull: which mob each raid tends to kill before which, no pack matching needed. Both are descriptive, not scored.</span></h2>
+    <div class="btabs">
+      <button class="btab on" data-ktab="same">Same-Pack Matches</button>
+      <button class="btab" data-ktab="pair">Pairwise Priority</button>
+    </div>
+    <div class="bsub active" data-ktab="same">${sameMatchesBody(tr)}</div>
+    <div class="bsub" data-ktab="pair">${pairwiseBody(tr,d)}</div>`;
+  h+=trashCcView(tr,d);
+  h+=trashPacksView(tr,d);
+  return h;
+}
+// SAME-PACK sub-tab body: packs both raids pulled with the EXACT same roster (names + counts),
+// your kill order vs the benchmark's, first → last. Mobs you focus out of position are highlighted.
+function sameMatchesBody(tr){
+  const rows=rowsOf(tr.identicalPacks);
+  if(!rows.length) return `<p class="num" style="padding:8px 2px">No trash pack was pulled with the exact same roster (same mobs and counts) by both raids — there's no clean 1:1 kill order to show here. The <b>Pairwise Priority</b> tab compares target priority across all pulls instead.</p>`;
+  let h=`<p class="srcs" style="margin:2px 0 12px">Packs both raids pulled with the <b>exact same roster</b> (same mob types and counts) — genuinely the same pack, so merged/chain-pulls are excluded. Your order (top) vs the benchmark's, first → last; a <span class="tkmob div" style="padding:0 6px">highlighted</span> mob is one you kill in a clearly different spot. Sorted by how differently the two raids ordered the pack.</p>`;
+  for(const r of rows){
+    const roster=asArr(r.roster).map(m=>`${esc(m.name)}${m.count>1?` ×${m.count}`:''}`).join(" · ");
+    const np=(r.oursPulls===1&&r.theirsPulls===1)?"pull":"pulls";
+    h+=`<div class="tko">
+      <div class="tkpack">${roster} <span class="num" style="font-weight:400">· you ${r.oursPulls} / bench ${r.theirsPulls} ${np}</span></div>
+      <div class="tkrow"><span class="tklbl cours">You</span><span class="tkseq">${killSeq(r.ours,r.theirs)}</span></div>
+      <div class="tkrow"><span class="tklbl cthe">Benchmark</span><span class="tkseq">${killSeq(r.theirs,r.ours)}</span></div>
+    </div>`;
+  }
+  return h;
+}
+// PAIRWISE sub-tab body: the ranking ladder (visual) + the per-pair head-to-head table.
+function pairwiseBody(tr,d){
+  const ladder=killLadder(tr.killPriority);
+  const rows=rowsOf(tr.pairwisePriority);
+  if(!ladder && !rows.length) return `<p class="num" style="padding:8px 2px">Not enough trash mob types co-occurred in both reports to compare priority.</p>`;
+  let h="";
+  if(ladder) h+=`<div class="ladder">${ladder}</div>`;
+  if(rows.length){
+    h+=`<p class="srcs" style="margin:2px 0 8px">For every pair of trash mobs both raids fought together, how often each kills the first before the second — biggest difference first. A <span class="warnpill">flagged</span> row is an outright reversal (opposite order). Rates over the pulls where both were present.</p>
+      <table><thead><tr><th>Target priority</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Diff</th></tr></thead><tbody>`;
+    for(const r of rows){
+      const lead=r.reversed?`<span class="warnpill">${esc(r.lead)}</span>`:esc(r.lead);
+      h+=`<tr><td>kill ${lead} before ${esc(r.trail)} <span class="num" style="font-weight:400">· you ${r.oursPulls} / bench ${r.theirsPulls} pulls</span></td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
+        <td class="delta flat">${r.divergence}</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  return h;
+}
+// The ranking ladder (slopegraph): your kill order left (first at top), benchmark right, mobs
+// connected across; steep highlighted lines = mobs focused much earlier/later than the benchmark.
+function killLadder(rows){
+  rows=rowsOf(rows).filter(r=>r.both && r.ours!=null && r.theirs!=null);
+  if(rows.length<2) return "";
+  const ourOrder=[...rows].sort((a,b)=>(b.ours-a.ours)||a.mob.localeCompare(b.mob));
+  const theirOrder=[...rows].sort((a,b)=>(b.theirs-a.theirs)||a.mob.localeCompare(b.mob));
+  const orank={},trank={}; ourOrder.forEach((r,i)=>orank[r.mob]=i); theirOrder.forEach((r,i)=>trank[r.mob]=i);
+  const n=rows.length, rowH=28, padT=34, padB=16, W=800, H=padT+n*rowH+padB;
+  const llx=330, rlx=470, lL=338, lR=462, y=k=>padT+k*rowH+rowH/2;
+  const big=r=>Math.abs(r.ours-r.theirs)>=34;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;font-family:inherit">`;
+  s+=`<text x="${llx}" y="20" text-anchor="end" style="font-size:11px;font-weight:700;fill:var(--ours)">${esc(DATA.ours.title)} — kill first ↓</text>`;
+  s+=`<text x="${rlx}" y="20" text-anchor="start" style="font-size:11px;font-weight:700;fill:var(--theirs)">${esc(DATA.theirs.title)} — kill first ↓</text>`;
+  for(const r of rows){
+    const ly=y(orank[r.mob]), ry=y(trank[r.mob]), b=big(r);
+    s+=`<line x1="${lL}" y1="${ly}" x2="${lR}" y2="${ry}" style="stroke:${b?'var(--warn)':'var(--line)'};stroke-width:${b?2.5:1.3};stroke-opacity:${b?0.95:0.5}"/>`;
+    s+=`<circle cx="${lL}" cy="${ly}" r="3" style="fill:var(--ours)"/><circle cx="${lR}" cy="${ry}" r="3" style="fill:var(--theirs)"/>`;
+  }
+  for(const r of ourOrder){const ly=y(orank[r.mob]),b=big(r);
+    s+=`<text x="${llx-7}" y="${ly+4}" text-anchor="end" style="font-size:12px;fill:${b?'var(--warn)':'var(--txt)'};font-weight:${b?700:400}">${orank[r.mob]+1}. ${esc(r.mob)}</text>`;}
+  for(const r of theirOrder){const ry=y(trank[r.mob]),b=big(r);
+    s+=`<text x="${rlx+7}" y="${ry+4}" text-anchor="start" style="font-size:12px;fill:${b?'var(--warn)':'var(--txt)'};font-weight:${b?700:400}">${trank[r.mob]+1}. ${esc(r.mob)}</text>`;}
+  return s+`</svg>`;
+}
+// One kill-order sequence as chips with arrows; a mob in a different slot than the other side is flagged.
+function killSeq(seq,other){
+  seq=asArr(seq); const orank={}; asArr(other).forEach((m,i)=>orank[m]=i);
+  return seq.map((m,i)=>{
+    const o=orank[m];
+    const div=(o==null)||o!==i; // different position (or absent) than the other raid's order
+    return `<span class="tkmob${div?' div':''}">${esc(m)}</span>`;
+  }).join('<span class="tkarrow">→</span>');
+}
+// Crowd control on trash — DESCRIPTIVE (more isn't better; the benchmark sets the bar).
+function trashCcView(tr,d){
+  const rows=rowsOf(tr.cc);
+  if(!rows.length) return `<h2 class="section">Crowd Control on Trash</h2><p class="num" style="padding:8px 2px">Neither raid used hard crowd control (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) on trash.</p>`;
+  const tot=tr.ccTotals||{ours:0,theirs:0};
+  let h=`<h2 class="section">Crowd Control on Trash<span class="hint">Hard CC applications (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, Seduction, Hibernate, Cyclone) that held a mob out of a pull, ours vs the benchmark. <b>Descriptive, not better/worse</b> — a raid that safely AoEs trash down may need little CC; the benchmark sets the bar. Per-pull CC targets are in the pack breakdown below.</span></h2>
+    <table><thead><tr><th>Crowd control</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th></tr></thead><tbody>`;
+  for(const r of rows){
+    h+=`<tr><td style="font-weight:600">${esc(r.label)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td></tr>`;
+  }
+  h+=`<tr><td style="font-weight:700">Total CC applications</td>
+    <td class="num" style="color:var(--ours);font-weight:700">${tot.ours}</td>
+    <td class="num" style="color:var(--theirs);font-weight:700">${tot.theirs}</td></tr></tbody></table>`;
+
+  /* Which mobs are getting CC'd, by CC type and how often — grouped by mob, most-CC'd first. */
+  const byMob=rowsOf(tr.ccByMob);
+  if(byMob.length){
+    h+=`<h4 style="margin:18px 0 6px">By mob — what's getting crowd controlled<span class="role" style="text-transform:none;letter-spacing:0;font-weight:400"> — which mob, which CC, how many times applied</span></h4>
+      <table><thead><tr><th>Mob</th><th>Crowd control</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th></tr></thead><tbody>`;
+    let prev=null;
+    for(const r of byMob){
+      const mobCell = r.mob!==prev ? `<td class="pname">${esc(r.mob)}</td>` : `<td></td>`;
+      prev=r.mob;
+      h+=`<tr>${mobCell}<td>${esc(r.cc)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  return h;
+}
+// Pack-by-pack drill-down (OUR raid only — pull boundaries don't align across guilds).
+function trashPacksView(tr,d){
+  const groups=rowsOf(tr.packs);
+  if(!groups.length) return "";
+  let h=`<h2 class="section">Pack-by-Pack<span class="hint">Every trash pack ${esc(d.ours.title)} pulled, grouped by pack type and sorted worst-first by deaths. Expand a pack for each pull's mobs, exact kill order, deaths, and crowd control. Single-raid view (your raid) — pull boundaries don't line up across guilds. For the ours-vs-benchmark kill-order comparison, see <b>Same-Pack Kill Order</b> above.</span></h2>`;
+  for(const g of groups){
+    const avg=g.count?Math.round(g.clearMs/g.count/1000):0;
+    const meta=[`${g.count} pull${g.count>1?"s":""}`,`${g.deaths} death${g.deaths!==1?"s":""}`,g.cc?`${g.cc} CC`:null,`~${avg}s avg`].filter(Boolean).join(" · ");
+    h+=`<div class="boss"><h3>${esc(g.name)}<span class="badge">${meta}</span></h3>
+      <details><summary>Show ${g.count} pull${g.count>1?"s":""}</summary>${rowsOf(g.pulls).map((p,i)=>trashPull(p,i+1)).join("")}</details></div>`;
+  }
+  return h;
+}
+function trashPull(p,idx){
+  const mobs=rowsOf(p.mobs).map(m=>`${esc(m.name)}${m.count>1?` ×${m.count}`:""}`).join(", ");
+  const order=rowsOf(p.killOrder).map(k=>`${esc(k.mob)} <span class="num">${fmtTime(k.tSec*1000)}</span>`).join(` <span class="num">→</span> `);
+  const deaths=rowsOf(p.deaths), ccl=rowsOf(p.cc);
+  let h=`<div class="trpull"><div class="trhead"><b>Pull ${idx}</b> <span class="num">${fmtTime(p.clearMs)}${mobs?" · "+mobs:""}</span></div>`;
+  if(order.length) h+=`<div class="trseq"><span class="trlbl">Kill order</span> ${order}</div>`;
+  if(deaths.length) h+=`<div class="trseq"><span class="trlbl bad2">Deaths</span> `+deaths.map(x=>`<span style="color:${cc(x.cls)};font-weight:600">${esc(x.name)}</span> <span class="num">${esc(x.killedBy)} ${fmtTime(x.tSec*1000)}</span>`).join(" &nbsp; ")+`</div>`;
+  if(ccl.length) h+=`<div class="trseq"><span class="trlbl">CC</span> `+ccl.map(x=>`${esc(x.label)} → ${esc(x.mob)}${x.by?` <span class="num">by ${esc(x.by)}</span>`:""}`).join(" &nbsp; ")+`</div>`;
+  return h+`</div>`;
+}
+
+// Trash kill-order sub-tabs (Same-Pack Matches | Pairwise Priority). Native toggle, no re-render.
+function mountTrash(){
+  const el=document.getElementById("p-trash"); if(!el) return;
+  el.querySelectorAll(".btab[data-ktab]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.ktab;
+    el.querySelectorAll(".btab[data-ktab]").forEach(x=>x.classList.toggle("on",x.dataset.ktab===k));
+    el.querySelectorAll(".bsub[data-ktab]").forEach(x=>x.classList.toggle("active",x.dataset.ktab===k));
+  }));
+}
 function render(){
   const d=DATA; if(!d){document.getElementById("app").innerHTML="<p>No data.</p>";return;}
   let h=`<header class="hero">
@@ -772,15 +972,17 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="bosses">Execution</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="bosses">Execution</div><div class="tab" data-t="trash">Trash</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-composition">${renderComposition(d)}</div>
   <div class="panel" id="p-enchants">${renderEnchants(d)}</div>
   <div class="panel" id="p-bosses"></div>
+  <div class="panel" id="p-trash">${renderTrash(d)}</div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;
   document.getElementById("app").innerHTML=h;
   mountOverview();
   mountBosses();
+  mountTrash();
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));

@@ -157,11 +157,12 @@ the static template, with no model in the path.
      --ours-parses data/ours-parses.json --theirs-parses data/demo-parses.json \
      --ours-name "Our Raid" --theirs-name "Benchmark" --zone-name "SSC / TK" --out-file reports/deepdive.html
    ```
-   The report has four top-level tabs: **Overview | Composition | Prep | Execution**.
+   The report has five top-level tabs: **Overview | Composition | Prep | Execution | Trash**.
    The structure is a funnel: **Overview** = where's the gap at a glance; **Composition** = roster
    makeup & buffs; **Prep** = did we show up ready; **Execution** = raid-wide gap analysis + per-boss
-   drill-down. Every section compares ours vs the benchmark with a delta — the report exists to point
-   at the highest-leverage gaps, so weak/ambiguous metrics are deliberately omitted.
+   drill-down; **Trash** = how the raid handles trash packs. Every section compares ours vs the
+   benchmark with a delta — the report exists to point at the highest-leverage gaps, so weak/ambiguous
+   metrics are deliberately omitted.
    - **Overview**: leads with a **"Biggest Gaps vs Benchmark" scorecard** (`biggest_gaps` in
      build_deepdive.py → `gapsScorecard()`) — a single ranking pass over every tracked dimension
      (parse, kill time, raid DPS, deaths, overheal, activity, avoidable dmg/s, flask, food, enchants,
@@ -261,6 +262,62 @@ the static template, with no model in the path.
      - **Phases** — per-phase duration + share of kill with a delta, from `fight.phaseTransitions`
        (single-phase fights show a graceful note). TBC has no phase *names*, so phases are
        numbered.
+   - **Trash** (a whole-night view of how the raid handles trash — `build_trash()` →
+     `renderTrash()`): WCL already splits trash into discrete pull **segments** (`fights(killType:Trash)`),
+     each auto-named after its notable mob, with `enemyNPCs` (mob ids + counts) and `masterData.actors`
+     resolving ids→names. The tab follows the **hybrid** comparison rule: benchmark-compare only what
+     aligns across guilds (pull boundaries don't), keep per-pull detail single-raid (ours).
+     **Scoped to the shared zone(s):** the two reports can cover different content (ours SSC+TK, theirs
+     SSC+Gruul), so trash is restricted to the `gameZone`s present in **both** reports' trash
+     (`_trash_zones` intersection → `_filter_to_zones` drops every off-zone fight's deaths/kills/CC),
+     mirroring how the boss tab only compares shared encounters. Each trash fight carries `gameZone{id name}`
+     (added to the fetch query); the shared zone name(s) show in the Glance hint (`trash.zones`). Older data
+     folders without `gameZone` skip filtering gracefully. Five sections:
+     - **Trash at a Glance** (`_trash_glance`) — total trash pulls, clear time, and deaths, ours vs
+       benchmark. Clear time is a **rough proxy** (routes/skips differ between guilds — labeled as such);
+       deaths are the clean signal.
+     - **What's Killing Us on Trash** (`trash_death_causes`) — player trash deaths aggregated by killing
+       blow, ranked worst-for-us, ours vs benchmark. Mob/ability killing blows align across guilds. Same
+       idea as the boss "What's Killing Us." (Source: the **friendly Deaths table** over all trash fights
+       — entries carry the killing-blow *name* and a `fight` id; events only carry the ability's game id.)
+     - **Kill Order vs Benchmark** — two complementary lenses behind a **sub-tab toggle** (`.btab[data-ktab]`,
+       wired by `mountTrash()`); **Same-Pack Matches is the default** (primary), **Pairwise Priority** is the
+       secondary tab:
+       - **Same-Pack Matches** (`trash_identical_packs` → `sameMatchesBody`/`killSeq`) — kill order **only for
+         packs both raids pulled with the EXACT same roster** (same mob types AND counts; `_roster_sig` =
+         sorted `(name, count)` tuples from `enemyNPCs`). The high-confidence "same pack" test: identical
+         roster ⇒ genuinely the same pack, and a merged/chain-pull won't match a clean pack's roster, so
+         messy pulls drop out automatically. `_typical_order` gives each side's typical order (median death
+         time per type, averaged over that roster's pulls); shown as your sequence over the benchmark's, chips
+         with arrows, **flagging any mob killed in a different slot**. ~6 multi-mob matches on the test pair
+         (vs 8 names-only — requiring counts costs ~nothing, adds certainty). This is the trustworthy 1:1 view.
+       - **Pairwise Priority** (`trash_pairwise_priority` + `trash_kill_priority` → `pairwiseBody`/`killLadder`)
+         — the broad view that needs **no** pack identity: a ranking **ladder (SVG slopegraph)** of every mob's
+         kill-priority pooled across all pulls (`trash_kill_priority`, your order vs benchmark, steep
+         highlighted lines = big gaps), plus a **per-pair head-to-head table** (`trash_pairwise_priority`:
+         "when A and B are both up, who dies first?", ranked by divergence, reversals flagged). Kill priority
+         is fundamentally pairwise and a pair's order survives the merge/split that breaks pack identity, so it
+         covers ~35 pairs / 94 obs vs the 6 exact packs. Descriptive, never scored.
+       **Why both:** you can't reliably identify "the same pack" across guilds in general (WCL has no pack
+       object, no position in TBC, segment names are a single notable mob). Same-Pack gives a few rock-solid
+       1:1 comparisons; Pairwise gives broad coverage. (Earlier name-matching wrongly paired a 6-mob pull with
+       a 2-mob pull; composition-by-type-set ignored counts.)
+     - **Crowd Control on Trash** (`trash_cc_compare` + `trash_cc_by_mob`) — first a by-type summary
+       (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) ours vs benchmark, then a **by-mob
+       breakdown** (`trash_cc_by_mob` → one row per (mob, CC type): which mob gets CC'd, by which CC, how
+       often, ours vs benchmark — grouped per mob, most-CC'd first). The by-mob view is the actionable one:
+       e.g. benchmark Polymorphs the Greyheart Nether-Mage 73× and you 2×, pinpointing a caster you should
+       be CCing. All **descriptive** (more CC isn't better — a raid that safely AoEs trash may need little).
+       Count = landed `applydebuff` events. **CC is classified by NAME, not spell id** — unlike consumable
+       *buffs* (which WCL renames to their effect, so those are id-classified), CC *debuffs* keep their real
+       spell name, so a curated name allowlist (`report_common.HARD_CC_NAMES` / `cc_label()`) is reliable and
+       rank-proof, and it correctly excludes look-alikes (Ice Trap/Explosive Trap are AoE slow/damage; Kidney
+       Shot/Cheap Shot/Gouge/Bash/Hammer of Justice are rotational stuns, not a lockout).
+     - **Pack-by-Pack** (`trash_packs`) — **single-raid (ours)** drill-down: every pack grouped by pull
+       name, sorted worst-first by deaths, each expandable (`<details>`) to per-pull mobs, **exact kill-order
+       timeline**, deaths (player + killing blow + time), and **which mob got CC'd, by whom**. No benchmark
+       comparison here (that's the Matched Packs section) — pull boundaries don't align, so this is your
+       raid's detail. The TODO's "per-pack panels + intra-pack kill order" ask. (Raid markers dropped — not needed.)
 
    Heavy tables (dd/heal/dt/intr/disp/**deaths**) are fetched only for the shared bosses via
    `fetch_report.py --full-encounters <ids>` since the responses are large. `phaseTransitions`
@@ -268,6 +325,14 @@ the static template, with no model in the path.
    counts** come from one extra cheap query per report (`fights(killType:Encounters){encounterID kill}`
    → `attempts.json`); `attempt_map` in build_deepdive tallies kills vs wipes per boss (graceful — an
    older data folder without `attempts.json` just builds without the wipe views).
+
+   **Trash data** is fetched **on by default** by `fetch_report.fetch()` (also runnable alone via
+   `fetch_report.py --trash-only`) and is cheap (~7–9 calls): trash is split into pull segments, and
+   all enemy deaths, player deaths, and CC events come back in **single paginated `events` calls**
+   keyed by `fight` (not one call per pull). Writes `trash.json` (pulls + NPC/player name actors),
+   `trash-deaths.json` (enemy kill-order events + friendly death-table entries), and `trash-cc.json`
+   (hard-CC aura table + per-CC-id apply events). `build_trash()` is graceful — a data folder predating
+   the Trash tab (no `trash.json`) just renders a "no trash data" note and the rest of the report builds.
 
 **TBC Classic data caveats (verified):**
 - `playerDetails.combatantInfo.potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't use
@@ -291,6 +356,14 @@ the static template, with no model in the path.
   P1) — `int_compare`/`unkicked_compare` handle the empty table gracefully. Don't treat empty as a bug.
 - "Damage taken (ex-tanks)" is a proxy for avoidable damage, not a true avoidable-only
   figure (it includes some unavoidable raid damage). Top-sources list is the actionable part.
+- **Trash clear time and pull counts** are a *rough* cross-guild proxy — routes, skips, and how a
+  guild chain-pulls all differ, so don't over-read a clear-time delta; **trash deaths** are the clean
+  signal. **Trash pull boundaries don't align across guilds**, which is why the benchmark comparison
+  is done at the night-total and mob-*type* level (which align) and the per-pull Pack-by-Pack view is
+  single-raid (ours) only.
+- **Trash kill priority and CC are descriptive, not better/worse.** Kill order is pull-dependent and
+  CC needs differ by strategy (an AoE-zerg comp uses little CC) — both are framed as "here's how you
+  differ from the benchmark," never scored, per the product soul.
 
 **Next-pass ideas (proven data pattern, not yet built):** DPS/healer cooldown usage
 (`Casts` filtered to CD ability IDs — Combustion, Recklessness, Death Wish, trinkets,

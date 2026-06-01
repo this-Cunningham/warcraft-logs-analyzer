@@ -11,11 +11,13 @@ self-contained template (templates/report.html) renders.
 """
 
 import argparse
+import itertools
 import os
+import statistics
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # find sibling modules
-from report_common import avg, index_by_encounter, get_fights, read_json, render_report, ssum
+from report_common import avg, cc_label, index_by_encounter, get_fights, read_json, render_report, ssum
 
 _ROLE_LABEL = {"tanks": "tank", "healers": "healer", "dps": "dps"}
 
@@ -1011,6 +1013,382 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
     return out
 
 
+# ---------- TRASH ANALYSIS (the Trash tab) ----------
+# WCL splits trash into discrete pull segments; we layer four views on top, all honoring the
+# product's hybrid rule: benchmark-compare only what aligns across guilds (clear time, deaths,
+# CC counts, mob-type kill priority — mob TYPES align even when pull boundaries don't), and keep
+# the per-pull drill-down single-raid (ours). Kill order & CC are DESCRIPTIVE vs the benchmark,
+# never moralized — if the benchmark CCs more or focuses a target later, that's the bar, not a fault.
+def load_trash(directory):
+    """Bundle the three trash files for one report. Returns None when trash wasn't fetched (older
+    data folders predate the Trash tab), so the build degrades gracefully."""
+    tp = os.path.join(directory, "trash.json")
+    if not os.path.isfile(tp):
+        return None
+    trash = read_json(tp)
+
+    def _rj(name, default):
+        p = os.path.join(directory, name)
+        return read_json(p) if os.path.isfile(p) else default
+
+    deaths = _rj("trash-deaths.json", {"friendly": [], "enemy": []})
+    cc = _rj("trash-cc.json", {"auras": [], "events": {}})
+    return {
+        "fights": trash.get("fights") or [],
+        "npc": {int(a["id"]): a.get("name") for a in (trash.get("npcActors") or []) if a.get("id") is not None},
+        "player": {int(a["id"]): a.get("name") for a in (trash.get("playerActors") or []) if a.get("id") is not None},
+        "friendly": deaths.get("friendly") or [],
+        "enemy": deaths.get("enemy") or [],
+        "cc": cc,
+    }
+
+
+def _trash_glance(t):
+    clear = ssum([int(f["endTime"]) - int(f["startTime"]) for f in t["fights"]])
+    return {"packs": len(t["fights"]), "clearMs": clear, "deaths": len(t["friendly"])}
+
+
+def _trash_zones(side):
+    """Set of gameZone ids that this report's trash happened in (e.g. {548} for SSC)."""
+    return {(f.get("gameZone") or {}).get("id") for f in side["fights"]
+            if (f.get("gameZone") or {}).get("id") is not None}
+
+
+def _zone_names(side, zone_ids):
+    """Pretty names for the given zone ids, from this report's trash fights."""
+    names = {}
+    for f in side["fights"]:
+        gz = f.get("gameZone") or {}
+        if gz.get("id") in zone_ids and gz.get("name"):
+            names.setdefault(gz["id"], gz["name"])
+    return [names[z] for z in sorted(names) if z in names]
+
+
+def _filter_to_zones(side, zone_ids):
+    """Restrict a side's trash to fights in `zone_ids`, dropping the deaths/kills/CC events of any
+    fight outside them. This is how the trash comparison is scoped to the zone(s) BOTH raids did —
+    so one raid's Gruul/TK trash doesn't pollute a comparison that should be SSC-only."""
+    fights = [f for f in side["fights"] if (f.get("gameZone") or {}).get("id") in zone_ids]
+    keep = {int(f["id"]) for f in fights}
+    cc = side["cc"]
+    out = dict(side)
+    out["fights"] = fights
+    out["enemy"] = [e for e in side["enemy"] if e.get("fight") in keep]
+    out["friendly"] = [d for d in side["friendly"] if d.get("fight") in keep]
+    out["cc"] = {"auras": cc.get("auras") or [],
+                 "events": {gid: [ev for ev in evs if ev.get("fight") in keep]
+                            for gid, evs in (cc.get("events") or {}).items()}}
+    return out
+
+
+def _cc_id_labels(t):
+    """spell id -> canonical hard-CC label, for the CC auras present in this report."""
+    return {int(a["guid"]): cc_label(a.get("name"))
+            for a in (t["cc"].get("auras") or []) if a.get("guid") is not None}
+
+
+def trash_death_causes(o, t, n=15):
+    """Player trash deaths aggregated by killing blow, ranked worst-for-us, ours vs benchmark.
+    Mob/ability killing blows align across guilds, so this is a clean benchmark comparison."""
+    def agg(side):
+        m = {}
+        for d in side["friendly"]:
+            kb = (d.get("killingBlow") or {}).get("name") or "Unknown"
+            m[kb] = m.get(kb, 0) + 1
+        return m
+    oa, ta = agg(o), agg(t)
+    rows = [{"cause": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in set(oa) | set(ta)]
+    rows.sort(key=lambda r: (-(r["ours"]), -(r["ours"] - r["theirs"]), -r["theirs"]))
+    return rows[:n]
+
+
+def trash_cc_compare(o, t):
+    """Hard-CC applications by type, ours vs benchmark (descriptive — more CC isn't better or
+    worse, the benchmark sets the bar). Count = landed applications (applydebuff events)."""
+    def agg(side):
+        labels = _cc_id_labels(side)
+        m = {}
+        for gid, evs in (side["cc"].get("events") or {}).items():
+            lab = labels.get(int(gid)) or "CC"
+            m[lab] = m.get(lab, 0) + len(evs)
+        return m
+    oa, ta = agg(o), agg(t)
+    rows = [{"label": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in set(oa) | set(ta)]
+    rows.sort(key=lambda r: -max(r["ours"], r["theirs"]))
+    return rows, {"ours": sum(oa.values()), "theirs": sum(ta.values())}
+
+
+def trash_cc_by_mob(o, t):
+    """Which mob types get crowd-controlled, by CC type and how often — ours vs benchmark. One row per
+    (mob, CC) combo. Rows are grouped by mob (most-CC'd mob first) so you can see, e.g., 'Greyheart
+    Nether-Mage: Polymorph ×40'. Counts = landed `applydebuff` events on that mob. Descriptive."""
+    def agg(side):
+        labels = _cc_id_labels(side)
+        npc = side["npc"]
+        m = {}
+        for gid, evs in (side["cc"].get("events") or {}).items():
+            lab = labels.get(int(gid)) or "CC"
+            for ev in evs:
+                mob = npc.get(ev["targetID"]) or "Unknown"
+                m[(mob, lab)] = m.get((mob, lab), 0) + 1
+        return m
+    oa, ta = agg(o), agg(t)
+    rows = [{"mob": mob, "cc": lab, "ours": oa.get((mob, lab), 0), "theirs": ta.get((mob, lab), 0)}
+            for (mob, lab) in set(oa) | set(ta)]
+    mob_total = {}
+    for r in rows:
+        mob_total[r["mob"]] = mob_total.get(r["mob"], 0) + max(r["ours"], r["theirs"])
+    # Group a mob's CC rows together; rank mobs by how much they're CC'd, then biggest CC count first.
+    rows.sort(key=lambda r: (-mob_total[r["mob"]], r["mob"], -max(r["ours"], r["theirs"]), r["cc"]))
+    return rows
+
+
+def _pull_type_medians(pull):
+    """For one pull, {mob: median death time}. Empty when <2 mob types (no pair to compare).
+    Using the median of each type's instance deaths keeps a straggler from flipping the order."""
+    by = {}
+    for k in pull["killOrder"]:
+        if k.get("mob"):
+            by.setdefault(k["mob"], []).append(k["tSec"])
+    if len(by) < 2:
+        return {}
+    return {m: statistics.median(v) for m, v in by.items()}
+
+
+def _trash_pull_records(t):
+    """Flat list of per-pull records (one per WCL trash segment): segment name, mobs, intra-pull kill
+    order, player deaths, CC. Shared by the per-pack drill-down and the kill-order comparison."""
+    npc, player = t["npc"], t["player"]
+    labels = _cc_id_labels(t)
+    kills_by_fight, deaths_by_fight, cc_by_fight = {}, {}, {}
+    for e in t["enemy"]:
+        kills_by_fight.setdefault(e["fight"], []).append(e)
+    for d in t["friendly"]:
+        deaths_by_fight.setdefault(d.get("fight"), []).append(d)
+    for gid, evs in (t["cc"].get("events") or {}).items():
+        lab = labels.get(int(gid)) or "CC"
+        for ev in evs:
+            cc_by_fight.setdefault(ev["fight"], []).append((ev, lab))
+
+    pulls = []
+    for f in t["fights"]:
+        fid, start, end = int(f["id"]), int(f["startTime"]), int(f["endTime"])
+
+        def sec(ts):
+            return round((int(ts) - start) / 1000)
+
+        mobs = [{"name": npc.get(int(x["id"]), "Unknown"), "count": int(x.get("instanceCount") or 1)}
+                for x in (f.get("enemyNPCs") or [])]
+        order = [{"mob": npc.get(e["targetID"]), "tSec": sec(e["t"])}
+                 for e in sorted(kills_by_fight.get(fid, []), key=lambda e: e["t"])
+                 if npc.get(e["targetID"]) and npc.get(e["targetID"]) != "Environment"]
+        deaths = [{"name": d.get("name"), "cls": d.get("type"),
+                   "killedBy": (d.get("killingBlow") or {}).get("name") or "Unknown",
+                   "tSec": sec(d.get("timestamp", start))}
+                  for d in sorted(deaths_by_fight.get(fid, []), key=lambda d: d.get("timestamp", 0))]
+        cc = [{"mob": npc.get(ev["targetID"], "Unknown"), "label": lab, "by": player.get(ev["sourceID"])}
+              for ev, lab in sorted(cc_by_fight.get(fid, []), key=lambda x: x[0]["t"])]
+        pulls.append({"name": f["name"], "clearMs": end - start, "mobs": mobs,
+                      "killOrder": order, "deaths": deaths, "cc": cc})
+    return pulls
+
+
+def trash_packs(pulls):
+    """Group OUR pull records by segment name into packs (single-raid drill-down), sorted
+    most-problematic first (deaths, then repeat count, then time)."""
+    groups = {}
+    for p in pulls:
+        g = groups.setdefault(p["name"], {"name": p["name"], "pulls": [], "deaths": 0, "cc": 0, "clearMs": 0})
+        g["pulls"].append(p)
+        g["deaths"] += len(p["deaths"])
+        g["cc"] += len(p["cc"])
+        g["clearMs"] += p["clearMs"]
+    out = list(groups.values())
+    for g in out:
+        g["count"] = len(g["pulls"])
+    out.sort(key=lambda g: (-g["deaths"], -g["count"], -g["clearMs"]))
+    return out
+
+
+def _roster_sig(pull):
+    """A pull's exact roster signature: sorted ((mob_name, count), ...) from its enemyNPCs — names
+    AND counts. Two pulls with the same signature are genuinely the same pack (and a merged chain-pull
+    won't match a clean single pack), which is how we know a kill-order comparison is like-for-like."""
+    counts = {}
+    for m in pull["mobs"]:
+        nm = m.get("name")
+        if nm and nm != "Unknown":
+            counts[nm] = counts.get(nm, 0) + int(m.get("count") or 1)
+    return tuple(sorted(counts.items()))
+
+
+def _typical_order(pulls):
+    """Typical kill order (list of mob types, first-killed first) across a set of pulls: average each
+    type's normalized death position (median death time per type per pull) and sort earliest first."""
+    pos = {}
+    for p in pulls:
+        med = _pull_type_medians(p)  # {} when <2 types
+        if not med:
+            continue
+        ordered = sorted(med, key=lambda m: med[m])
+        denom = len(ordered) - 1
+        for rank, m in enumerate(ordered):
+            pos.setdefault(m, []).append(rank / denom)
+    return sorted(pos, key=lambda m: sum(pos[m]) / len(pos[m]))
+
+
+def trash_identical_packs(o_pulls, t_pulls):
+    """Kill-order comparison restricted to packs both raids pulled with the EXACT same roster — same
+    mob types AND counts (`_roster_sig`). This is the high-confidence 'same pack' test the user asked
+    for: it guarantees a like-for-like comparison and inherently drops merged/chain-pulls (their roster
+    won't match a clean pack's). For each shared roster it returns the typical kill order on each side;
+    sorted by how differently the two raids ordered the same mobs."""
+    def by_sig(pulls):
+        g = {}
+        for p in pulls:
+            sig = _roster_sig(p)
+            if len(sig) >= 2:  # need >= 2 mob types for an order to exist
+                g.setdefault(sig, []).append(p)
+        return g
+
+    og, tg = by_sig(o_pulls), by_sig(t_pulls)
+    rows = []
+    for sig in set(og) & set(tg):
+        o_order, t_order = _typical_order(og[sig]), _typical_order(tg[sig])
+        if len(o_order) < 2 or len(t_order) < 2:
+            continue
+        trank = {m: i for i, m in enumerate(t_order)}
+        orank = {m: i for i, m in enumerate(o_order)}
+        divergence = sum(abs(orank[m] - trank.get(m, orank[m])) for m in o_order)
+        rows.append({
+            "roster": [{"name": n, "count": c} for n, c in sig],
+            "ours": o_order, "theirs": t_order,
+            "oursPulls": len(og[sig]), "theirsPulls": len(tg[sig]),
+            "divergence": divergence,
+        })
+    rows.sort(key=lambda r: (-r["divergence"], -(r["oursPulls"] + r["theirsPulls"])))
+    return rows
+
+
+# --- Broad "Pairwise Priority" sub-tab: kill-priority pooled across ALL pulls (no pack matching) ---
+def _kill_priority_one(t):
+    """Per mob TYPE, an index 0-100 (100 = consistently the FIRST type focused in its pulls). Only
+    MULTI-type pulls count; a type's death time in a pull is the median of its instances'. Feeds the
+    pairwise sub-tab's ladder. Returns {mob: (index, multi-type-pull samples)}."""
+    npc = t["npc"]
+    kills_by_fight = {}
+    for e in t["enemy"]:
+        kills_by_fight.setdefault(e["fight"], []).append(e)
+    pos = {}
+    for kills in kills_by_fight.values():
+        by_type = {}
+        for e in kills:
+            mob = npc.get(e["targetID"])
+            if not mob or mob == "Environment":
+                continue
+            by_type.setdefault(mob, []).append(int(e["t"]))
+        if len(by_type) < 2:
+            continue
+        order = sorted(by_type, key=lambda m: sorted(by_type[m])[len(by_type[m]) // 2])
+        denom = len(order) - 1
+        for rank, m in enumerate(order):
+            pos.setdefault(m, []).append(rank / denom)
+    return {m: (round((1 - sum(v) / len(v)) * 100), len(v)) for m, v in pos.items()}
+
+
+def trash_kill_priority(o, t, min_samples=2):
+    """Mob-type kill-priority index, ours vs benchmark, for the ladder. Keeps mob types seen in at
+    least `min_samples` multi-type pulls on either side; sorted by biggest divergence first."""
+    oa, ta = _kill_priority_one(o), _kill_priority_one(t)
+    rows = []
+    for mob in set(oa) | set(ta):
+        oi, osn = oa.get(mob, (None, 0))
+        ti, tsn = ta.get(mob, (None, 0))
+        if max(osn, tsn) < min_samples:
+            continue
+        rows.append({"mob": mob, "ours": oi, "theirs": ti, "oursSamples": osn, "theirsSamples": tsn,
+                     "both": oi is not None and ti is not None})
+    rows.sort(key=lambda r: (not r["both"], -abs((r["ours"] or 0) - (r["theirs"] or 0))))
+    return rows
+
+
+def _pair_table(pulls):
+    """For every pair of mob types that co-occur in a pull, how often the alphabetically-first one
+    died first. Returns {(a, b): [a_first_count, total_pulls]}."""
+    tab = {}
+    for p in pulls:
+        med = _pull_type_medians(p)
+        for a, b in itertools.combinations(sorted(med), 2):
+            rec = tab.setdefault((a, b), [0, 0])
+            rec[1] += 1
+            if med[a] < med[b]:
+                rec[0] += 1
+    return tab
+
+
+def trash_pairwise_priority(o_pulls, t_pulls, min_pulls=2):
+    """Broad target-priority comparison that needs no pack identity: for each pair of mob types both
+    raids fought together, how often each kills the first before the second. A pair's order survives
+    the merge/split that breaks pack matching, so it covers far more than exact-pack matching.
+    Each row orients the pair so `lead` is the mob the benchmark kills first more often."""
+    ot, tt = _pair_table(o_pulls), _pair_table(t_pulls)
+    rows = []
+    for key in set(ot) & set(tt):
+        a, b = key
+        o_first, o_tot = ot[key]
+        t_first, t_tot = tt[key]
+        if o_tot < min_pulls or t_tot < min_pulls:
+            continue
+        o_rate, t_rate = o_first / o_tot, t_first / t_tot
+        if t_rate >= 0.5:
+            lead, trail, ours, theirs = a, b, o_rate, t_rate
+        else:
+            lead, trail, ours, theirs = b, a, 1 - o_rate, 1 - t_rate
+        rows.append({
+            "lead": lead, "trail": trail,
+            "ours": round(ours * 100), "theirs": round(theirs * 100),
+            "oursPulls": o_tot, "theirsPulls": t_tot,
+            "divergence": round(abs(ours - theirs) * 100),
+            "reversed": (ours < 0.5),
+        })
+    rows.sort(key=lambda r: (-r["divergence"], -min(r["oursPulls"], r["theirsPulls"])))
+    return rows
+
+
+def build_trash(ours_dir, theirs_dir):
+    """Assemble the Trash tab payload. Present only when both reports have trash data."""
+    o, t = load_trash(ours_dir), load_trash(theirs_dir)
+    if not o or not t or (not o["fights"] and not t["fights"]):
+        return {"present": False}
+
+    # Restrict the comparison to the zone(s) BOTH raids did trash in (e.g. just SSC) — the two reports
+    # can cover different content (ours SSC+TK, theirs SSC+Gruul), and comparing across non-shared
+    # zones is apples-to-oranges (a 0 just means "they didn't go there"). Mirrors how the boss tab
+    # only compares shared encounters. Needs gameZone on trash fights (older data folders lack it →
+    # _trash_zones is empty → no filtering, graceful).
+    shared_zones = _trash_zones(o) & _trash_zones(t)
+    zone_names = _zone_names(o, shared_zones) or _zone_names(t, shared_zones)
+    if shared_zones:
+        o, t = _filter_to_zones(o, shared_zones), _filter_to_zones(t, shared_zones)
+    if not o["fights"] and not t["fights"]:
+        return {"present": False}
+
+    cc_rows, cc_tot = trash_cc_compare(o, t)
+    o_pulls, t_pulls = _trash_pull_records(o), _trash_pull_records(t)
+    return {
+        "present": True,
+        "zones": zone_names,
+        "glance": {"ours": _trash_glance(o), "theirs": _trash_glance(t)},
+        "deathCauses": trash_death_causes(o, t),
+        # Kill order — two lenses: exact-roster 1:1 packs (primary), and broad pairwise (sub-tab).
+        "identicalPacks": trash_identical_packs(o_pulls, t_pulls),
+        "killPriority": trash_kill_priority(o, t),
+        "pairwisePriority": trash_pairwise_priority(o_pulls, t_pulls),
+        "cc": cc_rows, "ccTotals": cc_tot, "ccByMob": trash_cc_by_mob(o, t),
+        "packs": trash_packs(o_pulls),
+    }
+
+
 # ---------- ASSEMBLE ----------
 def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
           ours_name="Our Raid", theirs_name="Benchmark", zone_name=""):
@@ -1224,13 +1602,16 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 
+    # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
+    trash = build_trash(ours_dir, theirs_dir)
+
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
-                 "quality": quality, "perBoss": per_boss, "efficiency": eff},
+                 "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
     }
     out_full = render_report(payload, out_file)
     print("Deep-dive report written to {} ({} shared bosses, {} with buff/debuff data)".format(

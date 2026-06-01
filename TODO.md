@@ -43,20 +43,17 @@ Sketch / data already proven available:
 
 ---
 
-## TODO: "Trash" tab — per-trash-pack panels + intra-pack kill order
+## DONE: "Trash" tab — per-trash-pack panels + intra-pack kill order
 
-> Add a "Trash" tab that shows each trash pack, similar to the boss panels. Different stats per
-> pack than bosses. Especially interested in **kill order within each pack** — "Mob X was killed
-> first within trash pack group Y".
+Shipped. The **Trash** tab has five sections — Trash at a Glance, What's Killing Us on Trash,
+Kill Priority by Mob Type (descriptive), Crowd Control on Trash (descriptive), and a single-raid
+Pack-by-Pack drill-down with intra-pack kill order, deaths, and per-mob CC. Hybrid comparison
+(benchmark on night-totals + mob-type; per-pull detail ours-only). On by default. See SKILL.md
+for the data sources and caveats.
 
-Feasibility / data exploration needed (not yet confirmed):
-- `report.fights(killType:Trash)` returns trash segments — need to check what WCL groups as a
-  "pack" vs individual mobs, and whether segment boundaries line up with how players perceive packs.
-- Per-mob death/kill timing: `Deaths`/`DamageDone` tables filtered to trash fightIDs, or an event
-  scan for enemy `death` events to get per-mob kill timestamps → derive intra-pack kill order.
-- Likely-useful per-pack stats (different from bosses): clear time, # mobs, mob kill order +
-  timestamps, damage taken during the pack, deaths, CC/interrupts used, lust used on trash (waste?).
-- Open Qs: how to define/segment a "pack" (WCL trash segments, time-gap clustering, or pull
-  markers)? How much does this bloat fetch/points (trash is a lot of fights)? Probably gate it
-  behind a flag so the default report stays lean. Verify the whole thing is even cleanly derivable
-  before building — this one's a research spike first.
+**Next-pass ideas surfaced while building it** (not yet done):
+- Feed the big trash-deaths gap (e.g. 48 vs 11) into the Overview **Biggest Gaps** scorecard — it's
+  a high-leverage gap that currently only lives in the Trash tab.
+- **Lust/cooldowns on trash** as a *descriptive* (not "waste") comparison — the benchmark sets the bar.
+- **Time-gap clustering** of consecutive pulls into player-perceived "packs," if WCL's per-pull
+  segmentation ever proves too granular for a given tier.

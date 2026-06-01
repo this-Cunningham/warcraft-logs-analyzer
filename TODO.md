@@ -60,3 +60,106 @@ Feasibility / data exploration needed (not yet confirmed):
   markers)? How much does this bloat fetch/points (trash is a lot of fights)? Probably gate it
   behind a flag so the default report stays lean. Verify the whole thing is even cleanly derivable
   before building — this one's a research spike first.
+
+---
+
+## TODO: time-resolved insights — mine the event stream & timelines (one level deeper than aggregates)
+
+> Everything today is a fight-total aggregate ("Raid DPS on Hydross: X vs Y"). The richest coaching
+> lives in *when* and *at what*: where in the fight did we fall behind, what was each role doing at
+> that moment, what were the melee/ranged actually targeting, when did cooldowns fire, when did the
+> deaths cascade? Derive second-order insights from the per-event timeline and compare the *shape* of
+> our fight against the benchmark's, not just the totals. The thing we want to be able to say:
+> *"your melee spent the first 30s on the wrong target."*
+
+This is a research-and-build track, not one feature. Below is what the WCL v2 data actually supports
+(verified live against a real SSC/TK report on 2026-06-01 — the current pipeline only ever calls
+`table`/`playerDetails`, so `events`/`graph` are untapped), the cost levers, and the candidate
+insights ranked by soul-fit. **Read "what's available vs not" first — it kills the literal
+positioning ask, and we don't want to re-spend API points re-discovering that.**
+
+### What's available vs not (verified — don't re-investigate)
+
+- **Not reachable via our API — per-actor positioning.** WCL *does* have position data for these
+  reports — the website "replay" works, and `ReportFight.boundingBox{minX,maxX,minY,maxY}` comes back
+  **populated** with real coordinate spans per boss (Hydross 5337×6062 units; SSC fights on map 332,
+  TK on map 334). But the **per-actor coordinate stream is not exposed through the public
+  client-credentials API we use**: across a full Hydross kill, all **17,062 events carried zero
+  `x`/`y`** — the keys aren't even present in the JSON, despite the populated bounding box. So "where
+  does tank 1 / a healer / the melee stand", spread-vs-stack, and boss-facing **cannot be built** from
+  the data our pipeline can reach. The only positional field the public API exposes is the whole-fight
+  `boundingBox` — one rectangle, not time-resolved and not per-role, so not actionable on its own.
+  **Caveat / one unopened door:** the per-actor stream *might* be reachable via the user-OAuth API
+  (authorization-code flow, not yet built — needs a one-time browser login) or a website-internal
+  endpoint; unconfirmed, don't rely on it, but it's the spike to run if positioning becomes a
+  priority. (Verified 2026-06-01 on report 1GHrpaNc2YM4hKTJ — note the earlier "TBC doesn't record
+  positions" framing was wrong: WCL records them, the public client API just withholds the per-actor
+  stream.)
+- **Available — targeting.** Every `cast` and `damage` event carries `targetID` (+ `targetInstance`
+  to tell apart multiple copies of the same add). `masterData.actors(type:"")` maps every id →
+  name/type for players AND all NPCs/adds in the fight (244 actors on the test pull). So we can
+  reconstruct *who each player was hitting, moment by moment.* (Note: stale `zzOLD…` totem actors
+  appear in the actor list — filter them.)
+- **Available and cheap — time-series curves.** `graph(dataType:…, viewBy:Source)` returns one
+  **pre-downsampled** series per player — ~38 points for a 98s fight (≈ one sample every 2.5s). This
+  *is* the "sample every 2s instead of every ms" idea, and WCL does it server-side for free, with no
+  raw-event pull, for DamageDone / Healing / Threat / etc.
+- **Available — threat over time.** `graph(dataType:Threat)` (~20 pts/fight) → aggro / threat-lead
+  insights ("a DPS overtook the tank on threat at 0:45"). Verify per-enemy bucketing before building.
+- **Unreliable in TBC — mana/resources.** `graph(dataType:Resources)` returned **0 series** on the
+  test fight and `hitPoints` on events was null — TBC logs are sparse here. Verify before promising
+  any OOM / mana-management insight; treat as not-available until proven otherwise.
+
+### Making it cheap (the cost question, answered)
+
+The granular stream is large, but volume is controllable:
+
+1. **Prefer `graph` over `events`** for anything that's a curve (DPS/HPS/threat over time). It's
+   already bucketed to ~2-3s server-side — one cheap call per fight, no pagination.
+2. **`filterExpression`** (verified, applied server-side on `events`/`graph`/`table`) — fetch only
+   the events you need (`type="cast"`, a target id, a source role) so volume is cut before it leaves
+   WCL. This is the lever that makes the targeting reconstruction affordable.
+3. **Reconstruct target-over-time from cast/damage events you'd pull anyway** — players act every GCD
+   (~1.5s), so target resolution is naturally ~1-2s with no extra sampling cost.
+4. **Only the shared bosses, only the kill** (one clean pull per boss, not every wipe), and **cache
+   to disk** — a finished fight's events never change. Extends the existing `data/<code>` pattern.
+
+### Candidate insights (ranked by soul-fit)
+
+1. **Focus-fire / target-switching timeline** — *the flagship; reveals a real, actionable gap.* On
+   multi-target fights, at each ~2s tick compute the share of raid DPS hitting the single
+   most-damaged enemy (focus concentration), and per role the latency to switch onto a newly-spawned
+   priority add. Benchmark the *shape*: "melee took 24s to switch to the Tainted Elemental; benchmark
+   switched in 6s" / "raid DPS was split 60/40 across two adds for the first 30s." **Honesty guard:**
+   prefer measurable focus *concentration* and *switch latency* (boss-agnostic, no hardcoded "correct
+   target"); only where we encode TBC add priorities, label them explicitly as our assumption.
+   Data: `events(Casts/DamageDone)` + `targetID` + `Summons` for spawns.
+2. **Per-boss timeline vs benchmark** — *the user's "timeline view."* **✅ SHIPPED (2026-06-01).** A
+   per-boss **Timeline** sub-tab (default) overlays our DPS/HPS curve on the benchmark's, each kill
+   normalized to its own 0–100% so different-length fights line up, annotated with death ticks,
+   Bloodlust verticals, and phase dividers — surfacing *where* the fight was lost. Implementation note:
+   curves are **event-binned** (`_binned_curves` in fetch_report → `timeline-<enc>.json`; 40 buckets,
+   DamageDone+Healing `amount`), **not** `graph()` — the graph endpoint returns an opaque ~2× rolling
+   rate that would contradict the exact Raid DPS shown elsewhere. ~3–6 pts/boss/side. Rendered as a
+   hand-rolled inline SVG (`tlChart` in report.html). This established the timeline plumbing the
+   remaining candidates (#1 targeting, #3 cooldowns, #4 threat, #5 cascades) can reuse.
+3. **Cooldown-timing timeline.** When the big raid/personal CDs actually fired vs the optimal window —
+   Bloodlust, Power Infusion, trinkets, Combustion/Recklessness/Death Wish. "You lusted at 0:45 (P1)
+   vs benchmark at 2:30 (execute)." Data: `events(Casts)` filtered to a CD ability-id set. (Already
+   noted in SKILL "next-pass ideas"; the timeline framing makes it land.)
+4. **Threat / early-aggro check.** Did a DPS pull aggro off the tank, and when — and what was the
+   threat-lead margin at pull? "A mage overtook the tank on threat at 0:12 on three pulls." Action:
+   open softer / misdirect. Data: `graph(Threat)`. Cheap; honest; verify per-enemy bucketing first.
+5. **Death-cascade detection.** We already list deaths; the *timeline* reveals whether they cluster
+   (a cascade = one trigger — e.g. a healer death — not N independent mistakes). "3 of 4 deaths fell
+   within 8s at 2:10 — fix the trigger, not four players." Data: death timestamps (already fetched) —
+   near-free, just a clustering pass over data we have.
+6. **Add-handling speed.** Time from a priority add's spawn (`Summons` / first appearance) to its
+   death, ours vs benchmark. "The Tainted Elemental lived 14s longer for you." Pairs with #1.
+   Data: `Summons` events + enemy `death` events + `targetID`.
+
+Open questions across the track: which bosses have enough multi-target structure to make #1/#6 worth
+it (single-target fights → skip); how to align two fights of different length on one axis (% of fight
+vs absolute seconds); where these live in the report (a per-boss **Timeline** sub-tab under Execution
+feels right); and how much extra fetch/points the event pulls add over today's table-only budget
+(spike #2 first — cheapest, highest-value, and proves the timeline plumbing for the rest).

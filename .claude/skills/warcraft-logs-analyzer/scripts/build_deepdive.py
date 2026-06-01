@@ -454,6 +454,51 @@ def load_boss(directory, enc):
     return read_json(p)["reportData"]["report"]
 
 
+def load_timeline(directory, enc):
+    """Event-binned DPS/HPS curves for one boss (None if this data dir predates the feature)."""
+    p = os.path.join(directory, "timeline-{}.json".format(enc))
+    if not os.path.isfile(p):
+        return None
+    return read_json(p)
+
+
+def _marker_pct(ms_into, dur_ms):
+    if dur_ms <= 0:
+        return None
+    return round(max(0.0, min(100.0, ms_into / dur_ms * 100.0)), 1)
+
+
+def _side_timeline(curves, deaths, lust_sec, dur_ms, fight_info):
+    """One raid's timeline: DPS/HPS curves + markers placed as % of its OWN fight, so ours and
+    theirs overlay on a shared 0-100% axis even when the two kills differ in length."""
+    side = {
+        "dps": curves["dps"], "hps": curves["hps"],
+        "deaths": [{"pct": _marker_pct(d["tSec"] * 1000, dur_ms), "name": d["name"], "tSec": d["tSec"]}
+                   for d in deaths if _marker_pct(d["tSec"] * 1000, dur_ms) is not None],
+        "lustPct": _marker_pct((lust_sec or 0) * 1000, dur_ms) if lust_sec is not None else None,
+        "phases": [],
+    }
+    start = int(fight_info["start"])
+    for p in sorted(fight_info.get("phases") or [], key=lambda x: x["startTime"]):
+        pc = _marker_pct(int(p["startTime"]) - start, dur_ms)
+        if pc is not None and pc > 0.5:  # skip the phase-1 boundary sitting at ~0%
+            side["phases"].append({"id": int(p["id"]), "pct": pc})
+    return side
+
+
+def timeline_view(o_curves, t_curves, o_deaths, t_deaths, o_lust, t_lust, o_dur, t_dur, o_info, t_info):
+    """Per-boss DPS/HPS-over-time comparison. None if either side lacks curve data (older data dir),
+    so the template simply omits the Timeline sub-tab rather than rendering an empty chart."""
+    if not o_curves or not t_curves:
+        return None
+    return {
+        "n": o_curves.get("n", len(o_curves["dps"])),
+        "oursDurMs": int(o_dur), "theirsDurMs": int(t_dur),
+        "ours": _side_timeline(o_curves, o_deaths, o_lust, o_dur, o_info),
+        "theirs": _side_timeline(t_curves, t_deaths, t_lust, t_dur, t_info),
+    }
+
+
 # --- Dive Deeper output-quality extractors (heavy tables) ---
 def activity_pct(report, dur, dps_names):
     if not report.get("dd") or dur <= 0:
@@ -1158,10 +1203,16 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 if r["theirs"] is not None:
                     rec["t"].append(r["theirs"])
 
+        o_lust = lust_sec(_auras(o_b, "buffs"), ours_fights[enc]["start"])
+        t_lust = lust_sec(_auras(t_b, "buffs"), theirs_fights[enc]["start"])
+        o_deaths = death_list(o_b, ours_fights[enc]["start"])
+        t_deaths = death_list(t_b, theirs_fights[enc]["start"])
+        o_tl = load_timeline(ours_dir, enc)
+        t_tl = load_timeline(theirs_dir, enc)
         per_boss.append({
             "encounterID": b["encounterID"], "name": b["name"],
-            "oursLustSec": lust_sec(_auras(o_b, "buffs"), ours_fights[enc]["start"]),
-            "theirsLustSec": lust_sec(_auras(t_b, "buffs"), theirs_fights[enc]["start"]),
+            "oursLustSec": o_lust,
+            "theirsLustSec": t_lust,
             "oursRaidDps": rate(o_raid_dmg, o_dur), "theirsRaidDps": rate(t_raid_dmg, t_dur),
             "oursRaidHps": rate(o_raid_heal, o_dur), "theirsRaidHps": rate(t_raid_heal, t_dur),
             "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
@@ -1176,9 +1227,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "interrupts": int_compare(o_b, t_b, ours_spec, theirs_spec),
             "unkicked": unkicked_compare(o_b, t_b),
             "dispelsList": disp_compare(o_b, t_b),
-            "deaths": {"ours": death_list(o_b, ours_fights[enc]["start"]),
-                       "theirs": death_list(t_b, theirs_fights[enc]["start"])},
+            "deaths": {"ours": o_deaths, "theirs": t_deaths},
             "phases": phase_compare(ours_fights[enc], theirs_fights[enc]),
+            "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
+                                      o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
         })
 
     # Overall DTPS is time-weighted (total damage / total fight time).

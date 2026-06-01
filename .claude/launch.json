@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "report-preview",
-      "runtimeExecutable": "powershell",
-      "runtimeArgs": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".claude/preview-server.ps1"],
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [".claude/preview-server.py"],
       "port": 8753
     }
   ]

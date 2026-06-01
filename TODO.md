@@ -4,12 +4,27 @@ Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of eac
 
 ---
 
-## Open question: language / runtime — Node or Python instead of PowerShell?
+## ✅ RESOLVED: language / runtime — ported to Python (stdlib only)
 
 > Should this be written in Node/Python instead of PowerShell? Can it be written in
 > those and still work? Are those better than PowerShell (my guess is probably)?
 
-Notes / context to evaluate:
+**Decision (2026-05-31):** ported all scripts from PowerShell to **Python 3, standard
+library only** (no `pip install`), so the skill runs on macOS' system `python3` as well
+as Windows. **No redesign was needed** — the architecture is unchanged (OAuth → GraphQL
+POST → shape JSON → inject into the static HTML template); only the fetch/build layer
+moved. The `report.html` template and its `DATA` payload are untouched. The port was
+verified to reproduce the PowerShell output exactly against committed data (Overview,
+audit, efficiency, and all role-independent per-boss fields matched byte-for-byte; the
+only deltas were Python emitting proper JSON arrays where PowerShell's `ConvertTo-Json`
+collapsed single-element arrays to bare objects, plus deterministic kill-order iteration
+replacing PowerShell's nondeterministic hashtable-key order — both improvements). The
+`.ps1` files stay in `scripts/` until the Python path is validated on the user's Mac,
+then they get removed. Python files: `lib.py`, `query.py`, `introspect.py`,
+`fetch_report.py`, `build_comparison.py`, `build_deepdive.py`, `report_common.py`,
+`compare_raids.py`, plus `.claude/preview-server.py`.
+
+Original notes / context (for reference):
 - **Can it work in Node/Python?** Yes, cleanly. The whole pipeline is just: OAuth token →
   GraphQL POST → shape JSON → inject into a static HTML template. None of that is
   PowerShell-specific. The **report itself wouldn't change at all** — it's already a

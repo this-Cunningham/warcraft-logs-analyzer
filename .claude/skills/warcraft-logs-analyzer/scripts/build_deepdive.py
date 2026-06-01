@@ -159,10 +159,65 @@ def spec_comp_diff(ours_roster, theirs_roster):
 # Core enchantable slots in TBC (exclude rings = enchanter-only, offhand/ranged = conditional).
 ENCH_SLOTS = {0: "Head", 2: "Shoulder", 4: "Chest", 6: "Legs", 7: "Feet", 8: "Wrist", 9: "Hands", 14: "Back", 15: "Weapon"}
 
+# Windfury Totem buff spell ids (ranks) — a name-match on "Windfury" is the primary detector, these
+# back it up. A melee player in a Windfury group won't apply a weapon oil: Windfury substitutes for it.
+WINDFURY_IDS = {25587, 25528, 8512, 10613, 10614}
 
-def audit_report(directory, allow_names):
+
+def _is_melee(cls, spec):
+    """Melee specs that benefit from Windfury (and so legitimately skip a weapon oil). Warriors and
+    Rogues are melee in every spec; the hybrids only in their melee spec. Hunters are excluded — they
+    fight at range and don't substitute oil for Windfury (per the design note)."""
+    if cls in ("Warrior", "Rogue"):
+        return True
+    if not spec:
+        return False
+    if cls == "Shaman" and "Enhanc" in spec:
+        return True
+    if cls == "Paladin" and "Retribution" in spec:
+        return True
+    if cls == "Druid" and "Feral" in spec:
+        return True
+    return False
+
+
+def _is_windfury(aura):
+    """Did this buff aura come from Windfury Totem? Match the name (WCL logs it as 'Windfury Totem')
+    or a known rank spell id."""
+    nm = aura.get("name") or ""
+    guid = aura.get("guid")
+    if "Windfury" in nm:
+        return True
+    return guid is not None and int(guid) in WINDFURY_IDS
+
+
+def windfury_players(directory, enc_ids):
+    """Set of player NAMES who had the Windfury Totem buff on any shared boss. Read per-player from the
+    consumes-<enc>.json buff auras (scoped by sourceID), NOT the raid-aggregate Buffs table — Windfury
+    is group-scoped, so a raid can have a shaman yet a given player still be in a non-Windfury group.
+    Graceful: a data folder without consumes files just yields an empty set (no melee gets upgraded)."""
+    name_to_id = name_id_map(directory)
+    has = set()
+    for enc in enc_ids:
+        path = os.path.join(directory, "consumes-{}.json".format(enc))
+        if not os.path.isfile(path):
+            continue
+        per_player = read_json(path).get("perPlayer") or {}
+        for nm, pid in name_to_id.items():
+            if nm in has:
+                continue
+            for a in (per_player.get(str(pid)) or []):
+                if _is_windfury(a):
+                    has.add(nm)
+                    break
+    return has
+
+
+def audit_report(directory, allow_names, spec_map=None, windfury_names=None):
     pd = read_json(os.path.join(directory, "playerdetails.json"))
     pd = pd["reportData"]["report"]["playerDetails"]["data"]["playerDetails"]
+    spec_map = spec_map or {}
+    windfury_names = windfury_names or set()
     # Restrict to the shared-boss roster so the audit matches the Composition view.
     allow = set(allow_names)
     # A player who tanked some fights and DPS'd others appears in BOTH role buckets;
@@ -187,15 +242,22 @@ def audit_report(directory, allow_names):
                         missing.append(ENCH_SLOTS[slot])
                     if slot == 15 and item.get("temporaryEnchant") and int(item.get("temporaryEnchant", 0)) != 0:
                         weapon_oil = True
+            # Windfury substitutes for a weapon oil on melee: a melee player in a Windfury group who
+            # has no oil is NOT a gap. Casters/ranged always need their oil. Counting a well-prepared
+            # melee as "missing" would be a false positive that erodes trust in the audit.
+            melee = _is_melee(pl.get("type"), spec_map.get(pl["name"]))
+            windfury = pl["name"] in windfury_names
+            weapon_covered = weapon_oil or (melee and windfury)
             players.append({
                 "name": pl["name"], "class": pl.get("type"), "role": _ROLE_LABEL[rn],
                 "missingEnchants": missing, "missingCount": len(missing),
-                "weaponOil": weapon_oil,
+                "weaponOil": weapon_oil, "melee": melee, "windfury": windfury,
+                "weaponCovered": weapon_covered,
             })
     return {
         "players": players,
         "totalMissingEnchants": ssum([p["missingCount"] for p in players]),
-        "playersNoWeaponOil": len([p for p in players if not p["weaponOil"]]),
+        "playersNoWeaponOil": len([p for p in players if not p["weaponCovered"]]),
         "fullyEnchanted": len([p for p in players if p["missingCount"] == 0]),
         "playerCount": len(players),
     }
@@ -411,7 +473,11 @@ def per_player_consumables(directory, idx, enc_ids):
         boss_auras[enc] = amap
         boss_present[enc] = set(names)
 
-    # Union roster (class/role from first boss that has the player).
+    # Union roster (class/role from first boss that has the player). Spec is the player's PRIMARY
+    # (most-frequent) spec across the shared bosses — more actionable than a bare role label (a
+    # leader scanning offenders can tell the Holy Priest from the Disc Priest), and the same map
+    # the rest of the report uses, so the labels stay consistent.
+    prim = primary_spec_map(idx, enc_ids)
     info = {}
     for enc in enc_ids:
         for pl in ((idx.get(enc) or {}).get("players") or []):
@@ -432,7 +498,8 @@ def per_player_consumables(directory, idx, enc_ids):
                 cell = {"present": False}
             cells[str(b["encounterID"])] = cell
         players.append({
-            "name": nm, "class": meta["class"], "role": meta["role"], "cells": cells,
+            "name": nm, "class": meta["class"], "role": meta["role"],
+            "spec": prim.get(nm) or meta["role"], "cells": cells,
             "presentCount": present_n, "consumedCount": consumed_n, "foodCount": food_n,
         })
 
@@ -494,33 +561,31 @@ def load_timeline(directory, enc):
     return read_json(p)
 
 
-def _marker_pct(ms_into, dur_ms):
-    if dur_ms <= 0:
-        return None
-    return round(max(0.0, min(100.0, ms_into / dur_ms * 100.0)), 1)
-
-
 def _side_timeline(curves, deaths, lust_sec, dur_ms, fight_info):
-    """One raid's timeline: DPS/HPS curves + markers placed as % of its OWN fight, so ours and
-    theirs overlay on a shared 0-100% axis even when the two kills differ in length."""
+    """One raid's timeline: DPS/HPS curves + markers placed at ABSOLUTE seconds into its own fight.
+    Both sides share one real-time axis, so a shorter kill's line simply ends earlier — the gap is
+    visible rather than hidden by 0-100% normalization, and the reader can place events in real time
+    ('we lost DPS at 2:30')."""
+    dur_sec = round(dur_ms / 1000)
     side = {
         "dps": curves["dps"], "hps": curves["hps"],
-        "deaths": [{"pct": _marker_pct(d["tSec"] * 1000, dur_ms), "name": d["name"], "tSec": d["tSec"]}
-                   for d in deaths if _marker_pct(d["tSec"] * 1000, dur_ms) is not None],
-        "lustPct": _marker_pct((lust_sec or 0) * 1000, dur_ms) if lust_sec is not None else None,
+        "durSec": dur_sec,
+        "deaths": [{"tSec": d["tSec"], "name": d["name"]} for d in deaths],
+        "lustSec": lust_sec if lust_sec is not None else None,
         "phases": [],
     }
     start = int(fight_info["start"])
     for p in sorted(fight_info.get("phases") or [], key=lambda x: x["startTime"]):
-        pc = _marker_pct(int(p["startTime"]) - start, dur_ms)
-        if pc is not None and pc > 0.5:  # skip the phase-1 boundary sitting at ~0%
-            side["phases"].append({"id": int(p["id"]), "pct": pc})
+        t_sec = round((int(p["startTime"]) - start) / 1000)
+        # Skip the phase-1 boundary sitting at ~0s (it's just the pull, not a transition).
+        if dur_ms > 0 and (int(p["startTime"]) - start) > dur_ms * 0.005:
+            side["phases"].append({"id": int(p["id"]), "tSec": t_sec})
     return side
 
 
 def timeline_view(o_curves, t_curves, o_deaths, t_deaths, o_lust, t_lust, o_dur, t_dur, o_info, t_info):
-    """Per-boss DPS/HPS-over-time comparison. None if either side lacks curve data (older data dir),
-    so the template simply omits the Timeline sub-tab rather than rendering an empty chart."""
+    """Per-boss DPS/HPS-over-time comparison on an absolute-seconds axis. None if either side lacks
+    curve data (older data dir), so the template simply omits the Timeline sub-tab."""
     if not o_curves or not t_curves:
         return None
     return {
@@ -959,7 +1024,8 @@ def _fmt_dur(ms):
     return "{}:{:02d}".format(s // 60, s % 60)
 
 
-def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None, n=7):
+def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None,
+                 trash=None, n=7):
     """Score every tracked dimension by how far behind the benchmark we are, then surface the
     worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
     (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
@@ -1082,6 +1148,16 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
                 "{} {} uptime averages {}% vs {}% tier-wide. Keeping it up is free throughput."
                 .format(worst["name"], worst["kind"], worst["ours"], worst["theirs"]))
 
+    # Trash deaths (lower better). A high-leverage gap that otherwise only lives in the Trash tab —
+    # the night-wide "Too many deaths" card pools boss + trash, so this isolates the avoidable-trash slice.
+    if trash and trash.get("present"):
+        o_td = (trash["glance"]["ours"] or {}).get("deaths", 0)
+        t_td = (trash["glance"]["theirs"] or {}).get("deaths", 0)
+        if o_td - t_td > 0:
+            add((o_td - t_td) / 30.0, "Dying too much on trash",
+                "{} trash deaths vs {} for the benchmark. Trash deaths are almost always avoidable — CC, "
+                "interrupt, or position around the pull.".format(o_td, t_td))
+
     cand.sort(key=lambda c: -c["sev"])
     out = []
     for c in cand[:n]:
@@ -1091,11 +1167,12 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
 
 
 # ---------- TRASH ANALYSIS (the Trash tab) ----------
-# WCL splits trash into discrete pull segments; we layer four views on top, all honoring the
-# product's hybrid rule: benchmark-compare only what aligns across guilds (clear time, deaths,
-# CC counts, mob-type kill priority — mob TYPES align even when pull boundaries don't), and keep
-# the per-pull drill-down single-raid (ours). Kill order & CC are DESCRIPTIVE vs the benchmark,
-# never moralized — if the benchmark CCs more or focuses a target later, that's the bar, not a fault.
+# WCL splits trash into discrete pull segments; we layer benchmark-compared views on top, all honoring
+# the product's hybrid rule: compare only what aligns across guilds (clear time, deaths, CC counts,
+# mob-type kill priority, exact-roster pack matches — mob TYPES align even when pull boundaries don't).
+# The raw single-raid per-pull drill-down (Pack-by-Pack) was removed as a near data-dump. Kill order & CC
+# are DESCRIPTIVE vs the benchmark, never moralized — if the benchmark CCs more or focuses a target later,
+# that's the bar, not a fault.
 def load_trash(directory):
     """Bundle the three trash files for one report. Returns None when trash wasn't fetched (older
     data folders predate the Trash tab), so the build degrades gracefully."""
@@ -1165,8 +1242,10 @@ def _cc_id_labels(t):
 
 
 def trash_death_causes(o, t, n=15):
-    """Player trash deaths aggregated by killing blow, ranked worst-for-us, ours vs benchmark.
-    Mob/ability killing blows align across guilds, so this is a clean benchmark comparison."""
+    """Player trash deaths aggregated by killing blow, ranked by the biggest IMPROVABLE delta
+    (our deaths − theirs), ours vs benchmark. Mob/ability killing blows align across guilds, so
+    this is a clean comparison. Ranking by delta floats the blows the benchmark has solved and we
+    haven't — the fix-it list — above blows both raids take equally."""
     def agg(side):
         m = {}
         for d in side["friendly"]:
@@ -1175,7 +1254,8 @@ def trash_death_causes(o, t, n=15):
         return m
     oa, ta = agg(o), agg(t)
     rows = [{"cause": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in set(oa) | set(ta)]
-    rows.sort(key=lambda r: (-(r["ours"]), -(r["ours"] - r["theirs"]), -r["theirs"]))
+    # Biggest improvable delta first (a death the benchmark avoids); ties → raw ours, then theirs.
+    rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows[:n]
 
 
@@ -1268,23 +1348,6 @@ def _trash_pull_records(t):
         pulls.append({"name": f["name"], "clearMs": end - start, "mobs": mobs,
                       "killOrder": order, "deaths": deaths, "cc": cc})
     return pulls
-
-
-def trash_packs(pulls):
-    """Group OUR pull records by segment name into packs (single-raid drill-down), sorted
-    most-problematic first (deaths, then repeat count, then time)."""
-    groups = {}
-    for p in pulls:
-        g = groups.setdefault(p["name"], {"name": p["name"], "pulls": [], "deaths": 0, "cc": 0, "clearMs": 0})
-        g["pulls"].append(p)
-        g["deaths"] += len(p["deaths"])
-        g["cc"] += len(p["cc"])
-        g["clearMs"] += p["clearMs"]
-    out = list(groups.values())
-    for g in out:
-        g["count"] = len(g["pulls"])
-    out.sort(key=lambda g: (-g["deaths"], -g["count"], -g["clearMs"]))
-    return out
 
 
 def _roster_sig(pull):
@@ -1462,7 +1525,6 @@ def build_trash(ours_dir, theirs_dir):
         "killPriority": trash_kill_priority(o, t),
         "pairwisePriority": trash_pairwise_priority(o_pulls, t_pulls),
         "cc": cc_rows, "ccTotals": cc_tot, "ccByMob": trash_cc_by_mob(o, t),
-        "packs": trash_packs(o_pulls),
     }
 
 
@@ -1556,8 +1618,12 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Audit
     ours_roster_names = [p["name"] for p in ours_roster]
     theirs_roster_names = [p["name"] for p in theirs_roster]
-    audit_ours = audit_report(ours_dir, ours_roster_names)
-    audit_theirs = audit_report(theirs_dir, theirs_roster_names)
+    # Windfury presence (per-player, from the shared-boss consumes files) lets the weapon-oil check
+    # treat Windfury as a valid substitute for melee — no false "missing oil" on a Windfury-group melee.
+    ours_wf = windfury_players(ours_dir, common_ids)
+    theirs_wf = windfury_players(theirs_dir, common_ids)
+    audit_ours = audit_report(ours_dir, ours_roster_names, ours_spec, ours_wf)
+    audit_theirs = audit_report(theirs_dir, theirs_roster_names, theirs_spec, theirs_wf)
     audit_ours["avgIlvl"] = avg_ilvl(ours_dir, common_ids)
     audit_theirs["avgIlvl"] = avg_ilvl(theirs_dir, common_ids)
     audit = {"ours": audit_ours, "theirs": audit_theirs}
@@ -1705,14 +1771,16 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
     tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
     tier_uptime = tier_uptime_gap(tier_upt)
-    # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
-    gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
-                                  tier_spec=tier_spec, tier_uptime=tier_uptime)
-
-    eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 
     # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
+    # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
     trash = build_trash(ours_dir, theirs_dir)
+
+    # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
+    gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
+                                  tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash)
+
+    eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},

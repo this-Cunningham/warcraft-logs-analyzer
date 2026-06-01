@@ -33,6 +33,25 @@ def get_code(u):
     return m.group(1) if m else u.strip()
 
 
+def guild_name(parses_obj):
+    """Most-common guild name across a report's parse entries. The report's guild is the report's own
+    identity — far clearer in the report than an opaque report title. Returns the most-common name so a
+    PUG night (mixed guilds) falls to whichever guild is dominant; None when no entry carries a guild."""
+    rankings = ((((parses_obj or {}).get("reportData") or {}).get("report") or {}).get("rankings") or {})
+    counts = {}
+    for e in (rankings.get("data") or []):
+        g = (e.get("guild") or {}).get("name")
+        if g:
+            counts[g] = counts.get(g, 0) + 1
+    return max(counts, key=counts.get) if counts else None
+
+
+def slug(s):
+    """Filesystem-safe lowercase slug for the output filename (guild names → 'imminent-vs-foo')."""
+    out = re.sub(r"[^a-z0-9]+", "-", (s or "").strip().lower()).strip("-")
+    return out or "raid"
+
+
 def get_meta(code):
     r = lib.invoke_query(META_Q, {"code": code})["reportData"]["report"]
     if not r:
@@ -75,8 +94,6 @@ def main(argv=None):
         raise RuntimeError("No shared boss encounters between the two reports.")
     print("Shared bosses ({}): {}".format(len(shared), ", ".join(str(s) for s in shared)))
 
-    ours_name = args.ours_name or ours_meta["title"]
-    theirs_name = args.theirs_name or theirs_meta["title"]
     zone = ours_meta["zone"]
 
     # Paths under <repo>/data and <repo>/reports.
@@ -87,13 +104,25 @@ def main(argv=None):
     theirs_dir = os.path.join(data_root, theirs_code)
     ours_parses = os.path.join(data_root, "{}-parses.json".format(ours_code))
     theirs_parses = os.path.join(data_root, "{}-parses.json".format(theirs_code))
-    out_file = args.out_file or os.path.join(root, "reports", "{}-vs-{}.html".format(ours_code, theirs_code))
 
-    # Parses (per-player percentile rankings).
+    # Parses (per-player percentile rankings) — fetched first so we can name each side by its GUILD.
     print("Fetching parses...")
+    parse_obj = {}
     for code, path in ((ours_code, ours_parses), (theirs_code, theirs_parses)):
+        parse_obj[code] = lib.invoke_query(PARSE_Q, {"code": code})
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump(lib.invoke_query(PARSE_Q, {"code": code}), fh, indent=2, ensure_ascii=False)
+            json.dump(parse_obj[code], fh, indent=2, ensure_ascii=False)
+
+    # Name each side by its guild (the report's identity). Ours shows the guild name; theirs is framed
+    # "Benchmark (Guild)" so a reader who didn't generate the report still knows which side to aspire to.
+    # Manual --ours-name/--theirs-name override wins; guild name falls back to the report title.
+    ours_guild = guild_name(parse_obj[ours_code])
+    theirs_guild = guild_name(parse_obj[theirs_code])
+    ours_name = args.ours_name or ours_guild or ours_meta["title"]
+    theirs_name = args.theirs_name or ("Benchmark ({})".format(theirs_guild) if theirs_guild else theirs_meta["title"])
+    # File named after the guilds (slugified), not the opaque report codes.
+    out_file = args.out_file or os.path.join(
+        root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))
 
     # Deep data (heavy output tables only for the shared bosses).
     print("Fetching deep data (ours)...")

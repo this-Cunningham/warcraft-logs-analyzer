@@ -156,14 +156,6 @@
   .gapcard.med .gt .sev{background:rgba(251,189,35,.16);color:#ffe08a}
   .gapcard.low .gt .sev{background:rgba(138,150,170,.16);color:#c2cbdb}
   .gapcard .gd{color:var(--muted);font-size:12.5px;line-height:1.45}
-  /* Trash tab — per-pack pull breakdown. */
-  .trpull{border-top:1px solid rgba(38,47,64,.5);padding:9px 0 4px;margin-top:6px}
-  .trpull:first-of-type{border-top:none}
-  .trhead{font-size:13px;margin-bottom:4px}
-  .trseq{font-size:12px;color:var(--txt);line-height:1.8;margin:2px 0}
-  .trlbl{display:inline-block;min-width:74px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;vertical-align:top}
-  .trlbl.bad2{color:var(--bad)}
-  .boss details summary{cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
   /* Trash — same-pack kill-order comparison (your sequence vs benchmark, mobs first→last). */
   .tko{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin:2px 0 12px}
   .tkpack{font-size:12.5px;font-weight:600;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--line)}
@@ -242,7 +234,7 @@ function consumeMatrix(ppc){
   for(const p of players){
     const ratio=p.presentCount?p.consumedCount/p.presentCount:1;
     const sumCls=ratio>=0.999?"good":(ratio>=0.5?"warn":"bad");
-    let row=`<tr><td class="cmname pname" style="color:${cc(p.class)}">${esc(p.name)} <span class="role">${esc(p.role)}</span></td>`+
+    let row=`<tr><td class="cmname pname" style="color:${cc(p.class)}">${esc(p.name)} <span class="role">${esc(p.spec||p.role)}</span></td>`+
       `<td class="csum"><span class="delta ${sumCls}">${p.consumedCount}/${p.presentCount}</span></td>`;
     for(const b of bosses){
       const c=p.cells?p.cells[String(b.encounterID)]:null;
@@ -444,21 +436,23 @@ function renderEnchants(d){
     ${consumeMatrix(ppc)}`;
   }
 
-  h+=`<h2 class="section">Enchants &amp; Weapon Oils<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils/sharpening stones are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
+  h+=`<h2 class="section">Enchants &amp; Weapon Oils<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils/sharpening stones are free damage/survivability left on the table. For melee, <b>Windfury Totem counts as a valid weapon-slot buff</b> — a melee in a Windfury group won't apply an oil, so they're shown as covered (✓ WF), not flagged. (Potion use isn't tracked in Classic logs.)</span></h2>
   <div class="cards">
     ${acard("Missing Enchants (raid)",au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants,meD)}
     ${acard("Fully Enchanted Players",`${au.ours.fullyEnchanted}/${au.ours.playerCount}`,`${au.theirs.fullyEnchanted}/${au.theirs.playerCount}`,feD)}
-    ${acard("No Weapon Oil/Stone",au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil,oilD)}
+    ${acard("No Weapon Oil/WF",au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil,oilD)}
     ${acard("Avg Item Level",au.ours.avgIlvl||"—",au.theirs.avgIlvl||"—",ilvlD)}
   </div>
   <h4 class="ours">${esc(d.ours.title)} — per-player preparation</h4>
-  <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil</th></tr></thead><tbody>`;
+  <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil/WF</th></tr></thead><tbody>`;
   const pls=[...asArr(au.ours.players)].sort((a,b)=>b.missingCount-a.missingCount);
   for(const p of pls){
     const miss=asArr(p.missingEnchants);
+    // ✓ = oil applied; ✓ WF = melee covered by a Windfury group (no oil needed); ✗ = a real gap.
+    const oilCell=p.weaponOil?'<span class="yes">✓</span>':(p.weaponCovered?'<span class="yes" title="Windfury group — oil not needed">✓ WF</span>':'<span class="no">✗</span>');
     h+=`<tr><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td><td class="role">${esc(p.role)}</td>
       <td>${miss.length?`<span class="warnpill">${miss.map(esc).join(", ")}</span>`:'<span class="yes">✓ full</span>'}</td>
-      <td>${p.weaponOil?'<span class="yes">✓</span>':'<span class="no">✗</span>'}</td></tr>`;
+      <td>${oilCell}</td></tr>`;
   }
   h+=`</tbody></table>`;
 
@@ -741,8 +735,9 @@ function specDpsView(b){
   }
   return h+`</div></div>`;
 }
-// Per-boss DPS/HPS over time, ours vs benchmark. Each kill is stretched to its own 0-100% so two
-// fights of different length overlay — the read is "where in the fight does the gap open?". Curves
+// Per-boss DPS/HPS over time, ours vs benchmark, on a shared ABSOLUTE-seconds x-axis. Two kills of
+// different length line up in real time, so the shorter kill's line simply ends earlier — the read is
+// both "where in the fight does the gap open?" and "how much sooner did the benchmark finish?". Curves
 // are exact (event-binned upstream), not WCL's smoothed graph, so they agree with Raid DPS elsewhere.
 function tlChart(o,t,m1,m2){
   const OUR="#4ea1ff",THEIR="#ff7a59",GRID="#262f40",MUT="#8a96aa";
@@ -750,28 +745,31 @@ function tlChart(o,t,m1,m2){
   o=asArr(o).map(Number); t=asArr(t).map(Number);
   const n=Math.max(o.length,t.length); if(n<2) return "";
   const max=Math.max(1,...o,...t)*1.08;
-  const X=i=>padL+(i/(n-1))*plotW, Y=v=>padT+plotH-(v/max)*plotH;
-  const Xp=p=>padL+(Math.max(0,Math.min(100,p))/100)*plotW;
-  const line=a=>a.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+  const oDur=m1.durSec||0, tDur=m2.durSec||0, axisMax=Math.max(oDur,tDur,1); // seconds
+  const Y=v=>padT+plotH-(v/max)*plotH;
+  const Xs=sec=>padL+(Math.max(0,Math.min(axisMax,sec))/axisMax)*plotW;
+  // Each curve point i sits at i/(n-1) of its OWN fight length (seconds), placed on the shared axis —
+  // so the side that finished sooner reaches the right edge sooner and its line stops there.
+  const lineFor=(a,dur)=>a.map((v,i)=>(i?"L":"M")+Xs(i/(n-1)*dur).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
   const axisY=padT+plotH;
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;height:auto;max-width:100%">`;
   for(let g=0;g<=4;g++){const yy=axisY-(g/4)*plotH;
     s+=`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="${GRID}"/>`+
        `<text x="${padL-6}" y="${(yy+3.5).toFixed(1)}" fill="${MUT}" font-size="11" text-anchor="end">${fmtR(max*g/4)}</text>`;}
-  for(let g=0;g<=4;g++){const xx=Xp(g*25);s+=`<text x="${xx.toFixed(1)}" y="${H-9}" fill="${MUT}" font-size="11" text-anchor="middle">${g*25}%</text>`;}
-  // phase dividers (your fight) + lust verticals (each side)
-  for(const ph of asArr(m1.phases)){const xx=Xp(ph.pct);
+  for(let g=0;g<=4;g++){const sec=axisMax*g/4, xx=Xs(sec);s+=`<text x="${xx.toFixed(1)}" y="${H-9}" fill="${MUT}" font-size="11" text-anchor="middle">${fmtTime(sec*1000)}</text>`;}
+  // phase dividers (your fight) + lust verticals (each side) — all at absolute seconds
+  for(const ph of asArr(m1.phases)){const xx=Xs(ph.tSec);
     s+=`<line x1="${xx.toFixed(1)}" y1="${padT}" x2="${xx.toFixed(1)}" y2="${axisY}" stroke="${MUT}" stroke-dasharray="2,3" opacity=".45"/>`+
        `<text x="${(xx+3).toFixed(1)}" y="${padT+10}" fill="${MUT}" font-size="10">P${ph.id}</text>`;}
-  const lust=(p,c)=>p==null?"":`<line x1="${Xp(p).toFixed(1)}" y1="${padT}" x2="${Xp(p).toFixed(1)}" y2="${axisY}" stroke="${c}" stroke-dasharray="4,3" opacity=".6"/><text x="${(Xp(p)+2).toFixed(1)}" y="${padT+11}" fill="${c}" font-size="11">&#9889;</text>`;
-  s+=lust(m2.lustPct,THEIR)+lust(m1.lustPct,OUR);
-  // curves (theirs under ours)
-  s+=`<path d="${line(t)}" fill="none" stroke="${THEIR}" stroke-width="2" opacity=".85"/>`;
-  s+=`<path d="${line(o)}" fill="none" stroke="${OUR}" stroke-width="2.3"/>`;
+  const lust=(sec,c)=>sec==null?"":`<line x1="${Xs(sec).toFixed(1)}" y1="${padT}" x2="${Xs(sec).toFixed(1)}" y2="${axisY}" stroke="${c}" stroke-dasharray="4,3" opacity=".6"/><text x="${(Xs(sec)+2).toFixed(1)}" y="${padT+11}" fill="${c}" font-size="11">&#9889;</text>`;
+  s+=lust(m2.lustSec,THEIR)+lust(m1.lustSec,OUR);
+  // curves (theirs under ours), each ending at its own fight length
+  s+=`<path d="${lineFor(t,tDur)}" fill="none" stroke="${THEIR}" stroke-width="2" opacity=".85"/>`;
+  s+=`<path d="${lineFor(o,oDur)}" fill="none" stroke="${OUR}" stroke-width="2.3"/>`;
   // death markers: ours just below axis, theirs a row lower
-  const tri=(p,c,y,name,tSec)=>{const x=Xp(p);return `<polygon points="${(x-4).toFixed(1)},${y} ${(x+4).toFixed(1)},${y} ${x.toFixed(1)},${(y+7).toFixed(1)}" fill="${c}"><title>${esc(name)} died ${fmtTime(tSec*1000)}</title></polygon>`;};
-  for(const d of asArr(m1.deaths)) s+=tri(d.pct,OUR,axisY+2,d.name,d.tSec);
-  for(const d of asArr(m2.deaths)) s+=tri(d.pct,THEIR,axisY+12,d.name,d.tSec);
+  const tri=(tSec,c,y,name)=>{const x=Xs(tSec);return `<polygon points="${(x-4).toFixed(1)},${y} ${(x+4).toFixed(1)},${y} ${x.toFixed(1)},${(y+7).toFixed(1)}" fill="${c}"><title>${esc(name)} died ${fmtTime(tSec*1000)}</title></polygon>`;};
+  for(const d of asArr(m1.deaths)) s+=tri(d.tSec,OUR,axisY+2,d.name);
+  for(const d of asArr(m2.deaths)) s+=tri(d.tSec,THEIR,axisY+12,d.name);
   return s+`</svg>`;
 }
 function timelineChart(b){
@@ -782,7 +780,7 @@ function timelineChart(b){
     <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>&#8230; phase (your fight)</span></div>`;
   const dps=tlChart(tl.ours.dps,tl.theirs.dps,tl.ours,tl.theirs);
   const hps=tlChart(tl.ours.hps,tl.theirs.hps,tl.ours,tl.theirs);
-  return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark. Each kill is stretched to its own <b>0–100%</b> so two fights of different length line up — the read is <b>where</b> the gap opens: matched early then a cliff after a death, or trailing the whole way. Curves are exact (event-binned into ${tl.n} slices), not WCL's smoothed graph, so they agree with the Raid DPS shown elsewhere. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.</p>
+  return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Two fights of different length share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line simply <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are exact (event-binned into ${tl.n} slices), not WCL's smoothed graph, so they agree with the Raid DPS shown elsewhere. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.</p>
     ${legend}
     <h4 style="margin:8px 0 2px">Raid DPS over time</h4>${dps}
     <h4 style="margin:16px 0 2px">Raid HPS over time</h4>${hps}`;
@@ -884,17 +882,26 @@ function renderTrash(d){
     h+=`</tbody></table>`;
   }
 
-  // Kill Order — sub-tabs: Same-Pack Matches (default, clean 1:1) | Pairwise Priority (broad).
-  h+=`<h2 class="section">Kill Order vs Benchmark<span class="hint"><b>Same-Pack Matches</b> compares kill order only for packs both raids pulled with the exact same roster (mobs + counts) — a clean 1:1 comparison. <b>Pairwise Priority</b> is the broader view across every pull: which mob each raid tends to kill before which, no pack matching needed. Both are descriptive, not scored.</span></h2>
+  // Lower Trash view, sub-tabbed to stay lean: Kill Order (default) | Crowd Control (drill-in).
+  // Kill Order itself nests Same-Pack Matches | Pairwise Priority.
+  h+=`<h2 class="section">Kill Order &amp; Crowd Control<span class="hint">Two analysis lenses for trash, behind their own tabs to keep the page lean. <b>Kill Order</b> — how your target priority compares to the benchmark. <b>Crowd Control</b> — which mobs each raid neutralizes. Both are descriptive, not scored — the benchmark sets the bar, it isn't a pass/fail.</span></h2>
+    <div class="btabs">
+      <button class="btab on" data-ttab="killorder">Kill Order</button>
+      <button class="btab" data-ttab="cc">Crowd Control</button>
+    </div>
+    <div class="bsub active" data-ttab="killorder">${killOrderBody(tr,d)}</div>
+    <div class="bsub" data-ttab="cc">${trashCcView(tr,d)}</div>`;
+  return h;
+}
+// Kill Order body — nested Same-Pack Matches (clean 1:1) | Pairwise Priority (broad) sub-tabs.
+function killOrderBody(tr,d){
+  return `<p class="srcs" style="margin:2px 0 12px"><b>Same-Pack Matches</b> compares kill order only for packs both raids pulled with the exact same roster (mobs + counts) — a clean 1:1 comparison. <b>Pairwise Priority</b> is the broader view across every pull: which mob each raid tends to kill before which, no pack matching needed.</p>
     <div class="btabs">
       <button class="btab on" data-ktab="same">Same-Pack Matches</button>
       <button class="btab" data-ktab="pair">Pairwise Priority</button>
     </div>
     <div class="bsub active" data-ktab="same">${sameMatchesBody(tr)}</div>
     <div class="bsub" data-ktab="pair">${pairwiseBody(tr,d)}</div>`;
-  h+=trashCcView(tr,d);
-  h+=trashPacksView(tr,d);
-  return h;
 }
 // SAME-PACK sub-tab body: packs both raids pulled with the EXACT same roster (names + counts),
 // your kill order vs the benchmark's, first → last. Mobs you focus out of position are highlighted.
@@ -971,9 +978,9 @@ function killSeq(seq,other){
 // Crowd control on trash — DESCRIPTIVE (more isn't better; the benchmark sets the bar).
 function trashCcView(tr,d){
   const rows=rowsOf(tr.cc);
-  if(!rows.length) return `<h2 class="section">Crowd Control on Trash</h2><p class="num" style="padding:8px 2px">Neither raid used hard crowd control (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) on trash.</p>`;
+  if(!rows.length) return `<p class="num" style="padding:8px 2px">Neither raid used hard crowd control (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) on trash.</p>`;
   const tot=tr.ccTotals||{ours:0,theirs:0};
-  let h=`<h2 class="section">Crowd Control on Trash<span class="hint">Hard CC applications (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, Seduction, Hibernate, Cyclone) that held a mob out of a pull, ours vs the benchmark. <b>Descriptive, not better/worse</b> — a raid that safely AoEs trash down may need little CC; the benchmark sets the bar. Per-pull CC targets are in the pack breakdown below.</span></h2>
+  let h=`<p class="srcs" style="margin:2px 0 12px">Hard CC applications (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, Seduction, Hibernate, Cyclone) that held a mob out of a pull, ours vs the benchmark. <b>Descriptive, not better/worse</b> — a raid that safely AoEs trash down may need little CC; the benchmark sets the bar. The by-mob breakdown below pinpoints which caster you should be CCing.</p>
     <table><thead><tr><th>Crowd control</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th></tr></thead><tbody>`;
   for(const r of rows){
     h+=`<tr><td style="font-weight:600">${esc(r.label)}</td>
@@ -1001,38 +1008,16 @@ function trashCcView(tr,d){
   }
   return h;
 }
-// Pack-by-pack drill-down (OUR raid only — pull boundaries don't align across guilds).
-function trashPacksView(tr,d){
-  const groups=rowsOf(tr.packs);
-  if(!groups.length) return "";
-  let h=`<h2 class="section">Pack-by-Pack<span class="hint">Every trash pack ${esc(d.ours.title)} pulled, grouped by pack type and sorted worst-first by deaths. Expand a pack for each pull's mobs, exact kill order, deaths, and crowd control. Single-raid view (your raid) — pull boundaries don't line up across guilds. For the ours-vs-benchmark kill-order comparison, see <b>Same-Pack Kill Order</b> above.</span></h2>`;
-  for(const g of groups){
-    const avg=g.count?Math.round(g.clearMs/g.count/1000):0;
-    const meta=[`${g.count} pull${g.count>1?"s":""}`,`${g.deaths} death${g.deaths!==1?"s":""}`,g.cc?`${g.cc} CC`:null,`~${avg}s avg`].filter(Boolean).join(" · ");
-    h+=`<div class="boss"><h3>${esc(g.name)}<span class="badge">${meta}</span></h3>
-      <details><summary>Show ${g.count} pull${g.count>1?"s":""}</summary>${rowsOf(g.pulls).map((p,i)=>trashPull(p,i+1)).join("")}</details></div>`;
-  }
-  return h;
-}
-function trashPull(p,idx){
-  const mobs=rowsOf(p.mobs).map(m=>`${esc(m.name)}${m.count>1?` ×${m.count}`:""}`).join(", ");
-  const order=rowsOf(p.killOrder).map(k=>`${esc(k.mob)} <span class="num">${fmtTime(k.tSec*1000)}</span>`).join(` <span class="num">→</span> `);
-  const deaths=rowsOf(p.deaths), ccl=rowsOf(p.cc);
-  let h=`<div class="trpull"><div class="trhead"><b>Pull ${idx}</b> <span class="num">${fmtTime(p.clearMs)}${mobs?" · "+mobs:""}</span></div>`;
-  if(order.length) h+=`<div class="trseq"><span class="trlbl">Kill order</span> ${order}</div>`;
-  if(deaths.length) h+=`<div class="trseq"><span class="trlbl bad2">Deaths</span> `+deaths.map(x=>`<span style="color:${cc(x.cls)};font-weight:600">${esc(x.name)}</span> <span class="num">${esc(x.killedBy)} ${fmtTime(x.tSec*1000)}</span>`).join(" &nbsp; ")+`</div>`;
-  if(ccl.length) h+=`<div class="trseq"><span class="trlbl">CC</span> `+ccl.map(x=>`${esc(x.label)} → ${esc(x.mob)}${x.by?` <span class="num">by ${esc(x.by)}</span>`:""}`).join(" &nbsp; ")+`</div>`;
-  return h+`</div>`;
-}
-
-// Trash kill-order sub-tabs (Same-Pack Matches | Pairwise Priority). Native toggle, no re-render.
+// Trash sub-tabs: outer Kill Order | Crowd Control (data-ttab), and the nested Same-Pack | Pairwise
+// inside Kill Order (data-ktab). Native toggle, no re-render. Both groups wired the same way.
 function mountTrash(){
   const el=document.getElementById("p-trash"); if(!el) return;
-  el.querySelectorAll(".btab[data-ktab]").forEach(t=>t.addEventListener("click",()=>{
-    const k=t.dataset.ktab;
-    el.querySelectorAll(".btab[data-ktab]").forEach(x=>x.classList.toggle("on",x.dataset.ktab===k));
-    el.querySelectorAll(".bsub[data-ktab]").forEach(x=>x.classList.toggle("active",x.dataset.ktab===k));
+  const wire=attr=>el.querySelectorAll(`.btab[data-${attr}]`).forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset[attr];
+    el.querySelectorAll(`.btab[data-${attr}]`).forEach(x=>x.classList.toggle("on",x.dataset[attr]===k));
+    el.querySelectorAll(`.bsub[data-${attr}]`).forEach(x=>x.classList.toggle("active",x.dataset[attr]===k));
   }));
+  wire("ttab"); wire("ktab");
 }
 function render(){
   const d=DATA; if(!d){document.getElementById("app").innerHTML="<p>No data.</p>";return;}

@@ -26,8 +26,8 @@ function Save($obj, $name) {
     $obj | ConvertTo-Json -Depth 40 | Set-Content -Path $p -Encoding utf8
 }
 
-# 1) Boss kills
-$killsQ = 'query K($code:String!){reportData{report(code:$code){title fights(killType:Kills){id name encounterID difficulty startTime endTime size averageItemLevel}}}}'
+# 1) Boss kills (phaseTransitions ride along here — cheap, used by the Phases view)
+$killsQ = 'query K($code:String!){reportData{report(code:$code){title fights(killType:Kills){id name encounterID difficulty startTime endTime size averageItemLevel phaseTransitions{id startTime}}}}}'
 $kills = (Invoke-WclQuery -Query $killsQ -Variables @{ code = $Code })
 Save $kills 'fights.json'
 $fights = $kills.reportData.report.fights
@@ -44,7 +44,7 @@ Write-Host "[$Code] player details saved"
 # 3) Per-boss tables (one call per boss via aliases). Shared bosses also pull the
 #    heavy output tables for the Dive Deeper modules.
 $liteQ = 'query F($code:String!,$f:[Int]!){reportData{report(code:$code){buffs: table(dataType:Buffs, fightIDs:$f) debuffs: table(dataType:Debuffs, fightIDs:$f, hostilityType:Enemies)}}}'
-$fullQ = 'query F($code:String!,$f:[Int]!){reportData{report(code:$code){buffs: table(dataType:Buffs, fightIDs:$f) debuffs: table(dataType:Debuffs, fightIDs:$f, hostilityType:Enemies) dd: table(dataType:DamageDone, fightIDs:$f) heal: table(dataType:Healing, fightIDs:$f) dt: table(dataType:DamageTaken, fightIDs:$f) intr: table(dataType:Interrupts, fightIDs:$f) disp: table(dataType:Dispels, fightIDs:$f)}}}'
+$fullQ = 'query F($code:String!,$f:[Int]!){reportData{report(code:$code){buffs: table(dataType:Buffs, fightIDs:$f) debuffs: table(dataType:Debuffs, fightIDs:$f, hostilityType:Enemies) dd: table(dataType:DamageDone, fightIDs:$f) heal: table(dataType:Healing, fightIDs:$f) dt: table(dataType:DamageTaken, fightIDs:$f) intr: table(dataType:Interrupts, fightIDs:$f) disp: table(dataType:Dispels, fightIDs:$f) deaths: table(dataType:Deaths, fightIDs:$f)}}}'
 foreach ($fight in $fights) {
     $fid = [int]$fight.id
     $enc = [int]$fight.encounterID

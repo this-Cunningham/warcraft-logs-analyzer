@@ -141,17 +141,40 @@ template, with no model in the path.
      -OursParses .\data\ours-parses.json -TheirsParses .\data\demo-parses.json `
      -OursName "Our Raid" -TheirsName "Benchmark" -ZoneName "SSC / TK" -OutFile .\reports\deepdive.html
    ```
-   The **Dive Deeper** tab contains: Clear Efficiency; Raid Composition & buff-provider
-   gap analysis (class/spec → raid buff it brings; provider table is in build-deepdive.ps1);
-   Enchants & Gems audit (per-player missing enchants from `combatantInfo.gear.permanentEnchant`);
-   Output Quality (avg DPS activity from `dd.activeTime`/duration, healer overheal from
-   `heal.overheal`, damage taken ex-tanks from `dt`, interrupt/dispel counts) — the
-   damage-taken metric has an in-report **Per second / Overall** toggle (client-side; the
-   DATA blob carries raw totals + per-boss durations, so both modes render without a rebuild,
-   and the toggle also switches the per-boss damage breakdowns); and
-   Per-Boss Execution (per-boss output strip, your top damage-taken sources, buff/debuff
-   uptime, Bloodlust timing). Heavy tables (dd/heal/dt/intr/disp) are fetched only for the
-   shared bosses via `fetch-report.ps1 -FullEncounters <ids>` since the responses are large.
+   The report has four top-level tabs: **Overview | Composition | Enchants | Bosses**.
+   - **Composition**: Raid Composition & buff-provider gap analysis (class/spec → raid buff
+     it brings; provider table is in build-deepdive.ps1).
+   - **Enchants**: Enchants & Gems audit (per-player missing enchants from
+     `combatantInfo.gear.permanentEnchant`). Restricted to the **shared-boss roster** (same
+     player set as Composition) — `Audit-Report` takes the roster names and filters
+     playerDetails, which is otherwise fetched across all kills.
+   - **Enchants** also carries raid **avg item level** (from `fights.averageItemLevel` over the
+     shared bosses) alongside the gem/enchant stats.
+   - **Bosses**: Clear Efficiency; Output Quality (avg DPS activity from
+     `dd.activeTime`/duration, healer overheal from `heal.overheal`, damage taken ex-tanks
+     from `dt`, interrupt/dispel counts) — the damage-taken metric has an in-report
+     **Per second / Overall** toggle (client-side; the DATA blob carries raw totals +
+     per-boss durations, so both modes render without a rebuild, and the toggle also switches
+     the per-boss damage breakdowns); and Per-Boss Execution — each boss is a card with an
+     output strip plus six sub-tabs:
+     - **Buff Uptime** — boss debuffs + raid buffs, laid out value←bar—name—bar→value with a
+       delta, sorted by delta (most-improvable / biggest deficit first).
+     - **Damage Taken** — top damage-taken sources (honors the per-sec/overall toggle).
+     - **Deaths** — who died, their spec (parsed from the death `icon`, e.g. `Hunter-Survival`),
+       the killing blow, and when (sec into fight). "Clean kill" when nobody died.
+     - **Interrupts** — abilities interrupted + interrupters by spec, plus a **Casts That Went
+       Off Un-kicked** section (kicked / went-off per ability). Un-kicked = `intr` entries'
+       `missedCasts[]` filtered to hostile casters (`type` NPC/Boss) so friendly-ability noise
+       is excluded.
+     - **Dispels** — which enemy auras each raid removed, with counts (`disp` entries'
+       `details[].total`).
+     - **Phases** — per-phase duration + share of kill with a delta, from `fight.phaseTransitions`
+       (single-phase fights show a graceful note). TBC has no phase *names*, so phases are
+       numbered.
+
+   Heavy tables (dd/heal/dt/intr/disp/**deaths**) are fetched only for the shared bosses via
+   `fetch-report.ps1 -FullEncounters <ids>` since the responses are large. `phaseTransitions`
+   ride along on the cheap `fights` query (all kills), so they're always present.
 
 **TBC Classic data caveats (verified):**
 - `potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't surface them.
@@ -161,8 +184,11 @@ template, with no model in the path.
 - Gem *socket count* isn't exposed, so we report gems-used totals, not "missing gems".
 - `table(Buffs/Debuffs)` uptime is **raid-aggregate**, not per-player.
 - Clear-efficiency uses kills only, so "Out of Boss" time includes trash + wipes.
-- Composition roster (from parses) and audit roster (from playerDetails) can differ
-  by a couple players — different sources; both are honest counts.
+- Composition (from parses) and the Enchants audit (from playerDetails) now share the
+  same **shared-boss roster**: build-deepdive passes the composition roster names into
+  `Audit-Report`, which skips any playerDetails entry not on a shared boss. The two player
+  counts line up. (The raw playerDetails JSON still spans all kills; the audit just ignores
+  off-shared-boss players.)
 - `Interrupts` table is often empty for fights with no interruptible casts (e.g. Vashj
   P1) — `CountActions` returns 0 gracefully. Don't treat 0 as a bug.
 - "Damage taken (ex-tanks)" is a proxy for avoidable damage, not a true avoidable-only

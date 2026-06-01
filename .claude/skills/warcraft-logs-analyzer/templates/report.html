@@ -45,6 +45,8 @@
 
   h2.section{font-size:14px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
     margin:34px 0 14px;border-top:1px solid var(--line);padding-top:22px}
+  /* First section in a panel sits right under the tab bar — drop the divider/top gap. */
+  .panel > h2.section:first-child{border-top:none;padding-top:0;margin-top:8px}
   .section .hint{text-transform:none;letter-spacing:0;font-weight:400;display:block;color:var(--muted);font-size:12.5px;margin-top:4px}
 
   .boss{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px}
@@ -110,15 +112,17 @@
   .dmgcmp{margin:4px 0 12px}
   .dmgcmphdr2{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:10px;font-weight:700;gap:8px}
   .dgrid{display:grid;grid-template-columns:62px 1fr 175px 1fr 62px;align-items:center;row-gap:7px;column-gap:8px}
-  .dgrid .dval{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--muted)}
-  .dgrid .dval.lo{text-align:right}.dgrid .dval.ro{text-align:left}
-  .dgrid .dmid{text-align:center;font-weight:600;font-size:12px;color:var(--txt);line-height:1.2}
+  .ugrid{display:grid;grid-template-columns:46px 1fr 150px 1fr 46px 50px;align-items:center;row-gap:7px;column-gap:8px}
+  .ugrid .delta{font-size:11.5px;text-align:right}
+  .dgrid .dval,.ugrid .dval{font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--muted)}
+  .dgrid .dval.lo,.ugrid .dval.lo{text-align:right}.dgrid .dval.ro,.ugrid .dval.ro{text-align:left}
+  .dgrid .dmid,.ugrid .dmid{text-align:center;font-weight:600;font-size:12px;color:var(--txt);line-height:1.2}
   .dbarL,.dbarR{position:relative;height:14px;background:var(--panel2);border-radius:5px;overflow:hidden}
   .dbarL .f,.dbarR .f{position:absolute;top:0;bottom:0}
   .dbarL .f.ours{right:0;background:var(--ours);border-radius:5px 0 0 5px}
   .dbarR .f.theirs{left:0;background:var(--theirs);border-radius:0 5px 5px 0}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
-  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}}
+  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px 44px;column-gap:5px}}
 </style>
 </head>
 <body>
@@ -131,6 +135,12 @@ const CLASS_COLORS = {Warrior:"#C79C6E",Paladin:"#F58CBA",Hunter:"#ABD473",Rogue
   Shaman:"#0070DE",Mage:"#69CCF0",Warlock:"#9482C9",Druid:"#FF7D0A","Death Knight":"#C41F3B"};
 const cc = k => CLASS_COLORS[k]||"#cbd3df";
 const asArr = x => Array.isArray(x)?x:(x==null?[]:[x]);
+// PowerShell's ConvertTo-Json turns an empty array into {} and a single-element array into a
+// bare object. asArr handles the single case; rowsOf also drops the empty-{} ghost so a list
+// with no real rows renders as empty (no "undefined / undefined / NaN" row).
+const rowsOf = x => asArr(x).filter(r => r && typeof r === "object" && Object.keys(r).length > 0);
+// WCL death icons look like "Hunter-BeastMastery" -> spec "Beast Mastery".
+const specFromIcon = (icon)=>{ if(!icon) return ""; const p=String(icon).split("-"); return p.length<2?"":p[1].replace(/([a-z])([A-Z])/g,"$1 $2"); };
 function parseColor(p){if(p>=100)return"#e5cc80";if(p>=99)return"#e268a8";if(p>=95)return"#ff8000";
   if(p>=75)return"#a335ee";if(p>=50)return"#0070ff";if(p>=25)return"#1eff00";return"#9aa4b2";}
 const fmtTime=ms=>{const s=Math.round(ms/1000);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
@@ -184,11 +194,69 @@ function renderOverview(d){
   return h;
 }
 
-/* ---------- DIVE DEEPER ---------- */
-function uptimeCell(v,who){const val=v==null?0:v;return `<div class="uptwrap"><div class="upt"><div class="f ${who}" style="width:${val}%"></div></div><span class="pct">${val}%</span></div>`;}
+/* ---------- COMPOSITION / ENCHANTS / BOSSES ---------- */
 
-function renderDeep(d){
-  const dp=d.deep; if(!dp) return "<p>No deep-dive data.</p>";
+/* ---------- COMPOSITION ---------- */
+function renderComposition(d){
+  const dp=d.deep; if(!dp) return "<p>No composition data.</p>";
+  const comp=dp.composition; if(!comp) return "<p>No composition data.</p>";
+  let h="";
+  const chips=arr=>asArr(arr).map(c=>{
+    const specs=asArr(c.specs).map(s=>`<span class="specline">${s.count} ${esc(s.spec)}</span>`).join("");
+    return `<div class="ccard" style="border-color:${cc(c.class)}55"><div class="chead" style="color:${cc(c.class)}">${esc(c.class)} ${c.count}</div><div class="cspecs">${specs}</div></div>`;
+  }).join("");
+  h+=`<h2 class="section">Raid Composition &amp; Buff Coverage<span class="hint">Roster built only from the bosses both raids killed (apples-to-apples). Missing a class/spec means missing a raid-wide buff or debuff. Red rows = they bring it, you don't.</span></h2>
+  <div class="twocol">
+    <div><h4 class="ours">${esc(d.ours.title)} · ${comp.oursSize} players</h4><div class="complist">${chips(comp.oursClasses)}</div></div>
+    <div><h4 class="theirs">${esc(d.theirs.title)} · ${comp.theirsSize} players</h4><div class="complist">${chips(comp.theirsClasses)}</div></div>
+  </div>
+  <table><thead><tr><th>Raid contribution</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Status</th><th>Why it matters</th></tr></thead><tbody>`;
+  for(const g of asArr(comp.gaps)){
+    const isgap=g.theirs&&!g.ours, edge=g.ours&&!g.theirs;
+    let tag = isgap?`<span class="tag2 gap">missing</span>`:(g.ours&&g.theirs?`<span class="tag2 ok">both</span>`:(edge?`<span class="tag2 edge">your edge</span>`:`<span class="tag2">neither</span>`));
+    h+=`<tr class="gaprow ${isgap?'isgap':''}"><td>${esc(g.buff)}</td>
+      <td class="${g.ours?'yes':'no'}">${g.ours?'✓':'✗'}</td>
+      <td class="${g.theirs?'yes':'no'}">${g.theirs?'✓':'✗'}</td>
+      <td>${tag}</td><td class="num">${esc(g.impact)}</td></tr>`;
+  }
+  h+=`</tbody></table>`;
+  return h;
+}
+
+/* ---------- ENCHANTS & GEMS ---------- */
+function renderEnchants(d){
+  const dp=d.deep; if(!dp) return "<p>No enchant data.</p>";
+  const au=dp.audit; if(!au) return "<p>No enchant data.</p>";
+  let h="";
+  const meD=deltaLow(au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants);
+  const oilD=deltaLow(au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil);
+  const feD=deltaHigh(au.ours.fullyEnchanted,au.theirs.fullyEnchanted);
+  const ilvlD=deltaHigh(au.ours.avgIlvl||0,au.theirs.avgIlvl||0);
+  h+=`<h2 class="section">Enchants &amp; Gems Audit<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
+  <div class="cards">
+    <div class="card"><div class="label">Missing Enchants (raid)</div><div class="vals"><span class="v ours">${au.ours.totalMissingEnchants}</span><span class="v theirs">${au.theirs.totalMissingEnchants}</span><span class="delta ${meD.cls}">${meD.txt}</span></div></div>
+    <div class="card"><div class="label">Fully Enchanted Players</div><div class="vals"><span class="v ours">${au.ours.fullyEnchanted}/${au.ours.playerCount}</span><span class="v theirs">${au.theirs.fullyEnchanted}/${au.theirs.playerCount}</span><span class="delta ${feD.cls}">${feD.txt}</span></div></div>
+    <div class="card"><div class="label">No Weapon Oil/Stone</div><div class="vals"><span class="v ours">${au.ours.playersNoWeaponOil}</span><span class="v theirs">${au.theirs.playersNoWeaponOil}</span><span class="delta ${oilD.cls}">${oilD.txt}</span></div></div>
+    <div class="card"><div class="label">Avg Gems / Player</div><div class="vals"><span class="v ours">${au.ours.avgGems}</span><span class="v theirs">${au.theirs.avgGems}</span></div></div>
+    <div class="card"><div class="label">Avg Item Level</div><div class="vals"><span class="v ours">${au.ours.avgIlvl||"—"}</span><span class="v theirs">${au.theirs.avgIlvl||"—"}</span><span class="delta ${ilvlD.cls}">${ilvlD.txt}</span></div></div>
+  </div>
+  <h4 class="ours">${esc(d.ours.title)} — per-player preparation</h4>
+  <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil</th><th>Gems</th></tr></thead><tbody>`;
+  const pls=[...asArr(au.ours.players)].sort((a,b)=>b.missingCount-a.missingCount);
+  for(const p of pls){
+    const miss=asArr(p.missingEnchants);
+    h+=`<tr><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td><td class="role">${esc(p.role)}</td>
+      <td>${miss.length?`<span class="warnpill">${miss.map(esc).join(", ")}</span>`:'<span class="yes">✓ full</span>'}</td>
+      <td>${p.weaponOil?'<span class="yes">✓</span>':'<span class="no">✗</span>'}</td>
+      <td class="num">${p.gems}</td></tr>`;
+  }
+  h+=`</tbody></table>`;
+  return h;
+}
+
+/* ---------- BOSSES ---------- */
+function renderBosses(d){
+  const dp=d.deep; if(!dp) return "<p>No boss data.</p>";
   let h="";
 
   /* Clear efficiency */
@@ -203,56 +271,6 @@ function renderDeep(d){
       <div class="card"><div class="label">Out of Boss (trash/wipes)</div><div class="vals"><span class="v ours">${fmtMin(e.ours.downtimeMs)}</span><span class="v theirs">${fmtMin(e.theirs.downtimeMs)}</span><span class="delta ${dtD.cls}">${dtD.txt}m</span></div></div>
       <div class="card"><div class="label">Boss Kills Logged</div><div class="vals"><span class="v ours">${e.ours.kills}</span><span class="v theirs">${e.theirs.kills}</span></div></div>
     </div>`;
-  }
-
-  /* Composition + buff coverage */
-  const comp=dp.composition;
-  if(comp){
-    const chips=arr=>asArr(arr).map(c=>{
-      const specs=asArr(c.specs).map(s=>`<span class="specline">${s.count} ${esc(s.spec)}</span>`).join("");
-      return `<div class="ccard" style="border-color:${cc(c.class)}55"><div class="chead" style="color:${cc(c.class)}">${esc(c.class)} ${c.count}</div><div class="cspecs">${specs}</div></div>`;
-    }).join("");
-    h+=`<h2 class="section">Raid Composition &amp; Buff Coverage<span class="hint">Roster built only from the bosses both raids killed (apples-to-apples). Missing a class/spec means missing a raid-wide buff or debuff. Red rows = they bring it, you don't.</span></h2>
-    <div class="twocol">
-      <div><h4 class="ours">${esc(d.ours.title)} · ${comp.oursSize} players</h4><div class="complist">${chips(comp.oursClasses)}</div></div>
-      <div><h4 class="theirs">${esc(d.theirs.title)} · ${comp.theirsSize} players</h4><div class="complist">${chips(comp.theirsClasses)}</div></div>
-    </div>
-    <table><thead><tr><th>Raid contribution</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Status</th><th>Why it matters</th></tr></thead><tbody>`;
-    for(const g of asArr(comp.gaps)){
-      const isgap=g.theirs&&!g.ours, edge=g.ours&&!g.theirs;
-      let tag = isgap?`<span class="tag2 gap">missing</span>`:(g.ours&&g.theirs?`<span class="tag2 ok">both</span>`:(edge?`<span class="tag2 edge">your edge</span>`:`<span class="tag2">neither</span>`));
-      h+=`<tr class="gaprow ${isgap?'isgap':''}"><td>${esc(g.buff)}</td>
-        <td class="${g.ours?'yes':'no'}">${g.ours?'✓':'✗'}</td>
-        <td class="${g.theirs?'yes':'no'}">${g.theirs?'✓':'✗'}</td>
-        <td>${tag}</td><td class="num">${esc(g.impact)}</td></tr>`;
-    }
-    h+=`</tbody></table>`;
-  }
-
-  /* Enchant / consumable audit */
-  const au=dp.audit;
-  if(au){
-    const meD=deltaLow(au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants);
-    const oilD=deltaLow(au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil);
-    const feD=deltaHigh(au.ours.fullyEnchanted,au.theirs.fullyEnchanted);
-    h+=`<h2 class="section">Enchants &amp; Gems Audit<span class="hint">Per-player preparation. Missing enchants and weapon oils are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
-    <div class="cards">
-      <div class="card"><div class="label">Missing Enchants (raid)</div><div class="vals"><span class="v ours">${au.ours.totalMissingEnchants}</span><span class="v theirs">${au.theirs.totalMissingEnchants}</span><span class="delta ${meD.cls}">${meD.txt}</span></div></div>
-      <div class="card"><div class="label">Fully Enchanted Players</div><div class="vals"><span class="v ours">${au.ours.fullyEnchanted}/${au.ours.playerCount}</span><span class="v theirs">${au.theirs.fullyEnchanted}/${au.theirs.playerCount}</span><span class="delta ${feD.cls}">${feD.txt}</span></div></div>
-      <div class="card"><div class="label">No Weapon Oil/Stone</div><div class="vals"><span class="v ours">${au.ours.playersNoWeaponOil}</span><span class="v theirs">${au.theirs.playersNoWeaponOil}</span><span class="delta ${oilD.cls}">${oilD.txt}</span></div></div>
-      <div class="card"><div class="label">Avg Gems / Player</div><div class="vals"><span class="v ours">${au.ours.avgGems}</span><span class="v theirs">${au.theirs.avgGems}</span></div></div>
-    </div>
-    <h4 class="ours">${esc(d.ours.title)} — per-player preparation</h4>
-    <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil</th><th>Gems</th></tr></thead><tbody>`;
-    const pls=[...asArr(au.ours.players)].sort((a,b)=>b.missingCount-a.missingCount);
-    for(const p of pls){
-      const miss=asArr(p.missingEnchants);
-      h+=`<tr><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td><td class="role">${esc(p.role)}</td>
-        <td>${miss.length?`<span class="warnpill">${miss.map(esc).join(", ")}</span>`:'<span class="yes">✓ full</span>'}</td>
-        <td>${p.weaponOil?'<span class="yes">✓</span>':'<span class="no">✗</span>'}</td>
-        <td class="num">${p.gems}</td></tr>`;
-    }
-    h+=`</tbody></table>`;
   }
 
   /* Output quality (activity / overheal / damage taken / mechanics) */
@@ -280,22 +298,31 @@ function renderDeep(d){
   /* Per-boss buff/debuff uptime + lust timing + execution strip */
   const pb=asArr(dp.perBoss);
   if(pb.length){
-    h+=`<h2 class="section">Per-Boss Execution<span class="hint">Per fight: output-quality strip, your top damage-taken sources, buff/debuff uptime, and when each raid fired Bloodlust.</span></h2>`;
+    h+=`<h2 class="section">Per-Boss Execution<span class="hint">Per fight: an output-quality strip plus tabs for buff/debuff uptime, damage taken, deaths, interrupts, dispels, and phase timing. Bloodlust time is shown in each header.</span></h2>`;
     for(const b of pb){
       const lust=(s)=>s==null?'<span class="no">none</span>':fmtTime(s*1000)+" in";
       const at=bossTab[b.encounterID]||"buffs";
+      const subs=[
+        {k:"buffs",label:"Buff Uptime"},
+        {k:"dmg",label:"Damage Taken"},
+        {k:"deaths",label:"Deaths"},
+        {k:"intr",label:"Interrupts"},
+        {k:"disp",label:"Dispels"},
+        {k:"phases",label:"Phases"}
+      ];
+      const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
+      const body={
+        buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
+        dmg:topSources(b),
+        deaths:deathsView(b),
+        intr:interruptView(b),
+        disp:dispelsView(b),
+        phases:phasesView(b)
+      };
       h+=`<div class="boss"><h3>${esc(b.name)}<span class="badge">Bloodlust: <span style="color:var(--ours)">${lust(b.oursLustSec)}</span> vs <span style="color:var(--theirs)">${lust(b.theirsLustSec)}</span></span></h3>
       ${statStrip(b)}
-      <div class="btabs">
-        <button class="btab ${at==='buffs'?'on':''}" data-boss="${b.encounterID}" data-bp="buffs">Buff Uptime</button>
-        <button class="btab ${at==='dmg'?'on':''}" data-boss="${b.encounterID}" data-bp="dmg">Damage Taken</button>
-        <button class="btab ${at==='intr'?'on':''}" data-boss="${b.encounterID}" data-bp="intr">Interrupts</button>
-      </div>
-      <div class="bsub ${at==='buffs'?'active':''}" data-boss="${b.encounterID}" data-bp="buffs">
-        <div class="twocol"><div><h4>Boss Debuffs</h4>${uptimeTable(b.debuffs)}</div><div><h4>Raid Buffs</h4>${uptimeTable(b.buffs)}</div></div>
-      </div>
-      <div class="bsub ${at==='dmg'?'active':''}" data-boss="${b.encounterID}" data-bp="dmg">${topSources(b)}</div>
-      <div class="bsub ${at==='intr'?'active':''}" data-boss="${b.encounterID}" data-bp="intr">${interruptView(b)}</div>
+      <div class="btabs">${btabs}</div>
+      ${subs.map(s=>`<div class="bsub ${at===s.k?'active':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${body[s.k]}</div>`).join("")}
       </div>`;
     }
   }
@@ -303,8 +330,8 @@ function renderDeep(d){
 }
 function interruptView(b){
   const I=b.interrupts||{};
-  const ab=asArr(I.abilities), it=asArr(I.interrupters);
-  if(!ab.length && !it.length) return `<p class="num" style="padding:8px 2px">No interruptible casts were interrupted on this fight.</p>`;
+  const ab=rowsOf(I.abilities), it=rowsOf(I.interrupters), uk=rowsOf(b.unkicked);
+  if(!ab.length && !it.length && !uk.length) return `<p class="num" style="padding:8px 2px">No interruptible casts on this fight.</p>`;
   const cnt=(o,t)=>`<td class="num" style="color:var(--ours);font-weight:600">${o||0}</td><td class="num" style="color:var(--theirs);font-weight:600">${t||0}</td>`;
   const abTbl=()=>{
     let h=`<table><thead><tr><th>Ability</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th></tr></thead><tbody>`;
@@ -319,10 +346,70 @@ function interruptView(b){
     }
     return h+`</tbody></table>`;
   };
-  return `<div class="twocol">
+  // Interruptible enemy casts that completed = missed kicks (lower "went off" is better).
+  const ukTbl=()=>{
+    let h=`<table><thead><tr><th>Interruptible cast</th><th>${esc(DATA.ours.title)} <span class="role">kicked / went off</span></th><th>${esc(DATA.theirs.title)} <span class="role">kicked / went off</span></th></tr></thead><tbody>`;
+    for(const r of uk){
+      const og=r.oursWentOff, tg=r.theirsWentOff;
+      h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
+        <td class="num"><span class="yes">${r.oursKicked}</span> / ${og>0?`<span class="warnpill">${og}</span>`:`<span class="yes">0</span>`}</td>
+        <td class="num"><span class="yes">${r.theirsKicked}</span> / ${tg>0?`<span class="warnpill">${tg}</span>`:`<span class="yes">0</span>`}</td></tr>`;
+    }
+    return h+`</tbody></table>`;
+  };
+  let out=`<div class="twocol">
     <div><h4>Abilities Interrupted</h4>${ab.length?abTbl():'<p class="num">None</p>'}</div>
     <div><h4>Interrupters by Spec</h4>${it.length?itTbl():'<p class="num">None</p>'}</div>
   </div>`;
+  if(uk.length) out+=`<div style="margin-top:16px"><h4>Casts That Went Off Un-kicked<span class="hint" style="display:block">Interruptible enemy casts that completed — i.e. missed interrupts. Lower is better.</span></h4>${ukTbl()}</div>`;
+  return out;
+}
+function deathsView(b){
+  const D=b.deaths||{};
+  const col=(list,who,title)=>{
+    list=rowsOf(list);
+    if(!list.length) return `<div><h4 class="${who}">${esc(title)}</h4><p class="num" style="padding:6px 2px">No deaths — clean kill.</p></div>`;
+    let h=`<div><h4 class="${who}">${esc(title)} · ${list.length} death${list.length>1?"s":""}</h4><table><thead><tr><th>When</th><th>Player</th><th>Killed by</th></tr></thead><tbody>`;
+    for(const d of list){
+      const spec=specFromIcon(d.icon);
+      h+=`<tr><td class="num">${fmtTime(d.tSec*1000)}</td>
+        <td class="pname" style="color:${cc(d.class)}">${esc(d.name)}${spec?` <span class="role">${esc(spec)}</span>`:""}</td>
+        <td>${esc(d.killedBy)}</td></tr>`;
+    }
+    return h+`</tbody></table></div>`;
+  };
+  return `<div class="twocol">${col(D.ours,'ours',DATA.ours.title)}${col(D.theirs,'theirs',DATA.theirs.title)}</div>`;
+}
+function dispelsView(b){
+  const rows=rowsOf(b.dispelsList);
+  if(!rows.length) return `<p class="num" style="padding:8px 2px">Nothing dispellable on this fight (or no dispels recorded).</p>`;
+  let h=`<p class="srcs">Enemy auras the raid removed, with counts. More dispels of a harmful debuff is usually better.</p>
+  <table><thead><tr><th>Dispelled</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const d=deltaHigh(r.ours,r.theirs);
+    h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
+      <td class="delta ${d.cls}">${d.txt}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+function phasesView(b){
+  const rows=rowsOf(b.phases);
+  if(!rows.length) return `<p class="num" style="padding:8px 2px">This encounter has no distinct phases (single-phase fight).</p>`;
+  const oTot=rows.reduce((s,r)=>s+(r.oursMs||0),0), tTot=rows.reduce((s,r)=>s+(r.theirsMs||0),0);
+  let h=`<p class="srcs">Time spent in each phase, with its share of the kill. A longer phase than the benchmark is where the fight is slipping — extra adds, slower transitions, or a missed burn.</p>
+  <table><thead><tr><th>Phase</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const o=r.oursMs||0,t=r.theirsMs||0;
+    const d=deltaLow(Math.round(o/1000),Math.round(t/1000));
+    const oS=oTot?Math.round(o/oTot*100):0, tS=tTot?Math.round(t/tTot*100):0;
+    h+=`<tr><td style="font-weight:600">Phase ${r.id}</td>
+      <td><span class="cours">${fmtTime(o)}</span> <span class="num">(${oS}%)</span></td>
+      <td><span class="cthe">${fmtTime(t)}</span> <span class="num">(${tS}%)</span></td>
+      <td class="delta ${d.cls}">${d.txt}s</td></tr>`;
+  }
+  return h+`</tbody></table>`;
 }
 function statStrip(b){
   const cell=(label,o,t,fmt,lower)=>{const f=fmt||(x=>x);
@@ -339,7 +426,7 @@ function statStrip(b){
     ${cell("Dispels",b.oursDispels,b.theirsDispels,x=>x,false)}</div>`;
 }
 function topSources(b){
-  const rows=asArr(b.dmgCompare);
+  const rows=rowsOf(b.dmgCompare);
   if(!rows.length) return "";
   const persec=dmgMode==="persec";
   const val=(raw,durMs)=>persec?(durMs>0?Math.round(raw*1000/durMs):0):raw;
@@ -359,21 +446,32 @@ function topSources(b){
   }
   return h+`</div></div>`;
 }
-function uptimeTable(rows){
-  rows=asArr(rows);
+// Buff/debuff uptime, laid out like the damage-taken comparison (ours ← name → theirs)
+// and sorted by delta so the most improvable aura (biggest deficit vs the benchmark) is first.
+function uptimeCompare(rows,label){
+  rows=rowsOf(rows).map(r=>({name:r.name,o:r.ours==null?0:r.ours,t:r.theirs==null?0:r.theirs}));
   if(!rows.length) return '<p class="num">No tracked auras detected.</p>';
-  let h=`<table><thead><tr><th>Aura</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  rows.sort((a,b)=>(a.o-a.t)-(b.o-b.t)); // most negative delta (we trail most) first
+  const w=v=>Math.max(2,Math.round(v));
+  let h=`<div class="dmgcmp">
+    <div class="dmgcmphdr2"><span class="cours">${esc(DATA.ours.title)}</span><span>${esc(label||"Uptime %")}</span><span class="cthe">${esc(DATA.theirs.title)}</span></div>
+    <div class="ugrid">`;
   for(const r of rows){
-    const d=deltaHigh(r.ours==null?0:r.ours,r.theirs==null?0:r.theirs);
-    h+=`<tr><td>${esc(r.name)}</td><td>${uptimeCell(r.ours,'ours')}</td><td>${uptimeCell(r.theirs,'theirs')}</td><td class="delta ${d.cls}">${d.txt}</td></tr>`;
+    const d=deltaHigh(r.o,r.t);
+    h+=`<div class="dval lo">${r.o}%</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.o)}%"></div></div>
+      <div class="dmid">${esc(r.name)}</div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.t)}%"></div></div>
+      <div class="dval ro">${r.t}%</div>
+      <div class="delta ${d.cls}">${d.txt}</div>`;
   }
-  return h+`</tbody></table>`;
+  return h+`</div></div>`;
 }
 
-function mountDeep(){
-  const el=document.getElementById("p-deep");
-  el.innerHTML=renderDeep(DATA);
-  el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; mountDeep(); } }));
+function mountBosses(){
+  const el=document.getElementById("p-bosses");
+  el.innerHTML=renderBosses(DATA);
+  el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; mountBosses(); } }));
   el.querySelectorAll(".btab").forEach(t=>t.addEventListener("click",()=>{
     const boss=t.dataset.boss, bp=t.dataset.bp; bossTab[boss]=bp;
     el.querySelectorAll(`.btab[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.bp===bp));
@@ -388,12 +486,14 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="deep">Dive Deeper</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Enchants</div><div class="tab" data-t="bosses">Bosses</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
-  <div class="panel" id="p-deep"></div>
+  <div class="panel" id="p-composition">${renderComposition(d)}</div>
+  <div class="panel" id="p-enchants">${renderEnchants(d)}</div>
+  <div class="panel" id="p-bosses"></div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;
   document.getElementById("app").innerHTML=h;
-  mountDeep();
+  mountBosses();
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));

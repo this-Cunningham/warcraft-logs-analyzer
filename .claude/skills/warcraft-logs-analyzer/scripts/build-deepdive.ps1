@@ -144,11 +144,22 @@ $composition = [pscustomobject]@{
 # ---------- ENCHANT / GEM / CONSUMABLE AUDIT (from playerDetails) ----------
 # Core enchantable slots in TBC (exclude rings = enchanter-only, offhand/ranged = conditional).
 $enchSlots = @{ 0 = 'Head'; 2 = 'Shoulder'; 4 = 'Chest'; 6 = 'Legs'; 7 = 'Feet'; 8 = 'Wrist'; 9 = 'Hands'; 14 = 'Back'; 15 = 'Weapon' }
-function Audit-Report($dir) {
+function Audit-Report($dir, $allowNames) {
     $pd = (ReadJson (Join-Path $dir 'playerdetails.json')).reportData.report.playerDetails.data.playerDetails
+    # Restrict to the shared-boss roster so the audit matches the Composition view.
+    # playerDetails is fetched across ALL kills (incl. non-shared bosses); without this
+    # filter the audit aggregates would count players the two raids didn't both face.
+    $allow = @{}; foreach ($n in @($allowNames)) { $allow[$n] = $true }
+    # A player who tanked some fights and DPS'd others appears in BOTH role buckets of
+    # playerDetails. Dedupe by name (same character = same gear) so the audit doesn't
+    # double-count their enchants/gems or inflate the player count.
+    $seen = @{}
     $players = @()
     foreach ($rn in 'tanks', 'healers', 'dps') {
         foreach ($pl in $pd.$rn) {
+            if ($allow.Count -and -not $allow.ContainsKey($pl.name)) { continue }
+            if ($seen.ContainsKey($pl.name)) { continue }
+            $seen[$pl.name] = $true
             $gear = $pl.combatantInfo.gear
             $missing = @()
             $gems = 0
@@ -174,13 +185,26 @@ function Audit-Report($dir) {
         playersNoWeaponOil = $noOil; fullyEnchanted = $fullEnch; playerCount = $players.Count
         avgGems = Avg ($players | ForEach-Object { $_.gems }) }
 }
-$audit = [pscustomobject]@{ ours = (Audit-Report $OursDir); theirs = (Audit-Report $TheirsDir) }
+# Avg item level over the shared bosses (from fights.json averageItemLevel).
+function AvgIlvl($dir, $encIds) {
+    $fl = (ReadJson (Join-Path $dir 'fights.json')).reportData.report.fights
+    $vals = @($fl | Where-Object { $encIds -contains [string]$_.encounterID } |
+        ForEach-Object { [double]$_.averageItemLevel } | Where-Object { $_ -gt 0 })
+    if (-not $vals.Count) { return 0 }
+    [math]::Round(($vals | Measure-Object -Average).Average, 1)
+}
+$oursRosterNames   = @($oursRoster   | ForEach-Object { $_.name })
+$theirsRosterNames = @($theirsRoster | ForEach-Object { $_.name })
+$audit = [pscustomobject]@{ ours = (Audit-Report $OursDir $oursRosterNames); theirs = (Audit-Report $TheirsDir $theirsRosterNames) }
+$audit.ours   | Add-Member -NotePropertyName avgIlvl -NotePropertyValue (AvgIlvl $OursDir   @($commonIds))
+$audit.theirs | Add-Member -NotePropertyName avgIlvl -NotePropertyValue (AvgIlvl $TheirsDir @($commonIds))
 
 # ---------- PER-BOSS BUFF/DEBUFF UPTIME + LUST TIMING ----------
 function Fight-Map($dir) {
     $m = @{}
     foreach ($f in (ReadJson (Join-Path $dir 'fights.json')).reportData.report.fights) {
-        $m[[string]$f.encounterID] = [pscustomobject]@{ start = [long]$f.startTime; end = [long]$f.endTime }
+        $m[[string]$f.encounterID] = [pscustomobject]@{ start = [long]$f.startTime; end = [long]$f.endTime
+            phases = @($f.phaseTransitions); ilvl = [double]$f.averageItemLevel }
     }
     return $m
 }
@@ -266,8 +290,10 @@ function IntBreak($report, $specMap) {
     if ($report.intr -and $report.intr.data.entries) {
         $inner = @($report.intr.data.entries)[0].entries
         foreach ($ab in @($inner)) {
-            $an = if ($ab.name) { [string]$ab.name } else { 'Unknown' }
+            if (-not $ab -or -not $ab.name) { continue }  # phantom $null from empty inner entries:[]
+            $an = [string]$ab.name
             foreach ($d in @($ab.details)) {
+                if (-not $d) { continue }
                 $c = [int]$d.total
                 $abil[$an] = ([int]$abil[$an]) + $c
                 $cls = if ($d.type) { [string]$d.type } else { 'Unknown' }
@@ -297,6 +323,99 @@ function IntCompare($oB, $tB, $oSpec, $tSpec) {
     $interrupters = @($interrupters | Sort-Object { - ([math]::Max($_.ours, $_.theirs)) })
     return [pscustomobject]@{ abilities = $abilities; interrupters = $interrupters }
 }
+# --- Deaths: name + spec (from icon) + what killed them + when (sec into fight) ---
+function DeathList($report, $fightStart) {
+    $list = @()
+    if (-not $report.deaths) { return $list }
+    foreach ($d in @($report.deaths.data.entries)) {
+        if (-not $d -or -not $d.name) { continue }  # clean kill -> empty entries[] -> phantom $null
+        $kb = if ($d.killingBlow -and $d.killingBlow.name) { [string]$d.killingBlow.name } else { 'Unknown' }
+        $t = [math]::Round(([long]$d.timestamp - [long]$fightStart) / 1000, 0)
+        $list += [pscustomobject]@{ name = [string]$d.name; class = [string]$d.type
+            icon = [string]$d.icon; killedBy = $kb; tSec = [int]$t }
+    }
+    return @($list | Sort-Object tSec)
+}
+# --- Dispels: which enemy auras the raid dispelled, with counts ---
+function DispList($report) {
+    $map = @{}
+    if ($report.disp -and $report.disp.data.entries) {
+        foreach ($a in @(@($report.disp.data.entries)[0].entries)) {
+            # PS 5.1 turns an empty inner `entries:[]` into a phantom $null element — skip it,
+            # and skip any entry without a name (would render as an "undefined" ghost row).
+            if (-not $a -or -not $a.name) { continue }
+            $cnt = (@($a.details) | ForEach-Object { [int]$_.total } | Measure-Object -Sum).Sum
+            if (-not $cnt) { $cnt = [int]$a.spellsInterrupted }
+            $map[[string]$a.name] = [int]$cnt
+        }
+    }
+    return $map
+}
+function DispCompare($oR, $tR) {
+    $o = DispList $oR; $t = DispList $tR
+    $names = @(@($o.Keys) + @($t.Keys)) | Sort-Object -Unique
+    $rows = @()
+    foreach ($n in $names) { $rows += [pscustomobject]@{ name = $n; ours = [int]$o[$n]; theirs = [int]$t[$n] } }
+    @($rows | Sort-Object { - ([math]::Max($_.ours, $_.theirs)) })
+}
+# --- Interruptible casts that went off un-kicked (raid failed to interrupt) ---
+# The Interrupts table also lists friendly abilities an enemy interrupted; we skip those
+# by keeping only abilities whose un-interrupted casts (missedCasts) have a hostile caster.
+function UnkickedList($report) {
+    $rows = @()
+    if ($report.intr -and $report.intr.data.entries) {
+        foreach ($a in @(@($report.intr.data.entries)[0].entries)) {
+            $missed = @($a.missedCasts)
+            $hostile = @($missed | Where-Object { $_.type -eq 'NPC' -or $_.type -eq 'Boss' })
+            if ($missed.Count -gt 0 -and $hostile.Count -eq 0) { continue }  # friendly-ability noise
+            $kicked = [int]$a.spellsInterrupted
+            $wentOff = if ($missed.Count -gt 0) { $hostile.Count } else { [int]$a.spellsCompleted }
+            if (($kicked + $wentOff) -le 0) { continue }
+            $rows += [pscustomobject]@{ name = [string]$a.name; kicked = $kicked; wentOff = $wentOff }
+        }
+    }
+    return $rows
+}
+function UnkickedCompare($oR, $tR) {
+    $o = @{}; foreach ($r in (UnkickedList $oR)) { $o[$r.name] = $r }
+    $t = @{}; foreach ($r in (UnkickedList $tR)) { $t[$r.name] = $r }
+    $names = @(@($o.Keys) + @($t.Keys)) | Sort-Object -Unique
+    $rows = @()
+    foreach ($n in $names) {
+        $oo = $o[$n]; $tt = $t[$n]
+        $rows += [pscustomobject]@{ name = $n
+            oursKicked = [int]$(if ($oo) { $oo.kicked } else { 0 }); oursWentOff = [int]$(if ($oo) { $oo.wentOff } else { 0 })
+            theirsKicked = [int]$(if ($tt) { $tt.kicked } else { 0 }); theirsWentOff = [int]$(if ($tt) { $tt.wentOff } else { 0 }) }
+    }
+    @($rows | Sort-Object { - ([math]::Max($_.oursWentOff, $_.theirsWentOff)) })
+}
+# --- Phase timing: duration of each phase (from phaseTransitions on the fight) ---
+function PhaseList($fightInfo) {
+    $pts = @($fightInfo.phases)
+    if (-not $pts.Count) { return @() }
+    $sorted = @($pts | Sort-Object startTime)
+    $phases = @()
+    for ($i = 0; $i -lt $sorted.Count; $i++) {
+        $ps = [long]$sorted[$i].startTime
+        $pe = if ($i + 1 -lt $sorted.Count) { [long]$sorted[$i + 1].startTime } else { [long]$fightInfo.end }
+        $phases += [pscustomobject]@{ id = [int]$sorted[$i].id; durMs = ($pe - $ps) }
+    }
+    return $phases
+}
+function PhaseCompare($oInfo, $tInfo) {
+    $op = PhaseList $oInfo; $tp = PhaseList $tInfo
+    if (-not $op.Count -and -not $tp.Count) { return @() }
+    $oByeId = @{}; foreach ($p in $op) { $oByeId[[string]$p.id] = $p.durMs }
+    $tById = @{}; foreach ($p in $tp) { $tById[[string]$p.id] = $p.durMs }
+    $ids = @(@($oByeId.Keys) + @($tById.Keys)) | Sort-Object -Unique | Sort-Object { [int]$_ }
+    $rows = @()
+    foreach ($id in $ids) {
+        $rows += [pscustomobject]@{ id = [int]$id
+            oursMs = [long]$oByeId[$id]; theirsMs = [long]$tById[$id] }
+    }
+    return $rows
+}
+
 $perBoss = @()
 foreach ($b in $bosses) {
     $enc = [string]$b.encounterID
@@ -331,7 +450,11 @@ foreach ($b in $bosses) {
         dmgCompare = (DmgCompare $oB $oursTank $tB $theirsTank 7)
         oursInterrupts = (CountActions $oB 'intr'); theirsInterrupts = (CountActions $tB 'intr')
         oursDispels = (CountActions $oB 'disp');    theirsDispels = (CountActions $tB 'disp')
-        interrupts = (IntCompare $oB $tB $oursSpec $theirsSpec) }
+        interrupts = (IntCompare $oB $tB $oursSpec $theirsSpec)
+        unkicked = (UnkickedCompare $oB $tB)
+        dispelsList = (DispCompare $oB $tB)
+        deaths = [pscustomobject]@{ ours = (DeathList $oB $oursFights[$enc].start); theirs = (DeathList $tB $theirsFights[$enc].start) }
+        phases = (PhaseCompare $oursFights[$enc] $theirsFights[$enc]) }
 }
 function AvgNN($v) { $f = @($v | Where-Object { $_ -ne $null }); if ($f.Count) { Avg $f } else { 0 } }
 # Overall DTPS is time-weighted (total damage / total fight time), not a mean of per-boss rates.

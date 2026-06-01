@@ -18,11 +18,10 @@ verified to reproduce the PowerShell output exactly against committed data (Over
 audit, efficiency, and all role-independent per-boss fields matched byte-for-byte; the
 only deltas were Python emitting proper JSON arrays where PowerShell's `ConvertTo-Json`
 collapsed single-element arrays to bare objects, plus deterministic kill-order iteration
-replacing PowerShell's nondeterministic hashtable-key order — both improvements). The
-`.ps1` files stay in `scripts/` until the Python path is validated on the user's Mac,
-then they get removed. Python files: `lib.py`, `query.py`, `introspect.py`,
-`fetch_report.py`, `build_comparison.py`, `build_deepdive.py`, `report_common.py`,
-`compare_raids.py`, plus `.claude/preview-server.py`.
+replacing PowerShell's nondeterministic hashtable-key order — both improvements).
+Python files: `lib.py`, `query.py`, `introspect.py`, `fetch_report.py`,
+`build_comparison.py`, `build_deepdive.py`, `report_common.py`, `compare_raids.py`,
+plus `.claude/preview-server.py`. Legacy `.ps1` files removed.
 
 Original notes / context (for reference):
 - **Can it work in Node/Python?** Yes, cleanly. The whole pipeline is just: OAuth token →

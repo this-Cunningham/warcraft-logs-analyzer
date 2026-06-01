@@ -286,7 +286,6 @@ function renderOverview(d){
     deathD=deltaLow(s.oursDeaths,s.theirsDeaths), timeD=deltaLow(Math.round(s.oursDurationMs/1000),Math.round(s.theirsDurationMs/1000));
   const wipeCard=s.hasAttempts?`<div class="card"><div class="label">Total Wipes</div><div class="vals"><span class="v ours">${s.oursWipes}</span><span class="v theirs">${s.theirsWipes}</span><span class="delta ${deltaLow(s.oursWipes,s.theirsWipes).cls}">${deltaLow(s.oursWipes,s.theirsWipes).txt}</span></div></div>`:"";
   let h=gapsScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
-    <div class="card"><div class="label">Shared Bosses</div><div class="vals"><span class="v">${s.bossCount}</span></div></div>
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
@@ -369,33 +368,7 @@ function renderComposition(d){
       <td>${tag}</td><td class="num">${esc(g.impact)}</td></tr>`;
   }
   h+=`</tbody></table>`;
-
-  /* Damage contribution by class — which part of the raid is (or isn't) pulling its weight. */
-  const ob=dp.outputBreakdown;
-  if(ob&&rowsOf(ob.classShare).length){
-    h+=`<h2 class="section">Damage Contribution by Class<span class="hint">Each class's share of total raid damage across the shared bosses, ours vs the benchmark. A class pulling a much smaller share than the benchmark's is where damage leaks — though comp differences (bringing more or fewer of a class) shift the split too, so read it alongside the roster counts above.</span></h2>
-    ${classShareView(ob.classShare)}`;
-  }
   return h;
-}
-// % of raid damage by class, mirrored bars (ours ← class → theirs), tinted by class color.
-function classShareView(rows){
-  rows=rowsOf(rows);
-  const max=Math.max(1,...rows.map(r=>Math.max(r.oursPct,r.theirsPct)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<div class="dmgcmp">
-    <div class="dmgcmphdr2"><span class="cours">${esc(DATA.ours.title)}</span><span>% of raid damage by class</span><span class="cthe">${esc(DATA.theirs.title)}</span></div>
-    <div class="ugrid">`;
-  for(const r of rows){
-    const diff=Math.round((r.oursPct-r.theirsPct)*10)/10;
-    h+=`<div class="dval lo">${r.oursPct}%</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.oursPct)}%;background:${cc(r.class)}"></div></div>
-      <div class="dmid" style="color:${cc(r.class)}">${esc(r.class)}</div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirsPct)}%;background:${cc(r.class)}"></div></div>
-      <div class="dval ro">${r.theirsPct}%</div>
-      <div class="delta flat">${diff>0?"+":""}${diff}</div>`;
-  }
-  return h+`</div></div>`;
 }
 
 /* ---------- ENCHANTS & GEMS ---------- */
@@ -418,14 +391,11 @@ function renderEnchants(d){
   const cons=dp.consumables;
   if(cons&&cons.ours&&cons.theirs){
     const co=cons.ours, ct=cons.theirs;
-    h+=`<h2 class="section">Consumables Coverage<span class="hint">How much of the raid showed up consumed, from buff auras on the shared bosses, averaged across them. Counts are raid-aggregate (≈ one application per player; not per-player exact) — flasks and food are the clearest preparation gap. Drums shown as fight uptime; potions/elixirs are approximate.</span></h2>
+    h+=`<h2 class="section">Consumables Coverage<span class="hint">How much of the raid showed up consumed, from buff auras on the shared bosses, averaged across them. Counts are raid-aggregate (≈ one application per player; not per-player exact) — flasks and food are the clearest preparation gap. Drums shown as fight uptime. Per-player elixir and combat-potion detail is in the matrix below.</span></h2>
     <div class="cards">
       ${acard("Flasked",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
       ${acard("Food (Well Fed)",`${co.food}/${co.rosterSize}`,`${ct.food}/${ct.rosterSize}`,deltaHigh(co.food,ct.food))}
-      ${acard("Battle Elixirs",co.elixirBattle,ct.elixirBattle,deltaHigh(co.elixirBattle,ct.elixirBattle))}
-      ${acard("Guardian Elixirs",co.elixirGuardian,ct.elixirGuardian,deltaHigh(co.elixirGuardian,ct.elixirGuardian))}
       ${acard("Drums Uptime",`${co.drumsUptime}%`,`${ct.drumsUptime}%`,deltaHigh(co.drumsUptime,ct.drumsUptime))}
-      ${acard("Combat Potions",co.potions,ct.potions,deltaHigh(co.potions,ct.potions))}
     </div>`;
   }
 
@@ -516,7 +486,6 @@ function renderBosses(d){
       <div class="card"><div class="label">Raid Wall-clock</div><div class="vals"><span class="v ours">${fmtMin(e.ours.spanMs)}</span><span class="v theirs">${fmtMin(e.theirs.spanMs)}</span><span class="delta ${spanD.cls}">${spanD.txt}m</span></div></div>
       <div class="card"><div class="label">In Boss Fights</div><div class="vals"><span class="v ours">${fmtMin(e.ours.combatMs)}</span><span class="v theirs">${fmtMin(e.theirs.combatMs)}</span></div></div>
       <div class="card"><div class="label">Out of Boss (trash/wipes)</div><div class="vals"><span class="v ours">${fmtMin(e.ours.downtimeMs)}</span><span class="v theirs">${fmtMin(e.theirs.downtimeMs)}</span><span class="delta ${dtD.cls}">${dtD.txt}m</span></div></div>
-      <div class="card"><div class="label">Boss Kills Logged</div><div class="vals"><span class="v ours">${e.ours.kills}</span><span class="v theirs">${e.theirs.kills}</span></div></div>
     </div>`;
   }
 
@@ -619,14 +588,14 @@ function deathsView(b){
 function dispelsView(b){
   const rows=rowsOf(b.dispelsList);
   if(!rows.length) return `<p class="num" style="padding:8px 2px">Nothing dispellable on this fight (or no dispels recorded).</p>`;
-  let h=`<p class="srcs">Enemy auras the raid removed, with counts. More dispels of a harmful debuff is usually better.</p>
-  <table><thead><tr><th>Dispelled</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  let h=`<p class="srcs">Which enemy auras each raid chose to remove on this fight, and how often. <b>Descriptive, not better/worse</b> — the benchmark sets the bar, and dispels are their own call (a debuff may be dispellable but not interruptible). A debuff the benchmark removes heavily and you ignore is a dispel-priority gap worth a second look; one only you dispel may be wasted GCDs.</p>
+  <table><thead><tr><th>Dispelled</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th><th>Diff</th></tr></thead><tbody>`;
   for(const r of rows){
-    const d=deltaHigh(r.ours,r.theirs);
+    const diff=(r.ours||0)-(r.theirs||0);
     h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
       <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
       <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
-      <td class="delta ${d.cls}">${d.txt}</td></tr>`;
+      <td class="delta flat">${diff>0?"+":""}${diff}</td></tr>`;
   }
   return h+`</tbody></table>`;
 }
@@ -711,10 +680,10 @@ function tierUptimeGapView(d){
   }
   return h+`</tbody></table>`;
 }
-// Per-boss DPS-by-spec gap: mirrored bars (ours ← spec → theirs), same grammar as the
-// "Damage Contribution by Class" view, ranked by per-player deficit so the area we can most
-// improve sits at the top. Only specs BOTH raids fielded — "who's missing a spec" is a roster
-// question, surfaced on the Composition tab, not framed here as a per-boss DPS shortfall.
+// Per-boss DPS-by-spec gap: mirrored bars (ours ← spec → theirs), ranked by per-player deficit so
+// the area we can most improve sits at the top. Only specs BOTH raids fielded — "who's missing a
+// spec" is a roster question, surfaced on the Composition tab, not framed here as a per-boss DPS
+// shortfall.
 function specDpsView(b){
   const rows=rowsOf(b.specGap).filter(r=>r.both);
   if(!rows.length) return `<p class="num" style="padding:8px 2px">No DPS spec was fielded by both raids on this fight — nothing comparable to rank. (Roster differences are on the Composition tab.)</p>`;

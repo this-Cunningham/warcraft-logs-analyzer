@@ -186,7 +186,9 @@ the static template, with no model in the path.
      (parse, kill time, raid DPS, deaths, overheal, activity, avoidable dmg/s, flask, food, enchants,
      missing buff/debuff providers, **wipes**, **worst tier-wide spec DPS gap**, **worst buff/debuff
      uptime gap**, **trash deaths** — fed in from the Trash tab's glance via the `trash=` arg so the
-     avoidable-trash-death gap surfaces on the Overview, not only deep in the Trash tab). Each
+     avoidable-trash-death gap surfaces on the Overview, not only deep in the Trash tab — and the
+     **worst avoidable killing blow** via the `death_causes=` arg: the single killing blow we take
+     most over the benchmark, naming the specific mechanic the count-only deaths card just sums). Each
      candidate gets a hand-tuned severity in [0,1] and an actionable sentence;
      only dimensions where we trail are kept, top 7 render as severity-colored cards (high/med/low).
      Then the Raid Summary cards (incl. **Total Wipes** when attempt data is present), then a
@@ -200,15 +202,20 @@ the static template, with no model in the path.
      not whatever the first-iterated fight showed — so a Feral druid who bear-tanks one fight
      as "Guardian" still reads as Feral (and still counts as a Leader-of-the-Pack provider).
      This keeps the spec counts and the provider-gap status order-independent and consistent.
-     Also carries **Damage Contribution by Class** (`class_dmg_share`) — each class's % share of
-     total raid damage across the shared bosses, ours vs benchmark, as class-tinted mirrored bars.
+     (The old **Damage Contribution by Class** view was cut in the soul audit — a class's % share of
+     raid damage conflates "we bring fewer of that class" with "that class underperforms," so it
+     wasn't a clean better/worse signal; the per-player-averaged **DPS by Spec** gap is the honest
+     version of "is this class pulling its weight.")
    - **Prep**: leads with **Consumables Coverage** (`consumable_report` in build_deepdive.py),
      then the Enchants & Gems audit. Consumables come from the per-boss **Buffs** tables we already
-     fetch — auras are bucketed by `_consumable_cat` into flask / food (Well Fed) / battle elixir /
-     drums / combat potion, and `totalUses` is averaged across the shared bosses (≈ one application
-     per player for flask/food, so it's a raid-aggregate coverage proxy, **not** per-player exact;
-     it also can't tell flask-vs-elixir apart for the same player, so flask is the headline). Drums
-     is shown as fight **uptime %** rather than a user count. Cards show ours/theirs/Δ.
+     fetch — auras are bucketed by `_consumable_cat`, and `totalUses` is averaged across the shared
+     bosses (≈ one application per player for flask/food, so it's a raid-aggregate coverage proxy,
+     **not** per-player exact). The coverage cards show only **Flask**, **Food (Well Fed)**, and
+     **Drums uptime %** — the three clean signals. The soul audit cut the aggregate **Battle Elixir /
+     Guardian Elixir / Combat Potion** cards: as denominator-less raid totals ("Battle Elixirs: 12" —
+     12 of what?) they weren't an at-a-glance gap, and the **Per-Player Consumables** matrix below
+     already carries elixir/potion detail per raider, far more actionably (`_consumable_cat`/
+     `_elixir_type` still classify those for the matrix). Cards show ours/theirs/Δ.
      `ELIXIR_EXCLUDE` drops junk "…Elixir" names (Noggenfogger etc.).
    - **Consumables are classified by SPELL ID, not buff name.** WCL renames most consumable buffs to
      their *effect* — Flask of Supreme Power → "Supreme Power", Elixir of Major Shadow Power → "Major
@@ -258,8 +265,11 @@ the static template, with no model in the path.
      hiding inside the single raid-wide average.
    - **Execution** (raid-wide gaps first, then per-boss drill-down):
      - **What's Killing Us** (`death_cause_compare` → `deathCausesView`) — killing-blow names
-       aggregated across every shared boss into a ranked ours-vs-theirs table (worst-for-us first,
-       each row listing the bosses it occurred on). A recurring blow = a mechanic the raid keeps failing.
+       aggregated across every shared boss into an ours-vs-theirs table ranked by **biggest avoidable
+       delta first** (ours − theirs), each row listing the bosses it occurred on. Ranking by the gap
+       (not raw count) floats the mechanic the benchmark has *solved* and we haven't to the top — the
+       highest-payoff fix — matching `trash_death_causes` and the soul's "ranked by payoff." Its
+       top avoidable row also feeds the Overview scorecard (see `death_causes=` above).
      - **Lowest-Hanging DPS — Spec Gaps** (`tier_spec_gap` → `tierSpecGapView`) — every DPS player's
        per-boss DPS pooled by (class, primary spec) across ALL shared bosses, ranked by the per-player
        deficit to the benchmark's same spec. Mirrored bars, biggest deficit (red) first; specs only one
@@ -289,8 +299,8 @@ the static template, with no model in the path.
      - **DPS by Spec** (`spec_gap` → `specDpsView`) — the DamageDone table bucketed by (class,
        primary spec) for DPS-role players, ranked by the **per-player DPS deficit** to the
        benchmark's same spec (avg DPS per player, so 3-mages-vs-2 stays fair; specs only one raid
-       brought fall to the bottom as a comp note). Each row expands (`<details>`) to the individual
-       players + their DPS on both sides.
+       brought are noted, not charted). Mirrored bars at the **spec** grain — there is no per-player
+       drill-down (the report stays raid/spec-level by design; no per-player breakdowns).
      - **Damage Taken** — top damage-taken sources (honors the per-sec/overall toggle).
      - **Deaths** — who died, their spec (parsed from the death `icon`, e.g. `Hunter-Survival`),
        the killing blow, and when (sec into fight). "Clean kill" when nobody died.
@@ -298,8 +308,13 @@ the static template, with no model in the path.
        Off Un-kicked** section (kicked / went-off per ability). Un-kicked = `intr` entries'
        `missedCasts[]` filtered to hostile casters (`type` NPC/Boss) so friendly-ability noise
        is excluded.
-     - **Dispels** — which enemy auras each raid removed, with counts (`disp` entries'
-       `details[].total`).
+     - **Dispels** (`disp_compare` → `dispelsView`) — which enemy auras each raid *chose* to remove on
+       this fight, and how often (`disp` entries' `details[].total`). **Descriptive, not better/worse**
+       (the soul-audit reframe — "more dispels" can just mean more got through, and a debuff may be
+       dispellable yet un-kickable, so dispels are their own call distinct from interrupts): the benchmark
+       sets the bar, the column shows a **neutral Diff** (no good/bad coloring), and a debuff the benchmark
+       removes heavily while we ignore is a dispel-priority gap. **Kept per-boss on purpose** — aggregating
+       tier-wide would lose which fight a dispel happened on / where it's being prioritized.
      - **Phases** — per-phase duration + share of kill with a delta, from `fight.phaseTransitions`
        (single-phase fights show a graceful note). TBC has no phase *names*, so phases are
        numbered.

@@ -8,19 +8,6 @@ Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of eac
 
 ---
 
-## TODO: soul audit — review report against PRODUCT_MANAGER_SOUL.md and reorganize
-
-> Read PRODUCT_MANAGER_SOUL.md and then reorganize any parts of the report that need to
-> be reorganized in ways that match our goals.
-
-This is a chore, not a feature. The soul has three hard filters: gaps ranked by payoff,
-every insight actionable, lean on top / depth on demand. Walk every section and ask the
-one-line test: *"Would this help an unfamiliar raid leader decide what to fix next —
-honestly, at a glance?"* Anything that fails (data dump, raw count, section that doesn't
-point at a behavior change) gets removed, moved behind a drill-down, or reframed.
-
----
-
 ## TODO: more / better insights — what other data can we leverage?
 
 > What else can we do to give better insights and ability to improve our raid? What other

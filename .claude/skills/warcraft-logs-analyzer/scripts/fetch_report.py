@@ -10,6 +10,8 @@ Writes:
     <out_dir>/boss-<encounterID>.json  (per-kill: buffs + boss debuffs, in one call)
     <out_dir>/consumes-<encounterID>.json  (shared bosses only: per-player buff auras for the
                                             Consumables table — flask/elixir/food/potion presence)
+    <out_dir>/timeline-<encounterID>.json  (shared bosses only: exact DPS/HPS-over-time curves,
+                                            event-binned into N equal buckets across the fight)
 """
 
 import argparse
@@ -69,6 +71,40 @@ def _fetch_per_player_buffs(code, fid, player_ids):
     return out
 
 
+def _binned_curves(code, fid, start, end, n=40):
+    """Exact DPS/HPS-over-time curves for one fight.
+
+    Bins friendly DamageDone / Healing event `amount`s into `n` equal time buckets across the
+    fight and divides each by the bucket width -> DPS/HPS per slice. This is computed from events
+    on purpose: the cheaper `graph()` endpoint returns an opaque rolling rate (~2x true DPS, and
+    the ratio drifts), which would contradict the exact time-weighted Raid DPS shown elsewhere in
+    the report. Event-binning matches the table totals, so the timeline stays honest. Both reports
+    use the same fixed `n`, so the two curves overlay index-for-index on a 0-100%-of-fight axis."""
+    dur = max(1, int(end) - int(start))
+    width = dur / n  # ms per bucket
+
+    def curve(dtype):
+        buckets = [0.0] * n
+        cur = int(start)
+        while cur is not None and cur < int(end):
+            q = ("query Q($c:String!,$f:[Int]!,$st:Float!,$et:Float!){reportData{report(code:$c){"
+                 "events(dataType:" + dtype + ",fightIDs:$f,startTime:$st,endTime:$et,limit:10000)"
+                 "{data nextPageTimestamp}}}}")
+            ev = lib.invoke_query(q, {"c": code, "f": [fid], "st": cur, "et": int(end)})["reportData"]["report"]["events"]
+            for e in ev["data"]:
+                amt = e.get("amount") or 0
+                bi = int((e["timestamp"] - int(start)) // width)
+                buckets[min(max(bi, 0), n - 1)] += amt
+            nxt = ev.get("nextPageTimestamp")
+            if not nxt or nxt <= cur:
+                break
+            cur = int(nxt)
+        secs = width / 1000.0
+        return [round(b / secs) for b in buckets]
+
+    return {"durMs": dur, "n": n, "dps": curve("DamageDone"), "hps": curve("Healing")}
+
+
 def fetch(code, out_dir, full_encounters=None):
     """Fetch fights, player details, and per-boss tables for one report code."""
     full_encounters = set(int(e) for e in (full_encounters or []))
@@ -121,10 +157,12 @@ def fetch(code, out_dir, full_encounters=None):
         res = lib.invoke_query(FULL_Q if heavy else LITE_Q, {"code": code, "f": [fid]})
         _save(res, os.path.join(out_dir, "boss-{}.json".format(enc)))
         print("[{}]   {}: {} (enc {})".format(code, "FULL" if heavy else "lite", fight["name"], enc))
-        # Per-player consumable coverage (shared bosses only — it's a coaching detail view).
+        # Per-player consumable coverage + DPS/HPS timeline (shared bosses only — coaching detail).
         if heavy:
             ppb = _fetch_per_player_buffs(code, fid, player_ids)
             _save({"perPlayer": ppb}, os.path.join(out_dir, "consumes-{}.json".format(enc)))
+            timeline = _binned_curves(code, fid, fight["startTime"], fight["endTime"])
+            _save(timeline, os.path.join(out_dir, "timeline-{}.json".format(enc)))
 
     print("[{}] done -> {}".format(code, out_dir))
 

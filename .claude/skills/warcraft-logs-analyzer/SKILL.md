@@ -241,7 +241,13 @@ the static template, with no model in the path.
        the meaningful interrupt data lives in the per-boss kicked-vs-leaked view.)
      - **Clear Efficiency** — first-pull-to-last-kill wall-clock vs in-combat time (downtime = trash/wipes).
      - **Per-Boss Execution** — each boss is a card with an output strip (Raid DPS, activity, overheal,
-       dmg taken/s) plus seven sub-tabs:
+       dmg taken/s) plus eight sub-tabs (**Timeline** is the default when present):
+     - **Timeline** (`timeline_view` → `timelineChart`/`tlChart`) — **Raid DPS and HPS over the course
+       of the fight, ours vs benchmark**, each kill stretched to its own 0–100% so two fights of
+       different length overlay — the read is *where* the gap opens (matched early then a cliff after a
+       death, or trailing throughout). Annotated with death ticks (▲, per side), Bloodlust verticals
+       (⚡, per side), and phase dividers (your fight). Rendered as a hand-rolled inline SVG line chart
+       (no libs). **Curves are computed from events, not `graph()`** — see the data note below.
      - **Buff Uptime** — boss debuffs + raid buffs, laid out value←bar—name—bar→value with a
        delta, sorted by delta (most-improvable / biggest deficit first).
      - **DPS by Spec** (`spec_gap` → `specDpsView`) — the DamageDone table bucketed by (class,
@@ -268,6 +274,19 @@ the static template, with no model in the path.
    counts** come from one extra cheap query per report (`fights(killType:Encounters){encounterID kill}`
    → `attempts.json`); `attempt_map` in build_deepdive tallies kills vs wipes per boss (graceful — an
    older data folder without `attempts.json` just builds without the wipe views).
+
+   **Timeline curves** (`timeline-<enc>.json`, shared bosses only) power the per-boss Timeline sub-tab.
+   `_binned_curves` in fetch_report pages **DamageDone + Healing events** and bins `amount` into 40
+   equal time buckets across the fight, ÷ bucket width → exact DPS/HPS-over-time. **This is computed
+   from events on purpose, not the cheaper `graph()` endpoint:** `graph(viewBy:Source)` over a fight
+   window returns an opaque *rolling* rate that runs ~2× true DPS (and the ratio drifts 1.9–2.1×), so
+   it would contradict the exact time-weighted Raid DPS shown elsewhere in the report — event-binning
+   matches the table totals and stays honest. Cost is ~3–6 points/boss/side (both curves; one event
+   page for most fights since `limit:10000` is accepted), so a full 2-report comparison adds ~20–60
+   points — well under the 3600/hr cap. Build-side, `timeline_view` overlays the two curves on a shared
+   0–100%-of-fight axis (each kill normalized to its own length) and places death/lust/phase markers as
+   % of each fight; graceful — a data folder without `timeline-<enc>.json` just builds without the
+   Timeline sub-tab (it falls back to Buff Uptime as the default).
 
 **TBC Classic data caveats (verified):**
 - `playerDetails.combatantInfo.potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't use

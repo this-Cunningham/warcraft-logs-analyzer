@@ -4,45 +4,6 @@ Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of eac
 
 ---
 
-## ✅ RESOLVED: language / runtime — ported to Python (stdlib only)
-
-> Should this be written in Node/Python instead of PowerShell? Can it be written in
-> those and still work? Are those better than PowerShell (my guess is probably)?
-
-**Decision (2026-05-31):** ported all scripts from PowerShell to **Python 3, standard
-library only** (no `pip install`), so the skill runs on macOS' system `python3` as well
-as Windows. **No redesign was needed** — the architecture is unchanged (OAuth → GraphQL
-POST → shape JSON → inject into the static HTML template); only the fetch/build layer
-moved. The `report.html` template and its `DATA` payload are untouched. The port was
-verified to reproduce the PowerShell output exactly against committed data (Overview,
-audit, efficiency, and all role-independent per-boss fields matched byte-for-byte; the
-only deltas were Python emitting proper JSON arrays where PowerShell's `ConvertTo-Json`
-collapsed single-element arrays to bare objects, plus deterministic kill-order iteration
-replacing PowerShell's nondeterministic hashtable-key order — both improvements).
-Python files: `lib.py`, `query.py`, `introspect.py`, `fetch_report.py`,
-`build_comparison.py`, `build_deepdive.py`, `report_common.py`, `compare_raids.py`,
-plus `.claude/preview-server.py`. Legacy `.ps1` files removed.
-
-Original notes / context (for reference):
-- **Can it work in Node/Python?** Yes, cleanly. The whole pipeline is just: OAuth token →
-  GraphQL POST → shape JSON → inject into a static HTML template. None of that is
-  PowerShell-specific. The **report itself wouldn't change at all** — it's already a
-  self-contained HTML file with vanilla JS; only the fetch/build scripts would be rewritten.
-- **Why PowerShell today:** it was the zero-install path — this Windows box has no Node or
-  working Python, but PowerShell + `curl` are built in. Good for "just works," less good for
-  ergonomics (the UTF-8/encoding gotchas, verbose JSON handling, `ConvertTo-Json` single-element
-  array unwrapping we had to defend against).
-- **Likely better in Node/Python because:** nicer JSON handling, real package ecosystem (a GraphQL
-  client, a templating lib), easier testing, and a clearer path *if* this ever becomes a hosted
-  web app (see the tab-restructure note + the original "do we need Next.js" discussion).
-- **Cost of switching:** requires installing a runtime (and for Node, `npm install`). Decide based
-  on where the project is headed (static report generator → PowerShell is fine; interactive/hosted
-  app → Node/Next).
-- Decision criteria mirror the earlier architecture chat: stay simple while it's a "generate a
-  shareable report" tool; switch when it becomes an "interactive product."
-
----
-
 ## TODO: more / better insights — what other data can we leverage?
 
 > What else can we do to give better insights and ability to improve our raid? What other
@@ -54,54 +15,13 @@ Concrete candidates already identified from API exploration:
   Combustion / Recklessness / Death Wish / trinkets / Power Infusion / racials — counts vs benchmark.
 - **Per-class rotation / ability-mix** (`dd.abilities[]` — already fetched): compare one of our
   mages to the benchmark's best mage, ability by ability. Deepest *individual* coaching tool.
-- ✅ **Death timeline & cause** (`Deaths` table): DONE 2026-05-31 — per-boss Deaths sub-tab shows
-  who died, their spec, the killing blow, and when (sec into fight). Per-pull-vs-execute framing
-  could still be layered on via phase correlation.
-- ✅ **Interrupts: kicks landed vs missed** (`intr.missedCasts[]`): DONE 2026-05-31 — the Interrupts
-  sub-tab now has a "Casts That Went Off Un-kicked" section (kicked / went-off per ability, hostile
-  casters only). A per-*player* interrupter view is still open.
 - **Flask / consumable coverage per player**: raid-aggregate flask presence is visible, but
   per-player needs a per-source buff query or event scan.
 - **Healer mana / OOM + resource usage** (`Resources` table).
-- ✅ **Phase timing** (`phaseTransitions` on fights): DONE 2026-05-31 — per-boss Phases sub-tab shows
-  each phase's duration + share of the kill with a delta vs the benchmark (Vashj P1/P2/P3, etc.).
-- **Gear / item-level gaps**: ⚠️ partial — raid **avg item level** now shown on the Enchants tab
-  (DONE 2026-05-31). Still open: *per-player* ilvl vs the benchmark's same-role players; biggest BiS gaps.
-- ✅ **Dispels** (`Dispels` table): DONE 2026-05-31 — per-boss Dispels sub-tab compares which enemy
-  auras each raid removed, with counts.
+- **Gear / item-level gaps**: raid **avg item level** is shown on the Enchants tab. Still open:
+  *per-player* ilvl vs the benchmark's same-role players; biggest BiS gaps.
 - **Positioning** (x/y from events): advanced/heavy to render, but possible (spread/stack mechanics).
 - Keep asking the meta-question every pass: *what modality of data haven't we looked at yet?*
-
----
-
-## TODO: restructure top-level tabs — ✅ DONE 2026-05-31 (per-player inspection still open)
-
-> Break the top level of "Dive Deeper" into other tabs. Raid comp all the way down to
-> per-player inspection should be a separate whole tab next to Dive Deeper. We can probably
-> rename Dive Deeper to be about composition, then create a tab next to it that's like "Bosses".
-
-**Done (2026-05-31):** "Dive Deeper" split into four top-level tabs —
-**Overview | Composition | Enchants | Bosses**. Composition holds raid composition + buff
-coverage; the enchant/gem audit got its own **Enchants** tab (rather than nesting under
-Composition); **Bosses** holds Clear Efficiency + Output Quality + Per-Boss Execution. No
-sections or data were dropped in the move. The Enchants audit was also brought onto the
-**shared-boss roster** so its player count matches Composition (was previously computed over
-all kills), and a latent double-count of players who appear in two role buckets (e.g. a feral
-who both tanked and DPS'd) was deduped.
-
-**Still open:** per-player inspection — drill into a single raider's gear/enchants/parses/
-activity ("all the way down to per-player inspection"). The Composition/Enchants tabs are
-per-raid aggregates, not a per-player drilldown, so this remains the outstanding piece.
-
-Original plan (for reference):
-- Promote the per-boss content into its own top-level **"Bosses"** tab. ✅
-- Rename **"Dive Deeper" → "Composition"**, holding raid composition + buff coverage. ✅
-- Resulting top-level tabs: shipped as four (**Overview | Composition | Enchants | Bosses**). ✅
-- Resolved questions:
-  - **Clear Efficiency** and **Output Quality** (cross-boss summaries) → placed on **Bosses**.
-  - The enchant/gem **Audit** → its own **Enchants** tab.
-  - Growing client-side JS may still justify inlining a tiny view lib (Preact + htm) if a
-    per-player drilldown adds tabs-within-tabs. Still keep single-file output.
 
 ---
 

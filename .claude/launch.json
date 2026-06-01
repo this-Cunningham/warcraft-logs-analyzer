@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "report-preview",
-      "runtimeExecutable": "python3",
+      "runtimeExecutable": "python",
       "runtimeArgs": [".claude/preview-server.py"],
       "port": 8753
     }

@@ -103,7 +103,7 @@
   .seg .dmgbtn{background:var(--panel);color:var(--muted);border:none;padding:6px 15px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
   .seg .dmgbtn:hover{color:var(--txt)}
   .seg .dmgbtn.on{background:var(--ours);color:#06101f}
-  .btabs{display:flex;gap:6px;margin:8px 0 14px}
+  .btabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 14px}
   .btab{padding:6px 14px;border-radius:8px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   .btab:hover{color:var(--txt)}
   .btab.on{background:var(--ours);color:#06101f;border-color:transparent}
@@ -188,6 +188,7 @@ const deltaLow =(o,t)=>{if(o===t)return{cls:"flat",txt:"even"};const b=o<t;retur
 const deltaHigh=(o,t)=>{const d=Math.round((o-t)*10)/10;if(d===0)return{cls:"flat",txt:"even"};return{cls:d>0?"good":"bad",txt:(d>0?"+":"")+d};};
 let dmgMode="persec"; // "persec" | "total" — toggled in the Output Quality section, drives all damage-taken displays
 const bossTab={};      // per-boss sub-tab state, keyed by encounterID -> "buffs" | "dmg" (survives re-render)
+let overviewTab=null;  // Overview boss sub-tab state (encounterID as string); null -> first boss
 
 function rosterTable(players){
   const sorted=[...asArr(players)].sort((a,b)=>b.parse-a.parse);
@@ -242,8 +243,12 @@ function consumeMatrix(ppc){
 }
 function metricBars(label,o,t,fmt,maxVal,lowerBetter){
   const f=fmt||(x=>x), max=maxVal||Math.max(o,t,1), w=v=>Math.max(6,Math.round(v/max*100));
-  const d=lowerBetter?deltaLow(o,t):deltaHigh(o,t);
-  return `<div class="metric"><div class="mlabel"><span>${label}</span><span class="delta ${d.cls}">${d.txt}</span></div>
+  // Format the delta magnitude with the same formatter as the bar values, so e.g. a kill-time
+  // delta reads "−1:08" (not a raw millisecond count) and a Raid DPS delta reads "+7.8k".
+  const diff=o-t, mag=Math.round(Math.abs(diff)*10)/10;
+  let dcls="flat",dtxt="even";
+  if(mag!==0){const better=lowerBetter?diff<0:diff>0;dcls=better?"good":"bad";dtxt=(diff>0?"+":"−")+f(mag);}
+  return `<div class="metric"><div class="mlabel"><span>${label}</span><span class="delta ${dcls}">${dtxt}</span></div>
     <div class="barrow">
       <div class="bar"><div class="fill ours" style="width:${w(o)}%"></div><span class="tag">${f(o)}</span></div>
       <div class="bar"><div class="fill theirs" style="width:${w(t)}%"></div><span class="tag">${f(t)}</span></div>
@@ -271,11 +276,16 @@ function renderOverview(d){
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
-  </div><h2 class="section">Boss-by-Boss</h2>`;
-  for(const b of asArr(d.bosses)){
+  </div><h2 class="section">Boss-by-Boss<span class="hint">Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, and both rosters side by side.</span></h2>`;
+  const obosses=asArr(d.bosses);
+  // One sub-tab per boss; first boss active by default (or the remembered selection).
+  const oat=obosses.some(b=>String(b.encounterID)===overviewTab)?overviewTab:(obosses[0]?String(obosses[0].encounterID):"");
+  h+=`<div class="btabs">`+obosses.map(b=>`<button class="btab ${String(b.encounterID)===oat?'on':''}" data-otab="${b.encounterID}">${esc(b.name)}</button>`).join("")+`</div>`;
+  for(const b of obosses){
     const rdps=b.oursRaidDps!=null?metricBars("Raid DPS",b.oursRaidDps,b.theirsRaidDps,fmtR,Math.max(b.oursRaidDps,b.theirsRaidDps,1),false):"";
     const rhps=b.oursRaidHps!=null?metricBars("Raid HPS",b.oursRaidHps,b.theirsRaidHps,fmtR,Math.max(b.oursRaidHps,b.theirsRaidHps,1),false):"";
-    h+=`<div class="boss"><h3>${esc(b.name)}<span class="badge">encounter ${b.encounterID}</span></h3>
+    h+=`<div class="bsub ${String(b.encounterID)===oat?'active':''}" data-otab="${b.encounterID}">
+      <div class="boss"><h3>${esc(b.name)}<span class="badge">encounter ${b.encounterID}</span></h3>
       ${metricBars("Kill time",b.ours.durationMs,b.theirs.durationMs,fmtTime,Math.max(b.ours.durationMs,b.theirs.durationMs),true)}
       ${rdps}${rhps}
       ${metricBars("Avg parse",b.ours.avgParse,b.theirs.avgParse,x=>x,100,false)}
@@ -283,9 +293,18 @@ function renderOverview(d){
       <div class="rostergrid">
         <div><h4 class="ours">${esc(d.ours.title)}</h4>${rosterTable(b.ours.players)}</div>
         <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${rosterTable(b.theirs.players)}</div>
-      </div></div>`;
+      </div></div></div>`;
   }
   return h;
+}
+// Overview boss sub-tabs (one per boss). Mirrors the per-boss execution sub-tabs on the Bosses tab.
+function mountOverview(){
+  const el=document.getElementById("p-overview");
+  el.querySelectorAll(".btab[data-otab]").forEach(t=>t.addEventListener("click",()=>{
+    const id=t.dataset.otab; overviewTab=id;
+    el.querySelectorAll(".btab[data-otab]").forEach(x=>x.classList.toggle("on",x.dataset.otab===id));
+    el.querySelectorAll(".bsub[data-otab]").forEach(x=>x.classList.toggle("active",x.dataset.otab===id));
+  }));
 }
 
 /* ---------- COMPOSITION / ENCHANTS / BOSSES ---------- */
@@ -703,6 +722,7 @@ function render(){
   <div class="panel" id="p-bosses"></div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;
   document.getElementById("app").innerHTML=h;
+  mountOverview();
   mountBosses();
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));

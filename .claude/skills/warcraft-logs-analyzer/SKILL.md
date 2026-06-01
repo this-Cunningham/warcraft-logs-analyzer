@@ -158,8 +158,11 @@ the static template, with no model in the path.
      (parse, kill time, raid DPS, deaths, overheal, activity, avoidable dmg/s, flask, food, enchants,
      missing buff/debuff providers). Each candidate gets a hand-tuned severity in [0,1] and an
      actionable sentence; only dimensions where we trail are kept, top 7 render as severity-colored
-     cards (high/med/low). Then the Raid Summary cards and per-boss cards — each boss card now also
-     shows **Raid DPS** and **Raid HPS** comparison bars (per-boss total dmg/heal ÷ duration).
+     cards (high/med/low). Then the Raid Summary cards, then a **Boss-by-Boss** section with one
+     **sub-tab per boss** (`mountOverview()` wires the `.btab[data-otab]` / `.bsub[data-otab]`
+     toggle, same pattern as the Bosses tab) — each boss panel shows kill time, **Raid DPS** /
+     **Raid HPS** comparison bars (per-boss total dmg/heal ÷ duration), avg parse, deaths, and both
+     rosters side by side.
    - **Composition**: Raid Composition & buff-provider gap analysis (class/spec → raid buff
      it brings; provider table is `PROVIDER_CHECKS` in build_deepdive.py). Each player's
      spec is their **primary (most-frequent) spec across the shared bosses** (`primary_spec_map`),

@@ -120,7 +120,7 @@ Most of Tier 1 needs **zero new API calls** — it re-slices data `fetch_report.
   from the report data (guid is on every aura; benchmark carries the full set); only the battle/guardian
   label needs a one-time Wowhead check. Name fallback covers unmapped "Flask of …"/"Elixir of …".
 
-## TODO: "Biggest Gaps" scorecard at top of Overview
+## TODO: "Biggest Gaps" scorecard at top of Overview — **DONE**
 
 > Highest-leverage framing change. Pure presentation over metrics we already compute.
 
@@ -129,8 +129,13 @@ Most of Tier 1 needs **zero new API calls** — it re-slices data `fetch_report.
   plain-language cards with a severity color driven by distance from benchmark.
 - Convert each to an actionable sentence ("Only ~4/25 ate food; benchmark ~24"). Reuse the
   `impact` string pattern from `PROVIDER_CHECKS`.
+- **DONE** — `biggest_gaps()` in `build_deepdive.py` scores 11 dimensions (parse, kill time, raid DPS,
+  deaths, overheal, activity, avoidable dmg/s, flask, food, enchants, missing buff/debuff providers).
+  Each yields a severity in [0,1] (hand-tuned per-metric scale; only dimensions where we actually
+  trail are included) and an actionable sentence; top 7 render as severity-colored cards
+  (`gapsScorecard()` → high/med/low) at the top of the Overview tab.
 
-## TODO: "what's killing us" — deaths aggregated by cause across the tier
+## TODO: "what's killing us" — deaths aggregated by cause across the tier — **DONE**
 
 > We already capture `killedBy` per death. Aggregate across all shared bosses → ranked
 > "Toxic Spore killed your raid 11×; benchmark 0." Repeated killing blows = a mechanic you fail.
@@ -138,8 +143,12 @@ Most of Tier 1 needs **zero new API calls** — it re-slices data `fetch_report.
 - Free re-slice. Death records also carry `damage`, `events`, `overkill`, `deathWindow` — enough to
   show the damage lead-up, not just the final blow. Surface as a raid-level "top death causes" table
   + ours-vs-theirs.
+- **DONE** — `death_cause_compare()` aggregates killing-blow names across every shared boss into a
+  ranked ours-vs-theirs table (worst-for-us first), each row carrying the bosses it occurred on.
+  Renders as the "What's Killing Us" section on the Bosses tab (`deathCausesView()`), top 15 causes.
+  (Did not surface the per-death damage lead-up from `events`/`deathWindow` — left as a future drill-down.)
 
-## TODO: per-spec DPS gap on each boss (lowest-hanging-fruit spec) — *(user idea, sharpened)*
+## TODO: per-spec DPS gap on each boss (lowest-hanging-fruit spec) — *(user idea, sharpened)* — **DONE**
 
 > User's ask: "we had 3 mages (names + dps) vs benchmark's 2 mages (names + dps) for this boss."
 > Sharper framing for "which spec to target": rank specs by the **per-capita DPS gap** to the
@@ -153,19 +162,34 @@ Most of Tier 1 needs **zero new API calls** — it re-slices data `fetch_report.
   "raid across dimensions" goal).
 - Handle roster-count mismatches (3 vs 2 mages) by comparing **average DPS per player of that spec**,
   not raw totals, and showing both counts. Note specs only one side brought.
+- **DONE** — `spec_gap()` buckets the DamageDone table by (class, primary spec) for DPS-role players
+  only (via the roster's spec/role/class maps), computes avg DPS per player per side, ranks shared
+  specs by per-player deficit (one-sided specs fall to the bottom as a "only you / only them" note).
+  DPS = total / fight duration (raid-contribution, comparable across both raids). Renders as a new
+  "DPS by Spec" sub-tab per boss (`specDpsView()`) with a `<details>` drill-down listing the
+  individual players + DPS on each side.
 
-## TODO: raid DPS / HPS per boss + total
+## TODO: raid DPS / HPS per boss + total — **DONE**
 
 > Direct explanation of the kill-time gap; we don't show it. Sum `dd`/`heal` totals ÷ duration.
 
 - "Raid DPS on Kael: 18.2k vs 31.4k." Add as a hero metric on the Overview boss cards next to
   kill-time, and to the Output Quality section.
+- **DONE** — `raid_sum()`/`rate()` compute per-boss raid DPS & HPS (total dmg/heal ÷ fight duration).
+  Surfaced as "Raid DPS" and "Raid HPS" comparison bars on each Overview boss card (right under kill
+  time), and as time-weighted overall "Raid DPS"/"Raid HPS" cards in the Output Quality section.
+  Also feeds the Biggest Gaps scorecard (raid-DPS deficit candidate).
 
-## TODO: damage contribution by class/role + role-level ilvl
+## TODO: damage contribution by class/role + role-level ilvl — **DONE**
 
 > `dd` entries carry `type` (class) and per-player `itemLevel`. Aggregate to "% of raid damage per
 > class" and compare — surfaces whether melee, casters, or everyone is dragging. Role-level ilvl
 > (your healers vs theirs), not just one raid average.
+- **DONE** — `class_dmg_share()` aggregates DamageDone totals by class across the shared bosses into
+  "% of raid damage by class" (negligible Environment/Unknown buckets dropped), rendered as
+  class-tinted mirrored bars in a new "Damage Contribution by Class" section on the Composition tab.
+  `role_ilvl()` averages equipped item level per role (dps/healer/tank) from the dd/heal/dt tables,
+  shown as ours-vs-benchmark cards in a new "Item Level by Role" section on the Prep tab.
 
 ## TODO: wipe / attempt counts per boss (one cheap new query)
 

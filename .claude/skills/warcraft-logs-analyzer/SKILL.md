@@ -153,12 +153,21 @@ the static template, with no model in the path.
      --ours-name "Our Raid" --theirs-name "Benchmark" --zone-name "SSC / TK" --out-file reports/deepdive.html
    ```
    The report has four top-level tabs: **Overview | Composition | Prep | Bosses**.
+   - **Overview**: leads with a **"Biggest Gaps vs Benchmark" scorecard** (`biggest_gaps` in
+     build_deepdive.py → `gapsScorecard()`) — a single ranking pass over every tracked dimension
+     (parse, kill time, raid DPS, deaths, overheal, activity, avoidable dmg/s, flask, food, enchants,
+     missing buff/debuff providers). Each candidate gets a hand-tuned severity in [0,1] and an
+     actionable sentence; only dimensions where we trail are kept, top 7 render as severity-colored
+     cards (high/med/low). Then the Raid Summary cards and per-boss cards — each boss card now also
+     shows **Raid DPS** and **Raid HPS** comparison bars (per-boss total dmg/heal ÷ duration).
    - **Composition**: Raid Composition & buff-provider gap analysis (class/spec → raid buff
      it brings; provider table is `PROVIDER_CHECKS` in build_deepdive.py). Each player's
      spec is their **primary (most-frequent) spec across the shared bosses** (`primary_spec_map`),
      not whatever the first-iterated fight showed — so a Feral druid who bear-tanks one fight
      as "Guardian" still reads as Feral (and still counts as a Leader-of-the-Pack provider).
      This keeps the spec counts and the provider-gap status order-independent and consistent.
+     Also carries **Damage Contribution by Class** (`class_dmg_share`) — each class's % share of
+     total raid damage across the shared bosses, ours vs benchmark, as class-tinted mirrored bars.
    - **Prep**: leads with **Consumables Coverage** (`consumable_report` in build_deepdive.py),
      then the Enchants & Gems audit. Consumables come from the per-boss **Buffs** tables we already
      fetch — auras are bucketed by `_consumable_cat` into flask / food (Well Fed) / battle elixir /
@@ -197,16 +206,25 @@ the static template, with no model in the path.
      player set as Composition) — `audit_report` takes the roster names and filters
      playerDetails, which is otherwise fetched across all kills.
    - **Prep** also carries raid **avg item level** (from `fights.averageItemLevel` over the
-     shared bosses) alongside the gem/enchant stats.
-   - **Bosses**: Clear Efficiency; Output Quality (avg DPS activity from
-     `dd.activeTime`/duration, healer overheal from `heal.overheal`, damage taken ex-tanks
-     from `dt`, interrupt/dispel counts) — the damage-taken metric has an in-report
-     **Per second / Overall** toggle (client-side; the DATA blob carries raw totals +
-     per-boss durations, so both modes render without a rebuild, and the toggle also switches
-     the per-boss damage breakdowns); and Per-Boss Execution — each boss is a card with an
-     output strip plus six sub-tabs:
+     shared bosses) alongside the gem/enchant stats, plus **Item Level by Role** (`role_ilvl`) —
+     average equipped ilvl split into dps / healer / tank (from the dd/heal/dt tables), so an
+     under-geared role stands out instead of hiding inside the single raid-wide average.
+   - **Bosses**: Clear Efficiency; **What's Killing Us** (`death_cause_compare` → `deathCausesView`)
+     — killing-blow names aggregated across every shared boss into a ranked ours-vs-theirs table
+     (worst-for-us first, each row listing the bosses it occurred on); Output Quality (avg DPS
+     activity from `dd.activeTime`/duration, healer overheal from `heal.overheal`, damage taken
+     ex-tanks from `dt`, interrupt/dispel counts, plus time-weighted **Raid DPS / Raid HPS** cards)
+     — the damage-taken metric has an in-report **Per second / Overall** toggle (client-side; the
+     DATA blob carries raw totals + per-boss durations, so both modes render without a rebuild, and
+     the toggle also switches the per-boss damage breakdowns); and Per-Boss Execution — each boss is
+     a card with an output strip plus seven sub-tabs:
      - **Buff Uptime** — boss debuffs + raid buffs, laid out value←bar—name—bar→value with a
        delta, sorted by delta (most-improvable / biggest deficit first).
+     - **DPS by Spec** (`spec_gap` → `specDpsView`) — the DamageDone table bucketed by (class,
+       primary spec) for DPS-role players, ranked by the **per-player DPS deficit** to the
+       benchmark's same spec (avg DPS per player, so 3-mages-vs-2 stays fair; specs only one raid
+       brought fall to the bottom as a comp note). Each row expands (`<details>`) to the individual
+       players + their DPS on both sides.
      - **Damage Taken** — top damage-taken sources (honors the per-sec/overall toggle).
      - **Deaths** — who died, their spec (parsed from the death `icon`, e.g. `Hunter-Survival`),
        the killing blow, and when (sec into fight). "Clean kill" when nobody died.

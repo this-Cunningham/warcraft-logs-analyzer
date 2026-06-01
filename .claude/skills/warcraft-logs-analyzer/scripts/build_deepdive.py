@@ -495,6 +495,100 @@ def dtps(dmg, dur_ms):
     return round(float(dmg) * 1000 / dur_ms)
 
 
+def raid_sum(report, alias):
+    """Total of a damage/healing table's entries (raid-wide output for the fight)."""
+    return ssum([int(e.get("total", 0)) for e in _entries(report, alias)])
+
+
+def rate(total, dur_ms):
+    """Per-second rate (DPS/HPS) from a raw total and fight duration."""
+    if not total or dur_ms <= 0:
+        return 0
+    return round(float(total) * 1000 / dur_ms)
+
+
+# ---------- PER-SPEC DPS GAP (bucket the DamageDone table by primary spec) ----------
+def spec_dps_buckets(report, spec_map, role_map, class_map, dur_ms):
+    """Bucket the DamageDone entries by (class, primary-spec), DPS-role players only.
+    Spec/class/role come from the shared-boss roster maps so the buckets line up with the
+    Composition view. Each player's DPS is total / fight duration (raid-contribution DPS),
+    which keeps it comparable across both raids and lets per-spec averages be apples-to-apples."""
+    buckets = {}
+    if dur_ms <= 0:
+        return buckets
+    for e in _entries(report, "dd"):
+        nm = e.get("name")
+        spec = spec_map.get(nm)
+        if not spec or role_map.get(nm) != "dps":
+            continue  # only roster DPS players with a known primary spec
+        cls = class_map.get(nm) or e.get("type") or "Unknown"
+        key = "{}|{}".format(cls, spec)
+        b = buckets.setdefault(key, {"class": cls, "spec": spec, "players": []})
+        b["players"].append({"name": nm, "dps": rate(int(e.get("total", 0)), dur_ms)})
+    return buckets
+
+
+def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o_dur, t_dur):
+    """Per-spec DPS comparison for one boss, ranked by the per-player deficit to the
+    benchmark's same spec (biggest gap first → lowest-hanging fruit floats to the top).
+    Compares AVERAGE DPS per player so a 3-mage vs 2-mage roster is still fair, and keeps
+    the individual players on both sides for a drill-down. `both` flags specs only one
+    raid brought (a different kind of gap)."""
+    ob = spec_dps_buckets(o_report, o_spec, o_role, o_cls, o_dur)
+    tb = spec_dps_buckets(t_report, t_spec, t_role, t_cls, t_dur)
+    rows = []
+    for key in set(ob) | set(tb):
+        o = ob.get(key)
+        t = tb.get(key)
+        ref = o or t
+        op = sorted(o["players"], key=lambda x: -x["dps"]) if o else []
+        tp = sorted(t["players"], key=lambda x: -x["dps"]) if t else []
+        o_avg = round(sum(x["dps"] for x in op) / len(op)) if op else 0
+        t_avg = round(sum(x["dps"] for x in tp) / len(tp)) if tp else 0
+        rows.append({
+            "class": ref["class"], "spec": ref["spec"],
+            "oursPlayers": op, "theirsPlayers": tp,
+            "oursCount": len(op), "theirsCount": len(tp),
+            "oursAvg": o_avg, "theirsAvg": t_avg, "deficit": t_avg - o_avg,
+            "both": bool(op) and bool(tp),
+        })
+    # Same-spec comparisons first (the user's core ask), ranked by biggest per-player deficit;
+    # specs only one raid brought fall to the bottom as a secondary "they brought X, you didn't" note.
+    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
+    return rows
+
+
+# ---------- DEATH CAUSES (aggregate killing blows across the shared bosses) ----------
+def death_causes(per_boss, side):
+    """Aggregate killing-blow names across every shared boss for one side. A blow that recurs
+    is a mechanic the raid repeatedly fails. Returns {cause: {count, bosses:set}}."""
+    agg = {}
+    for pb in per_boss:
+        for d in pb["deaths"][side]:
+            cause = d.get("killedBy") or "Unknown"
+            rec = agg.setdefault(cause, {"count": 0, "bosses": set()})
+            rec["count"] += 1
+            rec["bosses"].add(pb["name"])
+    return agg
+
+
+def death_cause_compare(per_boss):
+    """Ranked ours-vs-theirs death-cause table across the whole shared clear."""
+    o = death_causes(per_boss, "ours")
+    t = death_causes(per_boss, "theirs")
+    rows = []
+    for cause in set(o) | set(t):
+        oc = o.get(cause, {"count": 0, "bosses": set()})
+        tc = t.get(cause, {"count": 0, "bosses": set()})
+        rows.append({
+            "cause": cause, "ours": oc["count"], "theirs": tc["count"],
+            "bosses": sorted(oc["bosses"] or tc["bosses"]),
+        })
+    # Worst for us first: where we die most (and most relative to the benchmark).
+    rows.sort(key=lambda r: (-(r["ours"]), -(r["ours"] - r["theirs"]), -r["theirs"]))
+    return rows
+
+
 def ability_agg(report, tank_names):
     agg = {}
     if not report.get("dt"):
@@ -684,6 +778,174 @@ def efficiency(directory):
     return {"spanMs": span, "combatMs": combat, "downtimeMs": span - combat, "kills": len(fights)}
 
 
+# ---------- DAMAGE CONTRIBUTION BY CLASS + ITEM LEVEL BY ROLE ----------
+def accumulate_class_dmg(report, agg):
+    """Add a fight's DamageDone totals into a class -> damage map (in place)."""
+    for e in _entries(report, "dd"):
+        cls = e.get("type") or "Unknown"
+        agg[cls] = agg.get(cls, 0) + int(e.get("total", 0))
+
+
+def accumulate_ilvl(report, ilvl_map):
+    """Record name -> item level from any output table (ilvl is static per report, so the
+    first sighting wins). dd covers dps, heal covers healers, dt covers tanks."""
+    for alias in ("dd", "heal", "dt"):
+        for e in _entries(report, alias):
+            nm = e.get("name")
+            il = e.get("itemLevel")
+            if nm and il and nm not in ilvl_map:
+                ilvl_map[nm] = float(il)
+
+
+def class_dmg_share(o_agg, t_agg):
+    """Per-class share of total raid damage, ours vs theirs, sorted by our share."""
+    o_tot = sum(o_agg.values()) or 1
+    t_tot = sum(t_agg.values()) or 1
+    rows = []
+    for cls in set(o_agg) | set(t_agg):
+        o_d = o_agg.get(cls, 0)
+        t_d = t_agg.get(cls, 0)
+        o_pct = round(o_d / o_tot * 100, 1)
+        t_pct = round(t_d / t_tot * 100, 1)
+        # Drop negligible non-player buckets (Environment/Unknown round to 0% on both sides).
+        if o_pct == 0 and t_pct == 0:
+            continue
+        rows.append({"class": cls, "ours": o_d, "theirs": t_d, "oursPct": o_pct, "theirsPct": t_pct})
+    rows.sort(key=lambda r: -max(r["oursPct"], r["theirsPct"]))
+    return rows
+
+
+def role_ilvl(ilvl_map, roster):
+    """Average item level per role (dps/healer/tank) over the shared-boss roster."""
+    role_of = {p["name"]: p["role"] for p in roster}
+    by = {"dps": [], "healer": [], "tank": []}
+    for nm, il in ilvl_map.items():
+        r = role_of.get(nm)
+        if r in by and il:
+            by[r].append(il)
+    return {r: (round(sum(v) / len(v), 1) if v else 0) for r, v in by.items()}
+
+
+# ---------- "BIGGEST GAPS" SCORECARD (rank every tracked dimension by distance to benchmark) ----------
+def _fmt_k(n):
+    """Compact number for prose: 31.4k / 1.2M."""
+    n = float(n)
+    if abs(n) >= 1e6:
+        return "{:.1f}M".format(n / 1e6)
+    if abs(n) >= 1e3:
+        return "{:.1f}k".format(n / 1e3)
+    return str(int(round(n)))
+
+
+def _fmt_dur(ms):
+    s = int(round(ms / 1000))
+    return "{}:{:02d}".format(s // 60, s % 60)
+
+
+def biggest_gaps(summary, quality, consumables, audit, comp_gaps, n=7):
+    """Score every tracked dimension by how far behind the benchmark we are, then surface the
+    worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
+    (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
+    where we actually trail make the list. Severity scales are hand-tuned per metric so a
+    'clearly bad' gap lands near 1.0."""
+    co, ct = consumables["ours"], consumables["theirs"]
+    ao, at = audit["ours"], audit["theirs"]
+    bosses = max(summary["bossCount"], 1)
+    cand = []
+
+    def add(sev, title, text):
+        if sev > 0:
+            cand.append({"sev": round(min(sev, 1.0), 3), "title": title, "text": text})
+
+    # Raid parse (higher better).
+    dp = summary["theirsAvgParse"] - summary["oursAvgParse"]
+    add(dp / 50.0, "Raid parses trail the benchmark",
+        "Raid parses average {} vs {} — a {}-point gap. Lift individual play, gear, and rotations."
+        .format(summary["oursAvgParse"], summary["theirsAvgParse"], round(dp, 1)))
+
+    # Total kill time (lower better).
+    od, td = summary["oursDurationMs"], summary["theirsDurationMs"]
+    if td > 0 and od > td:
+        pct = round((od / td - 1) * 100)
+        add((od / td - 1), "Kills take longer",
+            "Total kill time {} vs {} — {}% slower. More raid DPS and cleaner execution close this."
+            .format(_fmt_dur(od), _fmt_dur(td), pct))
+
+    # Raid DPS (higher better) — the direct driver of slower kills.
+    od2, td2 = quality["oursRaidDps"], quality["theirsRaidDps"]
+    if td2 > 0 and od2 < td2:
+        add((td2 - od2) / td2, "Raid DPS is lower",
+            "Raid DPS averages {} vs {}. This is the direct cause of the slower kills."
+            .format(_fmt_k(od2), _fmt_k(td2)))
+
+    # Deaths (lower better).
+    ddh = summary["oursDeaths"] - summary["theirsDeaths"]
+    if ddh > 0:
+        add(ddh / (bosses * 2.0), "Too many deaths",
+            "{} deaths vs {} across {} bosses. Avoidable deaths cost DPS and risk wipes."
+            .format(summary["oursDeaths"], summary["theirsDeaths"], bosses))
+
+    # Healer overheal (lower better).
+    oh = quality["oursOverheal"] - quality["theirsOverheal"]
+    if oh > 0:
+        add(oh / 40.0, "Healers overheal more",
+            "Healers overheal {}% vs {}%. Tighten assignments and spell choice to free up throughput."
+            .format(quality["oursOverheal"], quality["theirsOverheal"]))
+
+    # DPS activity (higher better).
+    ac = quality["theirsActivity"] - quality["oursActivity"]
+    if ac > 0:
+        add(ac / 30.0, "DPS activity is lower",
+            "DPS spend {}% of the fight active vs {}% — dead GCDs are lost damage."
+            .format(quality["oursActivity"], quality["theirsActivity"]))
+
+    # Avoidable damage taken / sec (lower better).
+    dtk_o, dtk_t = quality["oursDtps"], quality["theirsDtps"]
+    if dtk_t > 0 and dtk_o > dtk_t:
+        add((dtk_o / dtk_t - 1), "Taking avoidable damage",
+            "Raid takes {}/s of damage (ex-tanks) vs {}/s. Dodge mechanics to ease healing and downtime."
+            .format(_fmt_k(dtk_o), _fmt_k(dtk_t)))
+
+    # Flask coverage (fraction of roster).
+    o_fl = co["flask"] / max(co["rosterSize"], 1)
+    t_fl = ct["flask"] / max(ct["rosterSize"], 1)
+    if t_fl - o_fl > 0:
+        add(t_fl - o_fl, "Not everyone is flasked",
+            "Only ~{}/{} raiders flasked; benchmark ~{}/{}. A flask is a full consumable every pull."
+            .format(co["flask"], co["rosterSize"], ct["flask"], ct["rosterSize"]))
+
+    # Food coverage (fraction of roster).
+    o_fd = co["food"] / max(co["rosterSize"], 1)
+    t_fd = ct["food"] / max(ct["rosterSize"], 1)
+    if t_fd - o_fd > 0:
+        add(t_fd - o_fd, "Not everyone ate food",
+            "Only ~{}/{} raiders ate food; benchmark ~{}/{}. Well Fed is free stats."
+            .format(co["food"], co["rosterSize"], ct["food"], ct["rosterSize"]))
+
+    # Missing enchants per player (lower better).
+    o_me = ao["totalMissingEnchants"] / max(ao["playerCount"], 1)
+    t_me = at["totalMissingEnchants"] / max(at["playerCount"], 1)
+    if o_me - t_me > 0:
+        add((o_me - t_me) / 3.0, "Gear isn't fully enchanted",
+            "{} missing enchants across the raid vs {} for the benchmark — free stats on every slot."
+            .format(ao["totalMissingEnchants"], at["totalMissingEnchants"]))
+
+    # Raid buff/debuff providers the benchmark brings and we don't.
+    missing = [g["buff"] for g in comp_gaps if g["theirs"] and not g["ours"]]
+    if missing:
+        eg = missing[0] + (", " + missing[1] if len(missing) > 1 else "")
+        add(len(missing) / 5.0, "Missing raid buff/debuff providers",
+            "Benchmark brings {} raid-wide buff/debuff{} you don't (e.g. {}). Slot the class/spec to gain it."
+            .format(len(missing), "s" if len(missing) > 1 else "", eg))
+
+    cand.sort(key=lambda c: -c["sev"])
+    out = []
+    for c in cand[:n]:
+        c["level"] = "high" if c["sev"] >= 0.5 else ("med" if c["sev"] >= 0.25 else "low")
+        out.append(c)
+    return out
+
+
 # ---------- ASSEMBLE ----------
 def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
           ours_name="Our Raid", theirs_name="Benchmark", zone_name=""):
@@ -708,6 +970,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     theirs_roster = get_roster(theirs_idx, common_ids)
     ours_spec = {p["name"]: p["spec"] for p in ours_roster}
     theirs_spec = {p["name"]: p["spec"] for p in theirs_roster}
+    ours_role = {p["name"]: p["role"] for p in ours_roster}
+    theirs_role = {p["name"]: p["role"] for p in theirs_roster}
+    ours_cls = {p["name"]: p["class"] for p in ours_roster}
+    theirs_cls = {p["name"]: p["class"] for p in theirs_roster}
     ours_dps = names_by_role(ours_roster, "dps")
     ours_heal = names_by_role(ours_roster, "healer")
     ours_tank = names_by_role(ours_roster, "tank")
@@ -747,6 +1013,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Per-boss
     ours_fights = fight_map(ours_dir)
     theirs_fights = fight_map(theirs_dir)
+    # Accumulators for the tier-wide views (class damage share + item level by role).
+    o_class_dmg, t_class_dmg = {}, {}
+    o_ilvl, t_ilvl = {}, {}
+    o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
     per_boss = []
     for b in bosses:
         enc = str(b["encounterID"])
@@ -776,10 +1046,28 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
         o_dmg = dmg_taken_ex_tanks(o_b, ours_tank)
         t_dmg = dmg_taken_ex_tanks(t_b, theirs_tank)
+
+        # Raid output for this boss (total damage/healing / duration).
+        o_raid_dmg, t_raid_dmg = raid_sum(o_b, "dd"), raid_sum(t_b, "dd")
+        o_raid_heal, t_raid_heal = raid_sum(o_b, "heal"), raid_sum(t_b, "heal")
+        # Feed the tier-wide accumulators.
+        accumulate_class_dmg(o_b, o_class_dmg)
+        accumulate_class_dmg(t_b, t_class_dmg)
+        accumulate_ilvl(o_b, o_ilvl)
+        accumulate_ilvl(t_b, t_ilvl)
+        o_raid_dmg_sum += o_raid_dmg
+        t_raid_dmg_sum += t_raid_dmg
+        o_raid_heal_sum += o_raid_heal
+        t_raid_heal_sum += t_raid_heal
+
         per_boss.append({
             "encounterID": b["encounterID"], "name": b["name"],
             "oursLustSec": lust_sec(_auras(o_b, "buffs"), ours_fights[enc]["start"]),
             "theirsLustSec": lust_sec(_auras(t_b, "buffs"), theirs_fights[enc]["start"]),
+            "oursRaidDps": rate(o_raid_dmg, o_dur), "theirsRaidDps": rate(t_raid_dmg, t_dur),
+            "oursRaidHps": rate(o_raid_heal, o_dur), "theirsRaidHps": rate(t_raid_heal, t_dur),
+            "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
+                                theirs_spec, theirs_role, theirs_cls, o_dur, t_dur),
             "buffs": buff_rows, "debuffs": debuff_rows,
             "oursActivity": activity_pct(o_b, o_dur, ours_dps), "theirsActivity": activity_pct(t_b, t_dur, theirs_dps),
             "oursOverheal": overheal_pct(o_b, ours_heal), "theirsOverheal": overheal_pct(t_b, theirs_heal),
@@ -814,15 +1102,38 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "theirsInterrupts": ssum([p["theirsInterrupts"] for p in per_boss]),
         "oursDispels": ssum([p["oursDispels"] for p in per_boss]),
         "theirsDispels": ssum([p["theirsDispels"] for p in per_boss]),
+        # Raid DPS/HPS, time-weighted across the shared bosses.
+        "oursRaidDps": rate(o_raid_dmg_sum, o_dur_sum), "theirsRaidDps": rate(t_raid_dmg_sum, t_dur_sum),
+        "oursRaidHps": rate(o_raid_heal_sum, o_dur_sum), "theirsRaidHps": rate(t_raid_heal_sum, t_dur_sum),
     }
+
+    # Surface per-boss raid DPS/HPS on the Overview boss cards (keyed by encounter).
+    raid_out = {p["encounterID"]: p for p in per_boss}
+    for b in bosses:
+        ro = raid_out.get(b["encounterID"])
+        if ro:
+            b["oursRaidDps"], b["theirsRaidDps"] = ro["oursRaidDps"], ro["theirsRaidDps"]
+            b["oursRaidHps"], b["theirsRaidHps"] = ro["oursRaidHps"], ro["theirsRaidHps"]
+
+    # Tier-wide damage contribution by class + item level by role.
+    output_breakdown = {
+        "classShare": class_dmg_share(o_class_dmg, t_class_dmg),
+        "oursRoleIlvl": role_ilvl(o_ilvl, ours_roster),
+        "theirsRoleIlvl": role_ilvl(t_ilvl, theirs_roster),
+    }
+    # "What's killing us" — death causes aggregated across the whole shared clear.
+    death_causes_rows = death_cause_compare(per_boss)
+    # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
+    gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps)
 
     eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
-        "summary": summary, "bosses": bosses,
+        "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
-                 "perPlayerConsumes": per_player_consumes,
+                 "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
+                 "deathCauses": death_causes_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff},
     }
     out_full = render_report(payload, out_file)

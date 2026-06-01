@@ -138,8 +138,24 @@
   table.cmatrix .csum{text-align:center;padding:0 10px;white-space:nowrap}
   table.cmatrix td.cmiss{background:rgba(248,114,114,.13)}
   .cyes{color:var(--good);font-weight:700}.cno{color:var(--bad);font-weight:700}.cna{color:var(--muted);opacity:.45}
+  /* "Biggest Gaps" scorecard at the top of Overview. */
+  .gaps{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0 0 6px}
+  .gapcard{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:12px;padding:13px 16px}
+  .gapcard.high{border-left-color:var(--bad)} .gapcard.med{border-left-color:var(--warn)} .gapcard.low{border-left-color:var(--muted)}
+  .gapcard .gt{font-weight:700;font-size:14px;margin-bottom:5px;display:flex;align-items:center;gap:8px}
+  .gapcard .gt .sev{margin-left:auto;font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding:2px 7px;border-radius:6px}
+  .gapcard.high .gt .sev{background:rgba(248,114,114,.18);color:#ffb4b4}
+  .gapcard.med .gt .sev{background:rgba(251,189,35,.16);color:#ffe08a}
+  .gapcard.low .gt .sev{background:rgba(138,150,170,.16);color:#c2cbdb}
+  .gapcard .gd{color:var(--muted);font-size:12.5px;line-height:1.45}
+  /* Per-spec DPS gap rows (per-boss "DPS by Spec" sub-tab). */
+  .specrow{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px}
+  .specrow .shead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .specrow .sname{font-weight:700}
+  .specrow details{margin-top:7px} .specrow summary{cursor:pointer;font-size:12px;color:var(--muted)}
+  .specrow .plist{font-size:12px;line-height:1.7;margin-top:5px}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
-  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px 44px;column-gap:5px}}
+  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px 44px;column-gap:5px}}
 </style>
 </head>
 <body>
@@ -163,6 +179,10 @@ function parseColor(p){if(p>=100)return"#e5cc80";if(p>=99)return"#e268a8";if(p>=
 const fmtTime=ms=>{const s=Math.round(ms/1000);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
 const fmtMin=ms=>{const m=Math.round(ms/60000);return m+" min";};
 const fmtM=n=>n>=1e6?(n/1e6).toFixed(1)+"M":(n>=1e3?(n/1e3).toFixed(0)+"k":""+n);
+// Rate (DPS/HPS): one decimal of k/M so 25564 reads "25.6k", not "26k".
+const fmtR=n=>n>=1e6?(n/1e6).toFixed(2)+"M":(n>=1e3?(n/1e3).toFixed(1)+"k":""+Math.round(n));
+// Signed delta for big rate numbers (used by Raid DPS/HPS cards). Higher is better.
+const deltaRate=(o,t)=>{const df=o-t;return{cls:df===0?"flat":(df>0?"good":"bad"),txt:df===0?"even":((df>0?"+":"−")+fmtR(Math.abs(df)))};};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const deltaLow =(o,t)=>{if(o===t)return{cls:"flat",txt:"even"};const b=o<t;return{cls:b?"good":"bad",txt:(b?"−":"+")+(Math.round(Math.abs(o-t)*10)/10)};};
 const deltaHigh=(o,t)=>{const d=Math.round((o-t)*10)/10;if(d===0)return{cls:"flat",txt:"even"};return{cls:d>0?"good":"bad",txt:(d>0?"+":"")+d};};
@@ -230,19 +250,34 @@ function metricBars(label,o,t,fmt,maxVal,lowerBetter){
     </div></div>`;
 }
 
+/* ---------- BIGGEST GAPS SCORECARD ---------- */
+function gapsScorecard(d){
+  const gaps=rowsOf(d.gapsScorecard);
+  if(!gaps.length) return "";
+  const lab={high:"Critical",med:"Notable",low:"Minor"};
+  const cards=gaps.map(g=>`<div class="gapcard ${esc(g.level)}">
+    <div class="gt">${esc(g.title)}<span class="sev">${esc(lab[g.level]||g.level)}</span></div>
+    <div class="gd">${esc(g.text)}</div></div>`).join("");
+  return `<h2 class="section">Biggest Gaps vs Benchmark<span class="hint">Where you trail the benchmark most, ranked — each is a coaching target, so start at the top. Severity reflects distance from the benchmark, not absolute quality. Drawn from every dimension in this report (parses, kill time, deaths, output, prep, comp).</span></h2>
+    <div class="gaps">${cards}</div>`;
+}
+
 /* ---------- OVERVIEW ---------- */
 function renderOverview(d){
   const s=d.summary, parseD=deltaHigh(s.oursAvgParse,s.theirsAvgParse),
     deathD=deltaLow(s.oursDeaths,s.theirsDeaths), timeD=deltaLow(Math.round(s.oursDurationMs/1000),Math.round(s.theirsDurationMs/1000));
-  let h=`<div class="cards">
+  let h=gapsScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Shared Bosses</div><div class="vals"><span class="v">${s.bossCount}</span></div></div>
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
   </div><h2 class="section">Boss-by-Boss</h2>`;
   for(const b of asArr(d.bosses)){
+    const rdps=b.oursRaidDps!=null?metricBars("Raid DPS",b.oursRaidDps,b.theirsRaidDps,fmtR,Math.max(b.oursRaidDps,b.theirsRaidDps,1),false):"";
+    const rhps=b.oursRaidHps!=null?metricBars("Raid HPS",b.oursRaidHps,b.theirsRaidHps,fmtR,Math.max(b.oursRaidHps,b.theirsRaidHps,1),false):"";
     h+=`<div class="boss"><h3>${esc(b.name)}<span class="badge">encounter ${b.encounterID}</span></h3>
       ${metricBars("Kill time",b.ours.durationMs,b.theirs.durationMs,fmtTime,Math.max(b.ours.durationMs,b.theirs.durationMs),true)}
+      ${rdps}${rhps}
       ${metricBars("Avg parse",b.ours.avgParse,b.theirs.avgParse,x=>x,100,false)}
       ${metricBars("Deaths",b.ours.deaths,b.theirs.deaths,x=>x,Math.max(b.ours.deaths,b.theirs.deaths,1),true)}
       <div class="rostergrid">
@@ -279,7 +314,33 @@ function renderComposition(d){
       <td>${tag}</td><td class="num">${esc(g.impact)}</td></tr>`;
   }
   h+=`</tbody></table>`;
+
+  /* Damage contribution by class — which part of the raid is (or isn't) pulling its weight. */
+  const ob=dp.outputBreakdown;
+  if(ob&&rowsOf(ob.classShare).length){
+    h+=`<h2 class="section">Damage Contribution by Class<span class="hint">Each class's share of total raid damage across the shared bosses, ours vs the benchmark. A class pulling a much smaller share than the benchmark's is where damage leaks — though comp differences (bringing more or fewer of a class) shift the split too, so read it alongside the roster counts above.</span></h2>
+    ${classShareView(ob.classShare)}`;
+  }
   return h;
+}
+// % of raid damage by class, mirrored bars (ours ← class → theirs), tinted by class color.
+function classShareView(rows){
+  rows=rowsOf(rows);
+  const max=Math.max(1,...rows.map(r=>Math.max(r.oursPct,r.theirsPct)));
+  const w=v=>Math.max(2,Math.round(v/max*100));
+  let h=`<div class="dmgcmp">
+    <div class="dmgcmphdr2"><span class="cours">${esc(DATA.ours.title)}</span><span>% of raid damage by class</span><span class="cthe">${esc(DATA.theirs.title)}</span></div>
+    <div class="ugrid">`;
+  for(const r of rows){
+    const diff=Math.round((r.oursPct-r.theirsPct)*10)/10;
+    h+=`<div class="dval lo">${r.oursPct}%</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.oursPct)}%;background:${cc(r.class)}"></div></div>
+      <div class="dmid" style="color:${cc(r.class)}">${esc(r.class)}</div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirsPct)}%;background:${cc(r.class)}"></div></div>
+      <div class="dval ro">${r.theirsPct}%</div>
+      <div class="delta flat">${diff>0?"+":""}${diff}</div>`;
+  }
+  return h+`</div></div>`;
 }
 
 /* ---------- ENCHANTS & GEMS ---------- */
@@ -338,6 +399,15 @@ function renderEnchants(d){
       <td class="num">${p.gems}</td></tr>`;
   }
   h+=`</tbody></table>`;
+
+  /* Item level by role — is a specific role (often healers) under-geared, vs one raid-wide avg? */
+  const ob=dp.outputBreakdown;
+  if(ob&&ob.oursRoleIlvl){
+    const ro=ob.oursRoleIlvl, rt=ob.theirsRoleIlvl||{};
+    const rc=(label,o,t)=>acard(label,o||"—",t||"—",(o&&t)?deltaHigh(o,t):null);
+    h+=`<h2 class="section">Item Level by Role<span class="hint">Average equipped item level split by role, so an under-geared role (commonly healers or a stacked melee core) stands out instead of hiding inside the single raid-wide average above.</span></h2>
+    <div class="cards">${rc("DPS Item Level",ro.dps,rt.dps)}${rc("Healer Item Level",ro.healer,rt.healer)}${rc("Tank Item Level",ro.tank,rt.tank)}</div>`;
+  }
   return h;
 }
 
@@ -360,6 +430,9 @@ function renderBosses(d){
     </div>`;
   }
 
+  /* What's killing us — killing blows aggregated across the whole shared clear. */
+  h+=deathCausesView(d);
+
   /* Output quality (activity / overheal / damage taken / mechanics) */
   const q=dp.quality;
   if(q){
@@ -379,6 +452,8 @@ function renderBosses(d){
       <div class="card"><div class="label">Avg Healer Overheal</div><div class="vals"><span class="v ours">${q.oursOverheal}%</span><span class="v theirs">${q.theirsOverheal}%</span><span class="delta ${ohD.cls}">${ohD.txt}</span></div></div>
       <div class="card"><div class="label">${persec?"Dmg Taken/s (ex-tanks)":"Dmg Taken (ex-tanks)"}</div><div class="vals"><span class="v ours">${dmFmt(dmO)}</span><span class="v theirs">${dmFmt(dmT)}</span><span class="delta ${dmD.cls}">${dmD.txt}</span></div></div>
       <div class="card"><div class="label">Dispels / Interrupts</div><div class="vals"><span class="v ours">${q.oursDispels}/${q.oursInterrupts}</span><span class="v theirs">${q.theirsDispels}/${q.theirsInterrupts}</span></div></div>
+      <div class="card"><div class="label">Raid DPS</div><div class="vals"><span class="v ours">${fmtR(q.oursRaidDps||0)}</span><span class="v theirs">${fmtR(q.theirsRaidDps||0)}</span><span class="delta ${deltaRate(q.oursRaidDps||0,q.theirsRaidDps||0).cls}">${deltaRate(q.oursRaidDps||0,q.theirsRaidDps||0).txt}</span></div></div>
+      <div class="card"><div class="label">Raid HPS</div><div class="vals"><span class="v ours">${fmtR(q.oursRaidHps||0)}</span><span class="v theirs">${fmtR(q.theirsRaidHps||0)}</span><span class="delta ${deltaRate(q.oursRaidHps||0,q.theirsRaidHps||0).cls}">${deltaRate(q.oursRaidHps||0,q.theirsRaidHps||0).txt}</span></div></div>
     </div>`;
   }
 
@@ -396,6 +471,7 @@ function renderBosses(d){
       const at=bossTab[b.encounterID]||"buffs";
       const subs=[
         {k:"buffs",label:"Buff Uptime"},
+        {k:"specdps",label:"DPS by Spec"},
         {k:"dmg",label:"Damage Taken"},
         {k:"deaths",label:"Deaths"},
         {k:"intr",label:"Interrupts"},
@@ -405,6 +481,7 @@ function renderBosses(d){
       const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
       const body={
         buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
+        specdps:specDpsView(b),
         dmg:topSources(b),
         deaths:deathsView(b),
         intr:interruptView(b),
@@ -502,6 +579,47 @@ function phasesView(b){
       <td class="delta ${d.cls}">${d.txt}s</td></tr>`;
   }
   return h+`</tbody></table>`;
+}
+// "What's killing us" — repeated killing blows across the tier are mechanics the raid keeps failing.
+function deathCausesView(d){
+  const rows=rowsOf(d.deep&&d.deep.deathCauses).slice(0,15);
+  if(!rows.length) return "";
+  let h=`<h2 class="section">What's Killing Us<span class="hint">Killing blows tallied across every shared boss. A cause that recurs is a mechanic the raid repeatedly fails; the benchmark column shows how avoidable it is (their 0 = they just don't die to it). "Melee" on a non-tank usually means a death while already in trouble. Lower is better.</span></h2>
+    <table><thead><tr><th>Killing blow</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th>Bosses</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaLow(r.ours,r.theirs);
+    h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num" style="font-size:11.5px">${asArr(r.bosses).map(esc).join(", ")}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Per-boss DPS-by-spec gap: specs ranked by per-player deficit to the benchmark's same spec.
+function specDpsView(b){
+  const rows=rowsOf(b.specGap);
+  if(!rows.length) return `<p class="num" style="padding:8px 2px">No per-spec damage data for this fight.</p>`;
+  let h=`<p class="srcs">DPS specs ranked by the per-player gap to the benchmark's same spec — biggest deficit first, so the lowest-hanging fruit is at the top. Compares <b>average DPS per player</b> (a 3-mage vs 2-mage roster stays fair) over the fight's duration; expand a row for the individual players. Specs only one raid brought are listed last as a comp note.</p>`;
+  for(const r of rows){
+    const col=cc(r.class);
+    const diff=r.deficit; // theirs − ours, per player; positive = we trail (bad)
+    const dcls=diff>0?"bad":(diff<0?"good":"flat");
+    const dtxt=(diff>0?"−":diff<0?"+":"")+fmtR(Math.abs(diff))+"/s";
+    const note=!r.both?`<span class="tag2 ${r.oursCount?'edge':'gap'}">${r.oursCount?'only you':'only them'}</span>`:"";
+    const plist=(arr,who)=>{const a=rowsOf(arr);return a.length?a.map(p=>`<span style="color:${who==='ours'?'var(--ours)':'var(--theirs)'}">${esc(p.name)}</span> <span class="num">${fmtR(p.dps)}/s</span>`).join("<br>"):'<span class="num">—</span>';};
+    h+=`<div class="specrow">
+      <div class="shead">
+        <span class="sname" style="color:${col}">${esc(r.spec)} ${esc(r.class)}</span>${note}
+        <span class="num" style="margin-left:auto"><span class="cours">${fmtR(r.oursAvg)}/s</span> <span class="role">×${r.oursCount}</span> &nbsp;vs&nbsp; <span class="cthe">${fmtR(r.theirsAvg)}/s</span> <span class="role">×${r.theirsCount}</span></span>
+        <span class="delta ${dcls}" title="per-player gap">${dtxt}</span>
+      </div>
+      <details><summary>Players</summary>
+        <div class="twocol plist"><div><h4 class="ours" style="margin:0 0 4px">${esc(DATA.ours.title)}</h4>${plist(r.oursPlayers,'ours')}</div><div><h4 class="theirs" style="margin:0 0 4px">${esc(DATA.theirs.title)}</h4>${plist(r.theirsPlayers,'theirs')}</div></div>
+      </details>
+    </div>`;
+  }
+  return h;
 }
 function statStrip(b){
   const cell=(label,o,t,fmt,lower)=>{const f=fmt||(x=>x);

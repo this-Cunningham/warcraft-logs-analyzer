@@ -295,7 +295,9 @@ def consumable_report(directory, enc_ids, roster_size):
     the roster size (a flasked player shows ~one application). Drums is reported as fight uptime %
     rather than a user count (it's a short re-applied buff)."""
     fm = fight_map(directory)
-    cat_per_boss = {"flask": [], "food": [], "elixir": [], "potion": []}
+    # Elixirs are split into battle vs guardian (TBC lets one of each run at once), so the
+    # coverage card can show them separately — lumping them mislabels a guardian-heavy raid.
+    cat_per_boss = {"flask": [], "food": [], "elixirBattle": [], "elixirGuardian": [], "potion": []}
     drum_upt = []
     for enc in enc_ids:
         rep = load_boss(directory, str(enc))
@@ -306,7 +308,7 @@ def consumable_report(directory, enc_ids, roster_size):
             continue
         info = fm.get(str(enc), {})
         dur = info.get("end", 0) - info.get("start", 0)
-        per_cat = {"flask": 0, "food": 0, "elixir": 0, "potion": 0}
+        per_cat = {"flask": 0, "food": 0, "elixirBattle": 0, "elixirGuardian": 0, "potion": 0}
         best_drum = 0
         for a in auras:
             cat = _consumable_cat(a.get("name", ""), a.get("guid"))
@@ -315,6 +317,9 @@ def consumable_report(directory, enc_ids, roster_size):
             if cat == "drums":
                 if dur > 0:
                     best_drum = max(best_drum, min(100, round(float(a.get("totalUptime", 0)) / dur * 100)))
+            elif cat == "elixir":
+                key = "elixirGuardian" if _elixir_type(a.get("name", ""), a.get("guid")) == "guardian" else "elixirBattle"
+                per_cat[key] += int(a.get("totalUses", 0))
             else:
                 per_cat[cat] += int(a.get("totalUses", 0))
         for c in per_cat:
@@ -331,7 +336,8 @@ def consumable_report(directory, enc_ids, roster_size):
         "rosterSize": roster_size,
         "flask": iavg(cat_per_boss["flask"], roster_size),
         "food": iavg(cat_per_boss["food"], roster_size),
-        "elixir": iavg(cat_per_boss["elixir"]),
+        "elixirBattle": iavg(cat_per_boss["elixirBattle"]),
+        "elixirGuardian": iavg(cat_per_boss["elixirGuardian"]),
         "potions": iavg(cat_per_boss["potion"]),
         "drumsUptime": iavg(drum_upt),
     }
@@ -989,12 +995,15 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
             "Raid DPS averages {} vs {}. This is the direct cause of the slower kills."
             .format(_fmt_k(od2), _fmt_k(td2)))
 
-    # Deaths (lower better).
+    # Deaths (lower better). oursDeaths/theirsDeaths are the night-wide total when
+    # rollup data is present (trash + every pull, incl. wipes), else per-boss kills.
     ddh = summary["oursDeaths"] - summary["theirsDeaths"]
     if ddh > 0:
+        scope = "across the full clear (trash + all pulls)" if summary.get("nightWideDeaths") \
+            else "across {} bosses".format(bosses)
         add(ddh / (bosses * 2.0), "Too many deaths",
-            "{} deaths vs {} across {} bosses. Avoidable deaths cost DPS and risk wipes."
-            .format(summary["oursDeaths"], summary["theirsDeaths"], bosses))
+            "{} deaths vs {} {}. Avoidable deaths cost DPS and risk wipes."
+            .format(summary["oursDeaths"], summary["theirsDeaths"], scope))
 
     # Healer overheal (lower better).
     oh = quality["oursOverheal"] - quality["theirsOverheal"]
@@ -1460,12 +1469,34 @@ def build_trash(ours_dir, theirs_dir):
 # ---------- ASSEMBLE ----------
 def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
           ours_name="Our Raid", theirs_name="Benchmark", zone_name=""):
-    ours_idx = index_by_encounter(get_fights(ours_parses))
-    theirs_idx = index_by_encounter(get_fights(theirs_parses))
+    ours_raw = get_fights(ours_parses)
+    theirs_raw = get_fights(theirs_parses)
+    ours_idx = index_by_encounter(ours_raw)
+    theirs_idx = index_by_encounter(theirs_raw)
     common_ids = [k for k in ours_idx if k in theirs_idx]
 
     bosses = [{"encounterID": int(i), "name": ours_idx[i]["name"], "ours": ours_idx[i], "theirs": theirs_idx[i]}
               for i in common_ids]
+
+    # Raid-wide night death total comes from WCL's zone-ROLLUP entries (sentinel
+    # fightID >= 10000), NOT the sum of per-boss kill deaths. The rollup already
+    # counts trash + every boss pull (incl. wipes), so the per-boss counts are a
+    # SUBSET of it — adding them on top is the double-count bug that produced 179
+    # (19 boss-kill + 160 rollup). Restrict to zones BOTH raids cleared (shared
+    # rollup encounter ids), mirroring the per-boss intersection. Falls back to
+    # per-boss kill deaths when a report predates rollups (e.g. single-boss logs).
+    def _zone_rollups(raw):
+        return {str(f["encounter"]["id"]): int(f["deaths"])
+                for f in raw if f.get("fightID", 0) >= 10000}
+    o_roll, t_roll = _zone_rollups(ours_raw), _zone_rollups(theirs_raw)
+    shared_roll = [k for k in o_roll if k in t_roll]
+    night_wide_deaths = bool(shared_roll)
+    if night_wide_deaths:
+        ours_deaths_total = ssum([o_roll[k] for k in shared_roll])
+        theirs_deaths_total = ssum([t_roll[k] for k in shared_roll])
+    else:
+        ours_deaths_total = ssum([ours_idx[i]["deaths"] for i in common_ids])
+        theirs_deaths_total = ssum([theirs_idx[i]["deaths"] for i in common_ids])
 
     # Wipe/attempt counts per shared boss (graceful if attempts.json predates this feature).
     ours_att = attempt_map(ours_dir)
@@ -1482,8 +1513,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "bossCount": len(bosses),
         "oursAvgParse": avg([b["ours"]["avgParse"] for b in bosses]),
         "theirsAvgParse": avg([b["theirs"]["avgParse"] for b in bosses]),
-        "oursDeaths": ssum([b["ours"]["deaths"] for b in bosses]),
-        "theirsDeaths": ssum([b["theirs"]["deaths"] for b in bosses]),
+        "oursDeaths": ours_deaths_total,
+        "theirsDeaths": theirs_deaths_total,
+        "nightWideDeaths": night_wide_deaths,
         "oursDurationMs": ssum([b["ours"]["durationMs"] for b in bosses]),
         "theirsDurationMs": ssum([b["theirs"]["durationMs"] for b in bosses]),
         "oursWipes": ssum([b["oursWipes"] for b in bosses]),

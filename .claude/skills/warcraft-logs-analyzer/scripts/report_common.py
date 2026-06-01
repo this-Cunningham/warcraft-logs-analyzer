@@ -83,9 +83,17 @@ def get_players(fight):
 
 def index_by_encounter(fights):
     """Map str(encounterID) -> {name, durationMs, deaths, avgParse, players}.
-    Insertion order follows the API's kill order (Python dicts preserve it)."""
+    Insertion order follows the API's kill order (Python dicts preserve it).
+
+    WCL's rankings(compare:Parses) mixes per-boss entries with whole-zone ROLLUP
+    pseudo-encounters (e.g. "Tempest Keep", "Serpentshrine Cavern") whose deaths/
+    duration sum the entire raid night (trash + every pull). They carry a sentinel
+    fightID >= 10000 (real fights are small ids). Including them double-counts
+    deaths/kill-time and adds a phantom "boss", so drop them here."""
     out = {}
     for f in fights:
+        if f.get("fightID", 0) >= 10000:
+            continue
         players = get_players(f)
         parses = [p["parse"] for p in players if p["parse"] >= 0]
         avg_parse = round(sum(parses) / len(parses), 1) if parses else 0

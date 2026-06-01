@@ -296,7 +296,7 @@ function renderOverview(d){
   let h=gapsScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Shared Bosses</div><div class="vals"><span class="v">${s.bossCount}</span></div></div>
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
-    <div class="card"><div class="label">Total Deaths</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
+    <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
     ${wipeCard}
   </div><h2 class="section">Boss-by-Boss<span class="hint">Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, attempts, and both rosters side by side.</span></h2>`;
@@ -430,7 +430,8 @@ function renderEnchants(d){
     <div class="cards">
       ${acard("Flasked",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
       ${acard("Food (Well Fed)",`${co.food}/${co.rosterSize}`,`${ct.food}/${ct.rosterSize}`,deltaHigh(co.food,ct.food))}
-      ${acard("Battle Elixirs",co.elixir,ct.elixir,deltaHigh(co.elixir,ct.elixir))}
+      ${acard("Battle Elixirs",co.elixirBattle,ct.elixirBattle,deltaHigh(co.elixirBattle,ct.elixirBattle))}
+      ${acard("Guardian Elixirs",co.elixirGuardian,ct.elixirGuardian,deltaHigh(co.elixirGuardian,ct.elixirGuardian))}
       ${acard("Drums Uptime",`${co.drumsUptime}%`,`${ct.drumsUptime}%`,deltaHigh(co.drumsUptime,ct.drumsUptime))}
       ${acard("Combat Potions",co.potions,ct.potions,deltaHigh(co.potions,ct.potions))}
     </div>`;

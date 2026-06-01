@@ -59,14 +59,6 @@ isn't on PATH). Run them from the repo root.
 The token is fetched once and cached in `.wcl-token.json` (gitignored) until
 near expiry. `lib.invoke_query` raises on GraphQL errors.
 
-> **Porting note:** these scripts were ported 1:1 from the original PowerShell
-> (`*.ps1`, still in `scripts/` until the Python path is validated on macOS, then
-> removed). The generated HTML and its `DATA` payload are unchanged — only the
-> fetch/build layer moved to Python. The port was verified to reproduce the
-> PowerShell output exactly (aside from Python emitting proper JSON arrays where
-> PowerShell's `ConvertTo-Json` collapsed single-element arrays to bare objects —
-> the template's `asArr` helper already handles both).
-
 ## Key concepts
 
 - **Report code**: the ID in a report URL — `warcraftlogs.com/reports/aBcD1234`
@@ -122,8 +114,8 @@ blob; the build script injects it by replacing the literal `/*__DATA__*/null`.
    for the comparison view.
 
 **Encoding:** Python handles this natively — the builders read with `utf-8-sig`
-(tolerates the BOM the old PowerShell `Set-Content -Encoding utf8` left on cached
-JSON) and write the HTML as UTF-8 without a BOM. `json.dumps` ascii-escapes
+(tolerates BOM-prefixed JSON files) and write the HTML as UTF-8 without a BOM.
+`json.dumps` ascii-escapes
 non-ASCII (`·`, `−`, accented player names) into the `DATA` blob, so they survive
 intact regardless of how the file is opened.
 

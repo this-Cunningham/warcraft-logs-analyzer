@@ -163,3 +163,46 @@ it (single-target fights → skip); how to align two fights of different length 
 vs absolute seconds); where these live in the report (a per-boss **Timeline** sub-tab under Execution
 feels right); and how much extra fetch/points the event pulls add over today's table-only budget
 (spike #2 first — cheapest, highest-value, and proves the timeline plumbing for the rest).
+
+---
+
+## TODO: redesign "DPS by Spec" in boss panes — gap-sorted bar chart
+
+> Update "dps by spec" within each boss pane to look more like the "Damage Contribution by Class"
+> design, but for spec. Sort so the specs we can most improve (biggest gap vs benchmark) appear at
+> the top. (Don't surface our missing specs here — that composition signal belongs in the
+> composition section; see the TODO below.)
+
+Why: the current layout treats all specs as equally interesting. Sorting by improvement headroom
+(our spec's share vs their spec's share, descending gap) makes the section pull its weight — a
+leader scans the top row and immediately sees the highest-leverage spec contribution gap.
+
+Design notes:
+- Borrow the horizontal bar chart framing already proven in "Damage Contribution by Class."
+- Two bars per spec row (us vs them), like the class section — so the visual grammar is consistent
+  across the boss pane.
+- Sort descending by gap: specs where we contribute the least relative to the benchmark rise to top.
+- Keep the focus on specs both sides actually field — whether a side is *missing* a spec entirely is
+  a roster-composition story, surfaced in the composition section, not framed as a per-boss DPS gap.
+
+---
+
+## TODO: highlight missing specs in the composition section
+
+> In the "composition" section where we already show our raid comp specs vs theirs, highlight the
+> specs we're missing relative to the benchmark (and, the other direction, specs we bring that they
+> don't).
+
+Why: which specs each side fields is a real, actionable composition gap — "they run a Shadow Priest
+for replenishment, we don't" is a lever a leader can pull next week. The composition section is
+already the honest home for ours-vs-theirs spec rosters, so the missing-spec callout belongs there
+rather than being smuggled into a per-boss DPS chart (which would falsely frame an absent spec as a
+contribution shortfall).
+
+Design notes:
+- Annotate specs present for them but absent for us ("missing") and, optionally, specs present for
+  us but absent for them — visually distinct so the missing-spec gap reads at a glance.
+- Stay neutral-analyst: state the composition delta; let the leader judge whether to recruit/respec.
+- Open Q: do we interpret *why* a missing spec matters (e.g. flag lost raid buffs/debuffs like
+  replenishment, Misery, Heroism source) or just show the roster delta? The former is more
+  actionable but needs a spec→buff knowledge table; the latter is honest and cheap.

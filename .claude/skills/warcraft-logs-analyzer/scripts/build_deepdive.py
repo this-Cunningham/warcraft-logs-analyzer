@@ -129,6 +129,30 @@ PROVIDER_CHECKS = [
 ]
 
 
+def spec_comp_diff(ours_roster, theirs_roster):
+    """Spec-level roster composition diff for the Composition view, used to highlight unique specs
+    in the roster tiles. 'missing' = a (class, spec) the benchmark fielded that we didn't (a comp
+    gap); 'edge' = a spec we fielded that they didn't. Counts are taken from the side that has the
+    spec. Empty/Unknown specs are skipped so we never invent a phantom 'missing Unknown'. This is a
+    roster story, not a per-boss DPS gap — that lives in each boss's DPS-by-spec view."""
+    def counts(roster):
+        c = {}
+        for p in roster:
+            sp = p.get("spec")
+            if not sp or sp == "Unknown":
+                continue
+            key = (p["class"], sp)
+            c[key] = c.get(key, 0) + 1
+        return c
+    o, t = counts(ours_roster), counts(theirs_roster)
+    missing = [{"class": c, "spec": s, "count": t[(c, s)]} for (c, s) in t if (c, s) not in o]
+    edge = [{"class": c, "spec": s, "count": o[(c, s)]} for (c, s) in o if (c, s) not in t]
+    # Biggest blocks first, then alphabetical — stable, readable order for the legend counts.
+    missing.sort(key=lambda r: (-r["count"], r["class"], r["spec"]))
+    edge.sort(key=lambda r: (-r["count"], r["class"], r["spec"]))
+    return {"missing": missing, "edge": edge}
+
+
 # ---------- ENCHANT / GEM / CONSUMABLE AUDIT (from playerDetails) ----------
 # Core enchantable slots in TBC (exclude rings = enchanter-only, offhand/ranged = conditional).
 ENCH_SLOTS = {0: "Head", 2: "Shoulder", 4: "Chest", 6: "Legs", 7: "Feet", 8: "Wrist", 9: "Hands", 14: "Back", 15: "Weapon"}
@@ -526,9 +550,9 @@ def spec_dps_buckets(report, spec_map, role_map, class_map, dur_ms):
 def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o_dur, t_dur):
     """Per-spec DPS comparison for one boss, ranked by the per-player deficit to the
     benchmark's same spec (biggest gap first → lowest-hanging fruit floats to the top).
-    Compares AVERAGE DPS per player so a 3-mage vs 2-mage roster is still fair, and keeps
-    the individual players on both sides for a drill-down. `both` flags specs only one
-    raid brought (a different kind of gap)."""
+    Compares AVERAGE DPS per player so a 3-mage vs 2-mage roster is still fair. `both`
+    flags specs only one raid brought (a different kind of gap — surfaced as a roster
+    story on the Composition tab, not in the per-boss chart)."""
     ob = spec_dps_buckets(o_report, o_spec, o_role, o_cls, o_dur)
     tb = spec_dps_buckets(t_report, t_spec, t_role, t_cls, t_dur)
     rows = []
@@ -536,13 +560,12 @@ def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o
         o = ob.get(key)
         t = tb.get(key)
         ref = o or t
-        op = sorted(o["players"], key=lambda x: -x["dps"]) if o else []
-        tp = sorted(t["players"], key=lambda x: -x["dps"]) if t else []
+        op = o["players"] if o else []
+        tp = t["players"] if t else []
         o_avg = round(sum(x["dps"] for x in op) / len(op)) if op else 0
         t_avg = round(sum(x["dps"] for x in tp) / len(tp)) if tp else 0
         rows.append({
             "class": ref["class"], "spec": ref["spec"],
-            "oursPlayers": op, "theirsPlayers": tp,
             "oursCount": len(op), "theirsCount": len(tp),
             "oursAvg": o_avg, "theirsAvg": t_avg, "deficit": t_avg - o_avg,
             "both": bool(op) and bool(tp),
@@ -1066,11 +1089,13 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     ours_pairs = [(p["class"], p["spec"]) for p in ours_roster]
     theirs_pairs = [(p["class"], p["spec"]) for p in theirs_roster]
     gaps = [{"buff": c["buff"], "ours": has_provider(ours_pairs, c["class"], c["spec"]),
-             "theirs": has_provider(theirs_pairs, c["class"], c["spec"]), "impact": c["impact"]}
+             "theirs": has_provider(theirs_pairs, c["class"], c["spec"]), "impact": c["impact"],
+             "class": c["class"], "spec": c["spec"]}
             for c in PROVIDER_CHECKS]
     composition = {
         "oursClasses": class_counts(ours_roster), "theirsClasses": class_counts(theirs_roster),
         "oursSize": len(ours_roster), "theirsSize": len(theirs_roster), "gaps": gaps,
+        "specDiff": spec_comp_diff(ours_roster, theirs_roster),
     }
 
     # Audit

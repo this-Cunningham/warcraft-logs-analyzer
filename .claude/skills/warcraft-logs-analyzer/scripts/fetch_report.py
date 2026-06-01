@@ -12,6 +12,9 @@ Writes:
                                             Consumables table — flask/elixir/food/potion presence)
     <out_dir>/timeline-<encounterID>.json  (shared bosses only: exact DPS/HPS-over-time curves,
                                             event-binned into N equal buckets across the fight)
+    <out_dir>/trash.json           (trash pull segments + NPC name master data, for the Trash tab)
+    <out_dir>/trash-deaths.json    (enemy kill-order events + player death entries on trash)
+    <out_dir>/trash-cc.json        (hard-CC aura table + per-mob CC apply events on trash)
 """
 
 import argparse
@@ -21,6 +24,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # find sibling modules
 import lib
+import report_common
 
 # Cheap call: buffs + boss debuffs only.
 LITE_Q = (
@@ -105,6 +109,91 @@ def _binned_curves(code, fid, start, end, n=40):
     return {"durMs": dur, "n": n, "dps": curve("DamageDone"), "hps": curve("Healing")}
 
 
+# Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,
+# in one cheap call. WCL already splits trash into discrete pulls; enemyNPCs carries the report
+# actor id + game id + how many of each mob, and masterData resolves those ids to names.
+TRASH_STRUCT_Q = (
+    "query TR($code:String!){reportData{report(code:$code){"
+    "fights(killType:Trash){id name startTime endTime gameZone{id name} enemyNPCs{id gameID instanceCount}} "
+    "masterData{actors(type:\"Player\"){id name} npcs: actors(type:\"NPC\"){id gameID name}}}}}"
+)
+
+
+def _events_all(code, fids, tmin, tmax, data_type, hostility, ability_id=None, keep_type=None, cap_pages=12):
+    """Pull every matching event across all the given fights in one (paginated) sweep. Each event
+    carries its `fight` id, so a single call covers all trash and we bucket by fight client-side."""
+    out = []
+    start = tmin
+    extra = ",abilityID:{}".format(ability_id) if ability_id is not None else ""
+    q = ("query E($code:String!,$f:[Int]!,$s:Float!,$e:Float!){reportData{report(code:$code){"
+         "events(dataType:" + data_type + ",hostilityType:" + hostility +
+         ",fightIDs:$f,startTime:$s,endTime:$e,limit:5000" + extra + "){data nextPageTimestamp}}}}")
+    for _ in range(cap_pages):
+        ev = lib.invoke_query(q, {"code": code, "f": fids, "s": start, "e": tmax})["reportData"]["report"]["events"]
+        for e in (ev.get("data") or []):
+            if keep_type is None or e.get("type") == keep_type:
+                out.append({"t": e.get("timestamp"), "targetID": e.get("targetID"),
+                            "targetInstance": e.get("targetInstance"),
+                            "sourceID": e.get("sourceID"), "fight": e.get("fight")})
+        nxt = ev.get("nextPageTimestamp")
+        if not nxt:
+            break
+        start = nxt
+    return out
+
+
+def fetch_trash(code, out_dir):
+    """Pull everything the Trash tab needs (on by default). Trash is cheap because deaths/CC come
+    back in single paginated events calls keyed by `fight`, not one call per pull. Writes trash.json,
+    trash-deaths.json, trash-cc.json. Safe on reports with no trash (writes empty structures)."""
+    os.makedirs(out_dir, exist_ok=True)
+    struct = lib.invoke_query(TRASH_STRUCT_Q, {"code": code})["reportData"]["report"]
+    fights = struct.get("fights") or []
+    md = struct.get("masterData") or {}
+    _save({"fights": fights, "npcActors": md.get("npcs") or [], "playerActors": md.get("actors") or []},
+          os.path.join(out_dir, "trash.json"))
+    if not fights:
+        _save({"friendly": [], "enemy": []}, os.path.join(out_dir, "trash-deaths.json"))
+        _save({"auras": [], "events": {}}, os.path.join(out_dir, "trash-cc.json"))
+        print("[{}] no trash segments".format(code))
+        return
+
+    fids = [int(f["id"]) for f in fights]
+    tmin = min(float(f["startTime"]) for f in fights)
+    tmax = max(float(f["endTime"]) for f in fights)
+
+    # Player deaths on trash: the Deaths TABLE gives per-death rows with the killing-blow NAME already
+    # resolved (events only carry the ability's game id), plus a timestamp we use to assign each death
+    # to its pull. Enemy deaths: EVENTS, for the intra-pack kill order (timestamp + which mob).
+    fd_q = ("query FD($code:String!,$f:[Int]!){reportData{report(code:$code){"
+            "table(dataType:Deaths,fightIDs:$f,hostilityType:Friendlies)}}}")
+    fd = lib.invoke_query(fd_q, {"code": code, "f": fids})["reportData"]["report"]["table"]
+    friendly = ((fd or {}).get("data") or {}).get("entries") or []
+    enemy = _events_all(code, fids, tmin, tmax, "Deaths", "Enemies", keep_type="death")
+    _save({"friendly": friendly, "enemy": enemy}, os.path.join(out_dir, "trash-deaths.json"))
+
+    # Crowd control: the enemy-Debuffs aura table lists every debuff placed on trash mobs; we keep only
+    # the hard-CC auras (curated names) and then pull each one's apply events to learn WHICH mob got
+    # CC'd, by whom, in which pull. Only a handful of CC spell ids are ever present, so it's cheap.
+    cc_q = ("query CC($code:String!,$f:[Int]!){reportData{report(code:$code){"
+            "table(dataType:Debuffs,fightIDs:$f,hostilityType:Enemies)}}}")
+    cc_tbl = lib.invoke_query(cc_q, {"code": code, "f": fids})["reportData"]["report"]["table"]
+    auras = ((cc_tbl or {}).get("data") or {}).get("auras") or []
+    cc_auras = [{"name": a.get("name"), "guid": a.get("guid"), "uses": int(a.get("totalUses", 0))}
+                for a in auras if report_common.cc_label(a.get("name"))]
+    cc_events = {}
+    for a in cc_auras:
+        gid = a["guid"]
+        if gid is None:
+            continue
+        cc_events[str(int(gid))] = _events_all(
+            code, fids, tmin, tmax, "Debuffs", "Enemies",
+            ability_id=float(gid), keep_type="applydebuff", cap_pages=6)
+    _save({"auras": cc_auras, "events": cc_events}, os.path.join(out_dir, "trash-cc.json"))
+    print("[{}] trash: {} pulls, {} enemy kills, {} player deaths, {} CC type(s)".format(
+        code, len(fights), len(enemy), len(friendly), len(cc_auras)))
+
+
 def fetch(code, out_dir, full_encounters=None):
     """Fetch fights, player details, and per-boss tables for one report code."""
     full_encounters = set(int(e) for e in (full_encounters or []))
@@ -164,6 +253,9 @@ def fetch(code, out_dir, full_encounters=None):
             timeline = _binned_curves(code, fid, fight["startTime"], fight["endTime"])
             _save(timeline, os.path.join(out_dir, "timeline-{}.json".format(enc)))
 
+    # 4) Trash analysis (on by default — cheap, ~7-9 calls). Self-contained so it can also run alone.
+    fetch_trash(code, out_dir)
+
     print("[{}] done -> {}".format(code, out_dir))
 
 
@@ -178,8 +270,16 @@ def main(argv=None):
         default=[],
         help="encounter IDs that should also pull the heavy output tables (usually shared bosses)",
     )
+    p.add_argument(
+        "--trash-only",
+        action="store_true",
+        help="only (re)fetch the trash files into an existing data folder; skip the boss fetch",
+    )
     args = p.parse_args(argv)
-    fetch(args.code, args.out_dir, args.full_encounters)
+    if args.trash_only:
+        fetch_trash(args.code, args.out_dir)
+    else:
+        fetch(args.code, args.out_dir, args.full_encounters)
 
 
 if __name__ == "__main__":

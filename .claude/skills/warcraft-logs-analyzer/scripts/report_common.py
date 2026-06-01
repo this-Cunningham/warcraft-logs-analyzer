@@ -19,6 +19,31 @@ def read_json(path):
         return json.load(fh)
 
 
+# ---------- CROWD CONTROL (shared by the fetch + build steps) ----------
+# Hard CC = a debuff that holds a mob OUT of the fight, as opposed to an incidental combat stun or
+# a slow. Unlike consumable BUFFS (which WCL renames to their effect, so we classify those by spell
+# id), CC DEBUFFS keep their real spell name in the logs — so a curated NAME allowlist is both
+# reliable and rank-proof here. It deliberately excludes same-rooted non-CC ("Ice Trap"/"Explosive
+# Trap" are AoE slow/damage, not a lockout) and rotational stuns (Kidney Shot, Cheap Shot, Gouge,
+# Bash, Hammer of Justice) that are used mid-fight rather than to neutralize a mob.
+HARD_CC_NAMES = {
+    "Polymorph", "Banish", "Sap", "Shackle Undead", "Freezing Trap", "Seduction",
+    "Hibernate", "Repentance", "Wyvern Sting", "Cyclone", "Mind Control",
+}
+
+
+def cc_label(name):
+    """Return the canonical hard-CC label for a debuff aura name, or None if it isn't hard CC.
+    Handles the "… Effect" suffix (e.g. "Freezing Trap Effect") and Polymorph's rank/variant
+    names ("Polymorph: Pig")."""
+    if not name:
+        return None
+    base = name[:-len(" Effect")].strip() if name.endswith(" Effect") else name
+    if base.startswith("Polymorph"):
+        return "Polymorph"
+    return base if base in HARD_CC_NAMES else None
+
+
 def avg(vals):
     """Mean of non-null values, rounded to 1 decimal (0 when empty). Banker's
     rounding matches PowerShell's [math]::Round default."""

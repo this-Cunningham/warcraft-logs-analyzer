@@ -2,6 +2,10 @@
 
 Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of each section.
 
+> Before adding or building anything here, route it through the product
+> principles in [`PRODUCT_MANAGER_SOUL.md`](PRODUCT_MANAGER_SOUL.md) — does it
+> reveal an actionable gap, honestly, at a glance?
+
 ---
 
 ## TODO: more / better insights — what other data can we leverage?

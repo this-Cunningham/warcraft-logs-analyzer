@@ -16,6 +16,11 @@ uses the **client-credentials flow** against the **public** API
 (`https://www.warcraftlogs.com/api/v2/client`) — public reports only, no user
 auth needed.
 
+> **Product north star:** the report exists to surface the highest-leverage,
+> actionable gaps vs a benchmark raid — not to dump data. Read
+> [`PRODUCT_MANAGER_SOUL.md`](../../../PRODUCT_MANAGER_SOUL.md) (repo root)
+> before deciding what a report should or shouldn't include.
+
 ## Setup (once)
 
 1. Credentials live in `.env` at the repo root (gitignored). If it's missing,

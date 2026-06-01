@@ -7,6 +7,8 @@ Writes:
     <out_dir>/fights.json          (boss kills: id, name, encounterID, start/end, size, ilvl)
     <out_dir>/playerdetails.json   (combatantInfo: gear/enchants/gems, potionUse)
     <out_dir>/boss-<encounterID>.json  (per-kill: buffs + boss debuffs, in one call)
+    <out_dir>/consumes-<encounterID>.json  (shared bosses only: per-player buff auras for the
+                                            Consumables table — flask/elixir/food/potion presence)
 """
 
 import argparse
@@ -42,6 +44,30 @@ def _save(obj, path):
         json.dump(obj, fh, indent=2, ensure_ascii=False)
 
 
+def _fetch_per_player_buffs(code, fid, player_ids):
+    """Per-player buff coverage for one fight, for the per-player Consumables table.
+
+    Consumables (flask/elixir/food) are applied PRE-PULL and persist, so they generate no
+    applybuff events inside the fight window — the events stream misses them. The Buffs *table*
+    scoped by `sourceID`, however, sees auras present at pull. We alias one tiny table per player
+    into a single request (cheap: ~2 points, sub-second) and keep just name + totalUses per aura."""
+    ids = sorted({int(i) for i in player_ids})
+    if not ids:
+        return {}
+    fields = " ".join(
+        "p{0}: table(dataType:Buffs, fightIDs:[{1}], sourceID:{0})".format(pid, fid) for pid in ids
+    )
+    q = "query Q($code:String!){reportData{report(code:$code){" + fields + "}}}"
+    rep = lib.invoke_query(q, {"code": code})["reportData"]["report"]
+    out = {}
+    for pid in ids:
+        auras = ((rep.get("p{0}".format(pid)) or {}).get("data") or {}).get("auras") or []
+        # Keep guid — elixirs are classified by spell id downstream (WCL renames buffs by effect).
+        out[str(pid)] = [{"name": a.get("name"), "guid": a.get("guid"), "uses": int(a.get("totalUses", 0))}
+                         for a in auras]
+    return out
+
+
 def fetch(code, out_dir, full_encounters=None):
     """Fetch fights, player details, and per-boss tables for one report code."""
     full_encounters = set(int(e) for e in (full_encounters or []))
@@ -69,6 +95,13 @@ def fetch(code, out_dir, full_encounters=None):
     _save(pd, os.path.join(out_dir, "playerdetails.json"))
     print("[{}] player details saved".format(code))
 
+    # Actor IDs (for the per-player Consumables table on shared bosses).
+    pdd = pd["reportData"]["report"]["playerDetails"]["data"]["playerDetails"]
+    player_ids = []
+    for rn in ("tanks", "healers", "dps"):
+        for p in (pdd.get(rn) or []):
+            player_ids.append(p["id"])
+
     # 3) Per-boss tables (one call per boss via aliases). Shared bosses also pull the
     #    heavy output tables for the Dive Deeper modules.
     for fight in fights:
@@ -78,6 +111,10 @@ def fetch(code, out_dir, full_encounters=None):
         res = lib.invoke_query(FULL_Q if heavy else LITE_Q, {"code": code, "f": [fid]})
         _save(res, os.path.join(out_dir, "boss-{}.json".format(enc)))
         print("[{}]   {}: {} (enc {})".format(code, "FULL" if heavy else "lite", fight["name"], enc))
+        # Per-player consumable coverage (shared bosses only — it's a coaching detail view).
+        if heavy:
+            ppb = _fetch_per_player_buffs(code, fid, player_ids)
+            _save({"perPlayer": ppb}, os.path.join(out_dir, "consumes-{}.json".format(enc)))
 
     print("[{}] done -> {}".format(code, out_dir))
 

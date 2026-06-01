@@ -152,18 +152,51 @@ the static template, with no model in the path.
      --ours-parses data/ours-parses.json --theirs-parses data/demo-parses.json \
      --ours-name "Our Raid" --theirs-name "Benchmark" --zone-name "SSC / TK" --out-file reports/deepdive.html
    ```
-   The report has four top-level tabs: **Overview | Composition | Enchants | Bosses**.
+   The report has four top-level tabs: **Overview | Composition | Prep | Bosses**.
    - **Composition**: Raid Composition & buff-provider gap analysis (class/spec → raid buff
      it brings; provider table is `PROVIDER_CHECKS` in build_deepdive.py). Each player's
      spec is their **primary (most-frequent) spec across the shared bosses** (`primary_spec_map`),
      not whatever the first-iterated fight showed — so a Feral druid who bear-tanks one fight
      as "Guardian" still reads as Feral (and still counts as a Leader-of-the-Pack provider).
      This keeps the spec counts and the provider-gap status order-independent and consistent.
-   - **Enchants**: Enchants & Gems audit (per-player missing enchants from
-     `combatantInfo.gear.permanentEnchant`). Restricted to the **shared-boss roster** (same
+   - **Prep**: leads with **Consumables Coverage** (`consumable_report` in build_deepdive.py),
+     then the Enchants & Gems audit. Consumables come from the per-boss **Buffs** tables we already
+     fetch — auras are bucketed by `_consumable_cat` into flask / food (Well Fed) / battle elixir /
+     drums / combat potion, and `totalUses` is averaged across the shared bosses (≈ one application
+     per player for flask/food, so it's a raid-aggregate coverage proxy, **not** per-player exact;
+     it also can't tell flask-vs-elixir apart for the same player, so flask is the headline). Drums
+     is shown as fight **uptime %** rather than a user count. Cards show ours/theirs/Δ.
+     `ELIXIR_EXCLUDE` drops junk "…Elixir" names (Noggenfogger etc.).
+   - **Consumables are classified by SPELL ID, not buff name.** WCL renames most consumable buffs to
+     their *effect* — Flask of Supreme Power → "Supreme Power", Elixir of Major Shadow Power → "Major
+     Shadow Power", Ironshield Potion → "Ironshield" — none containing "Flask"/"Elixir"/"Potion", so
+     name-matching silently misses them (and same-named non-consumables — "Strength"/"Agility" scrolls,
+     a +125 "Spell Power" proc — would be false positives). The id sets (`FLASK_IDS`, `ELIXIR_BATTLE_IDS`,
+     `ELIXIR_GUARDIAN_IDS`, `POTION_IDS` in build_deepdive.py) are **mined from the report data** (every
+     buff carries its `guid`; the benchmark — a top guild — carries the full consumable set) and the
+     battle/guardian label verified once against Wowhead (WCL has no category field). A "Flask of …"/
+     "Elixir of …" name fallback covers any id not yet listed. Extend the id sets when a new tier's
+     data surfaces a consumable buff not yet mapped.
+   - **Prep — Per-Player Consumables** (ours only): a **matrix** — one row per raider (sorted
+     **worst-prepared first**), the shared bosses across the top, and under each boss five
+     sub-columns **F · B · G · Fd · P** (flask / battle elixir / guardian elixir / food / combat
+     potion). A leading **Prep** column shows consumed-bosses / bosses-played, so a red streak across
+     a row is a chronic offender. "Consumed" = a **flask OR a battle + guardian elixir pair**
+     (`_elixir_type` types each elixir by spell id; a lone elixir is *not* enough). Built by
+     `per_player_consumables` (matrix shape: `bosses[]` + `players[].cells`).
+     Cell rendering is **route-aware**: a cell is red-tinted (`cmiss`) only if it's a real gap — a
+     flasked player's empty B/G cells render *faint* (the flask covers them), but a player with only a
+     guardian elixir gets a **red** battle-elixir cell (the missing half of the pair). Legend:
+     ✓=had it, red ✗=missing & needed, faint ✗=not needed via that route, ·=didn't attend that boss.
+     **Data source matters:** per-player consumables come from the Buffs *table scoped by `sourceID`*
+     (`_fetch_per_player_buffs` → `consumes-<enc>.json`), NOT events — flask/food/elixir are applied
+     pre-pull and generate no in-fight events, and `combatantInfo.auras` is empty in TBC. Fetched only
+     for the shared (`--full-encounters`) bosses.
+   - **Prep — Enchants & Gems audit**: per-player missing enchants from
+     `combatantInfo.gear.permanentEnchant`. Restricted to the **shared-boss roster** (same
      player set as Composition) — `audit_report` takes the roster names and filters
      playerDetails, which is otherwise fetched across all kills.
-   - **Enchants** also carries raid **avg item level** (from `fights.averageItemLevel` over the
+   - **Prep** also carries raid **avg item level** (from `fights.averageItemLevel` over the
      shared bosses) alongside the gem/enchant stats.
    - **Bosses**: Clear Efficiency; Output Quality (avg DPS activity from
      `dd.activeTime`/duration, healer overheal from `heal.overheal`, damage taken ex-tanks
@@ -192,7 +225,11 @@ the static template, with no model in the path.
    ride along on the cheap `fights` query (all kills), so they're always present.
 
 **TBC Classic data caveats (verified):**
-- `potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't surface them.
+- `playerDetails.combatantInfo.potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't use
+  that field. BUT consumables (flasks, food, elixirs, drums, **and combat potions**) DO appear as
+  **auras in the `Buffs` table** with a `totalUses` count, which is how the Consumables Coverage
+  panel surfaces them. Potion buff names ("Destruction", "Haste", etc.) are matched via a curated
+  `POTION_NAMES` set and are approximate (a few names can come from non-potion sources).
 - Enchant audit checks core slots only (Head, Shoulder, Chest, Legs, Feet, Wrist,
   Hands, Back, Weapon). Rings (enchanter-only) and offhand/ranged are excluded to
   avoid false "missing" flags. Empty slots (`id:0`) are skipped.

@@ -124,6 +124,20 @@
   .dbarL .f,.dbarR .f{position:absolute;top:0;bottom:0}
   .dbarL .f.ours{right:0;background:var(--ours);border-radius:5px 0 0 5px}
   .dbarR .f.theirs{left:0;background:var(--theirs);border-radius:0 5px 5px 0}
+  /* Per-player consumables matrix (bosses across the top, F/B/G/Fd/P sub-columns). */
+  .cmwrap{overflow-x:auto;margin-top:12px}
+  table.cmatrix{width:auto;min-width:100%;border-collapse:collapse;font-size:12px}
+  table.cmatrix th,table.cmatrix td{padding:4px 0;text-align:center;border-bottom:1px solid rgba(38,47,64,.5)}
+  table.cmatrix th.cbgrp{font-size:11px;color:var(--txt);text-transform:none;letter-spacing:0;font-weight:700;
+    padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.cmatrix th.csub2{font-size:10px;color:var(--muted);font-weight:600;width:24px;padding:3px 0;text-transform:none;letter-spacing:0}
+  table.cmatrix td.cc{width:24px;font-variant-numeric:tabular-nums}
+  table.cmatrix .cbsep{border-left:1px solid var(--line)}
+  table.cmatrix .cmname{text-align:left;white-space:nowrap;padding:4px 12px 4px 4px;position:sticky;left:0;background:var(--panel)}
+  table.cmatrix th.cmname{background:transparent}
+  table.cmatrix .csum{text-align:center;padding:0 10px;white-space:nowrap}
+  table.cmatrix td.cmiss{background:rgba(248,114,114,.13)}
+  .cyes{color:var(--good);font-weight:700}.cno{color:var(--bad);font-weight:700}.cna{color:var(--muted);opacity:.45}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px 44px;column-gap:5px}}
 </style>
@@ -163,6 +177,48 @@ function rosterTable(players){
     <td><span class="parse" style="background:${parseColor(p.parse)}">${p.parse}</span></td>
     <td class="num">${p.amount?p.amount.toLocaleString():"—"}</td></tr>`).join("");
   return `<table><thead><tr><th>Player</th><th>Role</th><th>Parse</th><th>DPS/HPS</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function consumeMatrix(ppc){
+  const bosses=rowsOf(ppc.bosses), players=rowsOf(ppc.players);
+  if(!bosses.length||!players.length) return '<p class="num" style="padding:8px 2px">No per-player consumable data.</p>';
+  const SUB=[["F","Flask"],["B","Battle Elixir"],["G","Guardian Elixir"],["Fd","Food"],["P","Combat Potion"]];
+  const yes='<span class="cyes">✓</span>', no='<span class="cno">✗</span>', na='<span class="cna">·</span>';
+  // Two-level header: boss names spanning 5, then F/B/G/Fd/P under each.
+  let h1=`<tr><th class="cmname" rowspan="2">Player</th><th class="csum" rowspan="2" title="Bosses where prepared (flask or battle+guardian) / bosses played">Prep</th>`;
+  let h2=`<tr>`;
+  for(const b of bosses){
+    h1+=`<th class="cbgrp" colspan="5">${esc(b.name)}</th>`;
+    h2+=SUB.map(([s,full],i)=>`<th class="csub2${i===0?' cbsep':''}" title="${full}">${s}</th>`).join("");
+  }
+  h1+=`</tr>`; h2+=`</tr>`;
+  // Glyph per cell state: good=had it (green ✓), miss=missing & needed (red ✗ + red tint),
+  // na=not needed via this route (faint ✗, e.g. no flask because elixirs cover it). `na` (the dot)
+  // is reserved for bosses the player didn't attend.
+  const naX='<span class="cna">✗</span>';
+  const gly=s=>s==="good"?yes:(s==="miss"?no:naX);
+  let body="";
+  for(const p of players){
+    const ratio=p.presentCount?p.consumedCount/p.presentCount:1;
+    const sumCls=ratio>=0.999?"good":(ratio>=0.5?"warn":"bad");
+    let row=`<tr><td class="cmname pname" style="color:${cc(p.class)}">${esc(p.name)} <span class="role">${esc(p.role)}</span></td>`+
+      `<td class="csum"><span class="delta ${sumCls}">${p.consumedCount}/${p.presentCount}</span></td>`;
+    for(const b of bosses){
+      const c=p.cells?p.cells[String(b.encounterID)]:null;
+      if(!c||!c.present){ row+=SUB.map((_,i)=>`<td class="cc${i===0?' cbsep':''}">${na}</td>`).join(""); continue; }
+      // Decide flask/battle/guardian states by which route prepped them (don't flag the unused one).
+      let fS,bS,gS;
+      if(c.flask){ fS="good"; bS="na"; gS="na"; }                 // flask covers it — elixirs not needed
+      else if(c.battle&&c.guardian){ fS="na"; bS="good"; gS="good"; } // full elixir pair
+      else { fS=(!c.battle&&!c.guardian)?"miss":"na";              // nothing at all → flask is a miss too
+             bS=c.battle?"good":"miss"; gS=c.guardian?"good":"miss"; } // partial → flag the missing half
+      const fdS=c.food?"good":"miss";
+      const pot=c.potions>0?`<span class="cyes">${c.potions}</span>`:na;
+      const td=(s,glyph,first)=>`<td class="cc${first?" cbsep":""}${s==="miss"?" cmiss":""}">${glyph}</td>`;
+      row+=td(fS,gly(fS),true)+td(bS,gly(bS))+td(gS,gly(gS))+td(fdS,gly(fdS))+`<td class="cc">${pot}</td>`;
+    }
+    body+=row+`</tr>`;
+  }
+  return `<div class="cmwrap"><table class="cmatrix"><thead>${h1}${h2}</thead><tbody>${body}</tbody></table></div>`;
 }
 function metricBars(label,o,t,fmt,maxVal,lowerBetter){
   const f=fmt||(x=>x), max=maxVal||Math.max(o,t,1), w=v=>Math.max(6,Math.round(v/max*100));
@@ -241,6 +297,28 @@ function renderEnchants(d){
     `<span class="vcol"><span class="v ours">${ov}</span><span class="vlab ours">${oT}</span></span>`+
     `<span class="vcol"><span class="v theirs">${tv}</span><span class="vlab theirs">${tT}</span></span>`+
     (dl?`<span class="delta ${dl.cls}">${dl.txt}</span>`:"")+`</div></div>`;
+
+  /* Consumable coverage — the biggest bad-guild → good-guild gap. */
+  const cons=dp.consumables;
+  if(cons&&cons.ours&&cons.theirs){
+    const co=cons.ours, ct=cons.theirs;
+    h+=`<h2 class="section">Consumables Coverage<span class="hint">How much of the raid showed up consumed, from buff auras on the shared bosses, averaged across them. Counts are raid-aggregate (≈ one application per player; not per-player exact) — flasks and food are the clearest preparation gap. Drums shown as fight uptime; potions/elixirs are approximate.</span></h2>
+    <div class="cards">
+      ${acard("Flasked",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
+      ${acard("Food (Well Fed)",`${co.food}/${co.rosterSize}`,`${ct.food}/${ct.rosterSize}`,deltaHigh(co.food,ct.food))}
+      ${acard("Battle Elixirs",co.elixir,ct.elixir,deltaHigh(co.elixir,ct.elixir))}
+      ${acard("Drums Uptime",`${co.drumsUptime}%`,`${ct.drumsUptime}%`,deltaHigh(co.drumsUptime,ct.drumsUptime))}
+      ${acard("Combat Potions",co.potions,ct.potions,deltaHigh(co.potions,ct.potions))}
+    </div>`;
+  }
+
+  /* Per-player consumables matrix — bosses across the top, offenders at the top. */
+  const ppc=dp.perPlayerConsumes;
+  if(ppc&&rowsOf(ppc.players).length){
+    h+=`<h2 class="section">Per-Player Consumables<span class="hint">Each raider in ${oT} × each shared boss, sub-columns <b>F</b>lask · <b>B</b>attle elixir · <b>G</b>uardian elixir · <b>Fd</b> food · <b>P</b> combat potions. A player is "prepared" with a <b>flask</b> <i>or</i> a <b>battle + guardian pair</b>, plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red cell)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed via that route (e.g. no flask because elixirs cover it). So "had guardian, no battle elixir" shows as <span style="color:var(--good)">G ✓</span> next to a red <span style="color:var(--bad)">B ✗</span>. Sorted worst-prepared first; the Prep column is bosses-consumed / played. Source: per-player buff tables (catches pre-pull consumables the event stream misses).</span></h2>
+    ${consumeMatrix(ppc)}`;
+  }
+
   h+=`<h2 class="section">Enchants &amp; Gems Audit<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
   <div class="cards">
     ${acard("Missing Enchants (raid)",au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants,meD)}
@@ -500,7 +578,7 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Enchants</div><div class="tab" data-t="bosses">Bosses</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="bosses">Bosses</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-composition">${renderComposition(d)}</div>
   <div class="panel" id="p-enchants">${renderEnchants(d)}</div>

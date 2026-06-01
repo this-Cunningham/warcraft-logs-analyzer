@@ -85,3 +85,95 @@ Feasibility / data exploration needed (not yet confirmed):
   markers)? How much does this bloat fetch/points (trash is a lot of fights)? Probably gate it
   behind a flag so the default report stays lean. Verify the whole thing is even cleanly derivable
   before building — this one's a research spike first.
+
+---
+
+# Gap-analysis build list (2026-05-31 brainstorm)
+
+Prioritized batch of "find the big gaps across dimensions" features. Goal: turn the report from
+a data dump into a coaching tool that points at the lowest-hanging fruit. Ordered by payoff/effort.
+Most of Tier 1 needs **zero new API calls** — it re-slices data `fetch_report.py` already pulls.
+
+## TODO: consumable coverage panel (flask / food / elixir / drums / potions) — **DONE**
+
+> The #1 bad-guild fix. Verified fully derivable from the `Buffs` table we already fetch for every
+> boss — auras include `Flask of Relentless Assault`, `Well Fed`, `Drums of Battle`,
+> `Greater Arcane Elixir`, `Spellpower Elixir`, `Destruction` (potion), etc., each with `totalUses`.
+
+- Per consumable category, `totalUses` ≈ raiders who used it (flask persists through death → ~1
+  application/player; food re-eaten on death so cap at roster size). Raid-aggregate, not per-player
+  exact — label honestly.
+- Render on the prep tab (rename "Enchants" → "Prep"): coverage cards (flask / food / elixir / drums)
+  ours vs theirs + delta, with a per-consumable detail table.
+- Caveat: Buffs table can't dedupe flask-vs-elixir per player; flask users is the headline proxy.
+- **Also DONE — Per-Player Consumables matrix** (ours only, sorted worst-first): one row per raider,
+  shared bosses across the top, F·B·G·Fd·P sub-columns per boss (flask / battle elixir / guardian
+  elixir / food / combat potion) + a Prep summary column (consumed/played). "Consumed" = flask OR a
+  battle+guardian elixir pair (a lone elixir isn't enough). Per-player data comes from the Buffs table
+  scoped by `sourceID` (`_fetch_per_player_buffs` → `consumes-<enc>.json` → `per_player_consumables`),
+  NOT events — flask/food/elixir are applied pre-pull so they generate no in-fight events, and
+  `combatantInfo.auras` is empty in TBC.
+- **Consumables classified by SPELL ID, not name** (`FLASK_IDS`/`ELIXIR_BATTLE_IDS`/
+  `ELIXIR_GUARDIAN_IDS`/`POTION_IDS`): WCL renames buffs to their effect (Flask of Supreme Power →
+  "Supreme Power", Elixir of Major Shadow Power → "Major Shadow Power"), so name-matching misses them
+  and catches false positives (scrolls "Strength"/"Agility", a +125 "Spell Power" proc). Ids are mined
+  from the report data (guid is on every aura; benchmark carries the full set); only the battle/guardian
+  label needs a one-time Wowhead check. Name fallback covers unmapped "Flask of …"/"Elixir of …".
+
+## TODO: "Biggest Gaps" scorecard at top of Overview
+
+> Highest-leverage framing change. Pure presentation over metrics we already compute.
+
+- One ranking function over every tracked dimension (parse, kill-time, deaths, overheal, activity,
+  buff/debuff gaps, enchant gaps, consumable gaps): normalize each delta, sort, show top 5–7 as
+  plain-language cards with a severity color driven by distance from benchmark.
+- Convert each to an actionable sentence ("Only ~4/25 ate food; benchmark ~24"). Reuse the
+  `impact` string pattern from `PROVIDER_CHECKS`.
+
+## TODO: "what's killing us" — deaths aggregated by cause across the tier
+
+> We already capture `killedBy` per death. Aggregate across all shared bosses → ranked
+> "Toxic Spore killed your raid 11×; benchmark 0." Repeated killing blows = a mechanic you fail.
+
+- Free re-slice. Death records also carry `damage`, `events`, `overkill`, `deathWindow` — enough to
+  show the damage lead-up, not just the final blow. Surface as a raid-level "top death causes" table
+  + ours-vs-theirs.
+
+## TODO: per-spec DPS gap on each boss (lowest-hanging-fruit spec) — *(user idea, sharpened)*
+
+> User's ask: "we had 3 mages (names + dps) vs benchmark's 2 mages (names + dps) for this boss."
+> Sharper framing for "which spec to target": rank specs by the **per-capita DPS gap** to the
+> benchmark's same spec, biggest deficit first — that floats the lowest-hanging-fruit spec to the top.
+
+- Bucket the `dd` table entries (already fetched for shared bosses) by spec via the roster's
+  name→spec map (`primary_spec_map` already exists). Compute avg DPS per spec, ours vs benchmark
+  same spec, sorted by deficit.
+- Render as a ranked spec-gap list per boss; expand a row to show the individual players + their DPS
+  on both sides (this is spec-aggregate, not 1:1 player comparison, so it stays inside the
+  "raid across dimensions" goal).
+- Handle roster-count mismatches (3 vs 2 mages) by comparing **average DPS per player of that spec**,
+  not raw totals, and showing both counts. Note specs only one side brought.
+
+## TODO: raid DPS / HPS per boss + total
+
+> Direct explanation of the kill-time gap; we don't show it. Sum `dd`/`heal` totals ÷ duration.
+
+- "Raid DPS on Kael: 18.2k vs 31.4k." Add as a hero metric on the Overview boss cards next to
+  kill-time, and to the Output Quality section.
+
+## TODO: damage contribution by class/role + role-level ilvl
+
+> `dd` entries carry `type` (class) and per-player `itemLevel`. Aggregate to "% of raid damage per
+> class" and compare — surfaces whether melee, casters, or everyone is dragging. Role-level ilvl
+> (your healers vs theirs), not just one raid average.
+
+## TODO: wipe / attempt counts per boss (one cheap new query)
+
+> Only real new fetch in this batch. Add `fights(killType:Encounters)` and count non-kills per
+> encounter → "you wiped 12× on Kael; they one-shot it." Big execution/progression signal.
+
+## TODO: cooldown usage counts (raid-level)
+
+> `Casts` table filtered to CD ability IDs (Bloodlust, Combustion, Recklessness, trinkets, Power
+> Infusion, racials) → "3 Heroisms fired where 6 were possible." (Also tracked in the insights
+> section above; promoted here as a concrete build item.)

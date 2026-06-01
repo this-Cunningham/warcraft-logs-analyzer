@@ -190,6 +190,234 @@ def avg_ilvl(directory, enc_ids):
     return round(sum(vals) / len(vals), 1)
 
 
+# ---------- CONSUMABLE COVERAGE (from the per-boss Buffs tables we already fetch) ----------
+# The Buffs table carries consumable auras (flask/food/elixir/drums/potions) with a `totalUses`
+# count. For flask/food that's ~one application per player, so totalUses ≈ how many raiders showed
+# up consumed. It's raid-AGGREGATE (no per-player breakdown), and it can't tell flask-vs-elixir for
+# the same player apart — flask is the headline proxy; elixirs/potions are supplementary.
+DRUM_NAMES = {"Drums of Battle", "Drums of War", "Drums of Restoration", "Drums of Speed"}
+# WCL names most consumable BUFFS by their effect, not the item — so the name often lacks the words
+# "Flask"/"Elixir"/"Potion" (e.g. Flask of Supreme Power → buff "Supreme Power"; Ironshield Potion →
+# buff "Ironshield"). We therefore detect by **spell id**, mined from the report data (the benchmark
+# — a top guild — carries the full set), with a name fallback for "Flask of …"/"Elixir of …" buffs.
+# Combat-potion buff spell ids (verified present in data: Haste/Destruction/Ironshield potions).
+POTION_IDS = {28507, 28508, 28515}
+# Effect-named flask buffs whose name doesn't start with "Flask of" (vanilla flasks still used in TBC).
+FLASK_IDS = {17627, 17628}  # Flask of Distilled Wisdom, Flask of Supreme Power
+# "...Elixir" names that aren't stat/battle elixirs — don't count them as raid prep.
+ELIXIR_EXCLUDE = {"Noggenfogger Elixir", "Elixir of Camouflage", "Elixir of Water Breathing",
+                  "Elixir of Minor Fortitude", "Elixir of Water Walking"}
+# TBC lets a player run ONE battle (offensive) + ONE guardian (defensive/utility) elixir at once —
+# together they substitute for a flask. Classify by **spell ID**, NOT name: WCL renames buffs and
+# most battle elixirs are named by their EFFECT (e.g. "Major Shadow Power", "Healing Power") with no
+# "Elixir" in the name, so name-matching silently misses them. It also avoids false positives from
+# same-named non-elixirs ("Strength"/"Agility" = scrolls; a +125 "Spell Power" = a proc, not elixir).
+# IDs verified against Wowhead (stats imply the category). Extend these sets as new elixirs appear.
+ELIXIR_BATTLE_IDS = {
+    38954,  # Fel Strength Elixir (+90 AP)
+    17539,  # Greater Arcane Elixir (+35 spell dmg)
+    33721,  # Adept's Elixir — WCL shows it as "Spellpower Elixir" (+24 spell dmg/heal/crit)
+    28491,  # Elixir of Healing Power — buff "Healing Power" (+50 healing)
+    28503,  # Elixir of Major Shadow Power — buff "Major Shadow Power" (+55 shadow)
+    28497,  # Elixir of Major Agility — buff "Major Agility" (+35 agi, +20 crit)
+}
+ELIXIR_GUARDIAN_IDS = {
+    39627,  # Elixir of Draenic Wisdom (+30 int/spi)
+    39625,  # Elixir of Major Fortitude (+250 hp, +10 hp/5)
+    11371,  # Gift of Arthas (+10 shadow resist + disease proc) — tooltip says "Guardian Elixir"
+}
+ELIXIR_IDS = ELIXIR_BATTLE_IDS | ELIXIR_GUARDIAN_IDS
+# Name hints, used only as a fallback to type an "Elixir of X" buff whose spell id isn't mapped yet.
+_GUARDIAN_NAME_HINTS = ("Fortitude", "Mageblood", "Draenic", "Defense", "Ironskin", "Empowerment", "Earthen")
+
+
+def _is_elixir(name, guid):
+    """An elixir if its spell id is mapped, or (fallback) its name literally says 'Elixir'."""
+    if guid is not None and int(guid) in ELIXIR_IDS:
+        return True
+    return bool(name) and "Elixir" in name and name not in ELIXIR_EXCLUDE
+
+
+def _elixir_type(name, guid=None):
+    """battle | guardian | other. Spell id is authoritative; name is a fallback for unmapped ids."""
+    if guid is not None:
+        g = int(guid)
+        if g in ELIXIR_BATTLE_IDS:
+            return "battle"
+        if g in ELIXIR_GUARDIAN_IDS:
+            return "guardian"
+    if name and any(h in name for h in _GUARDIAN_NAME_HINTS):
+        return "guardian"
+    return "battle"  # unmapped offensive/"Elixir of X" — default to battle
+
+
+def _consumable_cat(name, guid=None):
+    """Bucket a buff aura into a consumable category (or None). Food/drums use their stable names;
+    flasks/elixirs/potions are detected by spell id (mined from data) with a "Flask of …"/"Elixir of …"
+    name fallback — WCL names many consumable buffs by effect, so name-only matching misses them."""
+    g = int(guid) if guid is not None else None
+    if (name and name.startswith("Flask of")) or g in FLASK_IDS:
+        return "flask"
+    if name == "Well Fed":
+        return "food"
+    if name in DRUM_NAMES:
+        return "drums"
+    if _is_elixir(name, guid):
+        return "elixir"
+    if g in POTION_IDS:
+        return "potion"
+    return None
+
+
+def consumable_report(directory, enc_ids, roster_size):
+    """Raid consumable coverage averaged across the shared bosses. Flask/food counts are capped at
+    the roster size (a flasked player shows ~one application). Drums is reported as fight uptime %
+    rather than a user count (it's a short re-applied buff)."""
+    fm = fight_map(directory)
+    cat_per_boss = {"flask": [], "food": [], "elixir": [], "potion": []}
+    drum_upt = []
+    for enc in enc_ids:
+        rep = load_boss(directory, str(enc))
+        if not rep:
+            continue
+        auras = _auras(rep, "buffs")
+        if not auras:
+            continue
+        info = fm.get(str(enc), {})
+        dur = info.get("end", 0) - info.get("start", 0)
+        per_cat = {"flask": 0, "food": 0, "elixir": 0, "potion": 0}
+        best_drum = 0
+        for a in auras:
+            cat = _consumable_cat(a.get("name", ""), a.get("guid"))
+            if not cat:
+                continue
+            if cat == "drums":
+                if dur > 0:
+                    best_drum = max(best_drum, min(100, round(float(a.get("totalUptime", 0)) / dur * 100)))
+            else:
+                per_cat[cat] += int(a.get("totalUses", 0))
+        for c in per_cat:
+            cat_per_boss[c].append(per_cat[c])
+        drum_upt.append(best_drum)
+
+    def iavg(lst, cap=None):
+        if not lst:
+            return 0
+        v = int(round(sum(lst) / len(lst)))
+        return min(v, cap) if cap is not None else v
+
+    return {
+        "rosterSize": roster_size,
+        "flask": iavg(cat_per_boss["flask"], roster_size),
+        "food": iavg(cat_per_boss["food"], roster_size),
+        "elixir": iavg(cat_per_boss["elixir"]),
+        "potions": iavg(cat_per_boss["potion"]),
+        "drumsUptime": iavg(drum_upt),
+    }
+
+
+def name_id_map(directory):
+    """name -> actor id from playerDetails (first id wins; dual-role chars share one id)."""
+    pd = read_json(os.path.join(directory, "playerdetails.json"))
+    pd = pd["reportData"]["report"]["playerDetails"]["data"]["playerDetails"]
+    m = {}
+    for rn in ("tanks", "healers", "dps"):
+        for p in (pd.get(rn) or []):
+            m.setdefault(p["name"], p["id"])
+    return m
+
+
+def _cell_for(auras):
+    """Reduce one player's pull auras on one boss to a consumable cell."""
+    flask, battle, guardian, other, food, potions = False, 0, 0, 0, False, 0
+    for a in (auras or []):
+        nm = a.get("name")
+        guid = a.get("guid")
+        c = _consumable_cat(nm, guid)
+        if c == "flask":
+            flask = True
+        elif c == "elixir":
+            et = _elixir_type(nm, guid)
+            if et == "battle":
+                battle += 1
+            elif et == "guardian":
+                guardian += 1
+            else:
+                other += 1
+        elif c == "food":
+            food = True
+        elif c == "potion":
+            potions += int(a.get("uses", 0))
+    total_elixirs = battle + guardian + other
+    # Consumed = a flask, OR a battle+guardian pair (two distinct elixirs == the pair in TBC).
+    consumed = flask or (battle >= 1 and guardian >= 1) or total_elixirs >= 2
+    return {"present": True, "flask": flask, "battle": battle >= 1, "guardian": guardian >= 1,
+            "food": food, "potions": potions, "consumed": consumed}
+
+
+def per_player_consumables(directory, idx, enc_ids):
+    """Per-player consumable participation as a matrix: one row per player, one column-group per
+    shared boss (flask / battle elixir / guardian elixir / food / combat potion). Reads the
+    consumes-<enc>.json files (per-player buff auras at pull). Players are sorted worst-prepared
+    first (fewest bosses consumed, then fewest fed). Boss columns follow kill order (enc_ids)."""
+    name_to_id = name_id_map(directory)
+    # Per-boss present rosters + per-player auras.
+    boss_meta = []
+    boss_auras = {}   # enc -> {name -> auras}
+    boss_present = {}  # enc -> set(names)
+    for enc in enc_ids:
+        path = os.path.join(directory, "consumes-{}.json".format(enc))
+        if not os.path.isfile(path):
+            continue
+        per_player = read_json(path).get("perPlayer") or {}
+        present = (idx.get(enc) or {}).get("players") or []
+        names = []
+        amap = {}
+        for pl in present:
+            nm = pl["name"]
+            if nm in amap:
+                continue
+            names.append(nm)
+            pid = name_to_id.get(nm)
+            amap[nm] = per_player.get(str(pid)) if pid is not None else None
+        boss_meta.append({"encounterID": int(enc), "name": idx[enc]["name"], "enc": enc})
+        boss_auras[enc] = amap
+        boss_present[enc] = set(names)
+
+    # Union roster (class/role from first boss that has the player).
+    info = {}
+    for enc in enc_ids:
+        for pl in ((idx.get(enc) or {}).get("players") or []):
+            info.setdefault(pl["name"], {"class": pl["class"], "role": pl["role"]})
+
+    players = []
+    for nm, meta in info.items():
+        cells = {}
+        present_n = consumed_n = food_n = 0
+        for b in boss_meta:
+            enc = b["enc"]
+            if nm in boss_present.get(enc, set()):
+                cell = _cell_for(boss_auras[enc].get(nm))
+                present_n += 1
+                consumed_n += 1 if cell["consumed"] else 0
+                food_n += 1 if cell["food"] else 0
+            else:
+                cell = {"present": False}
+            cells[str(b["encounterID"])] = cell
+        players.append({
+            "name": nm, "class": meta["class"], "role": meta["role"], "cells": cells,
+            "presentCount": present_n, "consumedCount": consumed_n, "foodCount": food_n,
+        })
+
+    # Worst-prepared first: lowest consumed ratio, then lowest food ratio, then name.
+    def ratio(a, b):
+        return (a / b) if b else 1.0
+    players.sort(key=lambda p: (ratio(p["consumedCount"], p["presentCount"]),
+                                ratio(p["foodCount"], p["presentCount"]), p["name"]))
+    return {"bosses": [{"encounterID": b["encounterID"], "name": b["name"]} for b in boss_meta],
+            "players": players}
+
+
 # ---------- PER-BOSS BUFF/DEBUFF UPTIME + LUST TIMING ----------
 def fight_map(directory):
     m = {}
@@ -508,6 +736,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     audit_theirs["avgIlvl"] = avg_ilvl(theirs_dir, common_ids)
     audit = {"ours": audit_ours, "theirs": audit_theirs}
 
+    # Consumable coverage (flask/food/elixir/drums/potions) from the per-boss Buffs tables.
+    consumables = {
+        "ours": consumable_report(ours_dir, common_ids, len(ours_roster)),
+        "theirs": consumable_report(theirs_dir, common_ids, len(theirs_roster)),
+    }
+    # Per-player consumable participation (ours only — a coaching view of your own raid).
+    per_player_consumes = per_player_consumables(ours_dir, ours_idx, common_ids)
+
     # Per-boss
     ours_fights = fight_map(ours_dir)
     theirs_fights = fight_map(theirs_dir)
@@ -585,7 +821,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
         "summary": summary, "bosses": bosses,
-        "deep": {"composition": composition, "audit": audit, "quality": quality, "perBoss": per_boss, "efficiency": eff},
+        "deep": {"composition": composition, "audit": audit, "consumables": consumables,
+                 "perPlayerConsumes": per_player_consumes,
+                 "quality": quality, "perBoss": per_boss, "efficiency": eff},
     }
     out_full = render_report(payload, out_file)
     print("Deep-dive report written to {} ({} shared bosses, {} with buff/debuff data)".format(

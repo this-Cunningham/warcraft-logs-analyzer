@@ -354,12 +354,12 @@ def _consumable_cat(name, guid=None):
 
 def consumable_report(directory, enc_ids, roster_size):
     """Raid consumable coverage averaged across the shared bosses. Flask/food counts are capped at
-    the roster size (a flasked player shows ~one application). Drums is reported as fight uptime %
-    rather than a user count (it's a short re-applied buff)."""
+    the roster size (a flasked player shows ~one application) — these are the clearest preparation
+    proxy. Drums is reported as fight uptime % rather than a user count (it's a short re-applied buff).
+    Elixirs/potions are deliberately NOT surfaced here: as raid-aggregate, denominator-less counts they
+    aren't a clean gap signal — the per-player consumables matrix carries the elixir/potion detail."""
     fm = fight_map(directory)
-    # Elixirs are split into battle vs guardian (TBC lets one of each run at once), so the
-    # coverage card can show them separately — lumping them mislabels a guardian-heavy raid.
-    cat_per_boss = {"flask": [], "food": [], "elixirBattle": [], "elixirGuardian": [], "potion": []}
+    cat_per_boss = {"flask": [], "food": []}
     drum_upt = []
     for enc in enc_ids:
         rep = load_boss(directory, str(enc))
@@ -370,19 +370,14 @@ def consumable_report(directory, enc_ids, roster_size):
             continue
         info = fm.get(str(enc), {})
         dur = info.get("end", 0) - info.get("start", 0)
-        per_cat = {"flask": 0, "food": 0, "elixirBattle": 0, "elixirGuardian": 0, "potion": 0}
+        per_cat = {"flask": 0, "food": 0}
         best_drum = 0
         for a in auras:
             cat = _consumable_cat(a.get("name", ""), a.get("guid"))
-            if not cat:
-                continue
             if cat == "drums":
                 if dur > 0:
                     best_drum = max(best_drum, min(100, round(float(a.get("totalUptime", 0)) / dur * 100)))
-            elif cat == "elixir":
-                key = "elixirGuardian" if _elixir_type(a.get("name", ""), a.get("guid")) == "guardian" else "elixirBattle"
-                per_cat[key] += int(a.get("totalUses", 0))
-            else:
+            elif cat in per_cat:
                 per_cat[cat] += int(a.get("totalUses", 0))
         for c in per_cat:
             cat_per_boss[c].append(per_cat[c])
@@ -398,9 +393,6 @@ def consumable_report(directory, enc_ids, roster_size):
         "rosterSize": roster_size,
         "flask": iavg(cat_per_boss["flask"], roster_size),
         "food": iavg(cat_per_boss["food"], roster_size),
-        "elixirBattle": iavg(cat_per_boss["elixirBattle"]),
-        "elixirGuardian": iavg(cat_per_boss["elixirGuardian"]),
-        "potions": iavg(cat_per_boss["potion"]),
         "drumsUptime": iavg(drum_upt),
     }
 
@@ -720,8 +712,10 @@ def death_cause_compare(per_boss):
             "cause": cause, "ours": oc["count"], "theirs": tc["count"],
             "bosses": sorted(oc["bosses"] or tc["bosses"]),
         })
-    # Worst for us first: where we die most (and most relative to the benchmark).
-    rows.sort(key=lambda r: (-(r["ours"]), -(r["ours"] - r["theirs"]), -r["theirs"]))
+    # Ranked by payoff: biggest IMPROVABLE delta first (a death the benchmark avoids and we don't —
+    # the mechanic they've solved that we haven't), then raw ours, then theirs. Mirrors the
+    # trash death-cause sort, and matches the soul's "gaps ranked by what's worth fixing first."
+    rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows
 
 
@@ -960,14 +954,7 @@ def efficiency(directory):
     return {"spanMs": span, "combatMs": combat, "downtimeMs": span - combat, "kills": len(fights)}
 
 
-# ---------- DAMAGE CONTRIBUTION BY CLASS + ITEM LEVEL BY ROLE ----------
-def accumulate_class_dmg(report, agg):
-    """Add a fight's DamageDone totals into a class -> damage map (in place)."""
-    for e in _entries(report, "dd"):
-        cls = e.get("type") or "Unknown"
-        agg[cls] = agg.get(cls, 0) + int(e.get("total", 0))
-
-
+# ---------- ITEM LEVEL BY ROLE ----------
 def accumulate_ilvl(report, ilvl_map):
     """Record name -> item level from any output table (ilvl is static per report, so the
     first sighting wins). dd covers dps, heal covers healers, dt covers tanks."""
@@ -977,24 +964,6 @@ def accumulate_ilvl(report, ilvl_map):
             il = e.get("itemLevel")
             if nm and il and nm not in ilvl_map:
                 ilvl_map[nm] = float(il)
-
-
-def class_dmg_share(o_agg, t_agg):
-    """Per-class share of total raid damage, ours vs theirs, sorted by our share."""
-    o_tot = sum(o_agg.values()) or 1
-    t_tot = sum(t_agg.values()) or 1
-    rows = []
-    for cls in set(o_agg) | set(t_agg):
-        o_d = o_agg.get(cls, 0)
-        t_d = t_agg.get(cls, 0)
-        o_pct = round(o_d / o_tot * 100, 1)
-        t_pct = round(t_d / t_tot * 100, 1)
-        # Drop negligible non-player buckets (Environment/Unknown round to 0% on both sides).
-        if o_pct == 0 and t_pct == 0:
-            continue
-        rows.append({"class": cls, "ours": o_d, "theirs": t_d, "oursPct": o_pct, "theirsPct": t_pct})
-    rows.sort(key=lambda r: -max(r["oursPct"], r["theirsPct"]))
-    return rows
 
 
 def role_ilvl(ilvl_map, roster):
@@ -1025,7 +994,7 @@ def _fmt_dur(ms):
 
 
 def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None,
-                 trash=None, n=7):
+                 trash=None, death_causes=None, n=7):
     """Score every tracked dimension by how far behind the benchmark we are, then surface the
     worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
     (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
@@ -1157,6 +1126,17 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
             add((o_td - t_td) / 30.0, "Dying too much on trash",
                 "{} trash deaths vs {} for the benchmark. Trash deaths are almost always avoidable — CC, "
                 "interrupt, or position around the pull.".format(o_td, t_td))
+
+    # The single most avoidable killing blow tier-wide: the mechanic the benchmark has solved and we
+    # haven't (death_causes is pre-sorted improvable-delta-first). Names the specific mechanic the raid
+    # keeps dying to, where the count-only "Too many deaths" card just sums them.
+    if death_causes:
+        worst = next((r for r in death_causes if r["ours"] - r["theirs"] > 0), None)
+        if worst:
+            add((worst["ours"] - worst["theirs"]) / 6.0, "A killing blow keeps getting you",
+                "You die to {} {}× vs {}× for the benchmark — a recurring killing blow they "
+                "largely avoid. Interrupt, CC, or position around it."
+                .format(worst["cause"], worst["ours"], worst["theirs"]))
 
     cand.sort(key=lambda c: -c["sev"])
     out = []
@@ -1639,8 +1619,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Per-boss
     ours_fights = fight_map(ours_dir)
     theirs_fights = fight_map(theirs_dir)
-    # Accumulators for the tier-wide views (class damage share + item level by role).
-    o_class_dmg, t_class_dmg = {}, {}
+    # Accumulators for the tier-wide views (item level by role).
     o_ilvl, t_ilvl = {}, {}
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
     # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
@@ -1680,8 +1659,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         o_raid_dmg, t_raid_dmg = raid_sum(o_b, "dd"), raid_sum(t_b, "dd")
         o_raid_heal, t_raid_heal = raid_sum(o_b, "heal"), raid_sum(t_b, "heal")
         # Feed the tier-wide accumulators.
-        accumulate_class_dmg(o_b, o_class_dmg)
-        accumulate_class_dmg(t_b, t_class_dmg)
         accumulate_ilvl(o_b, o_ilvl)
         accumulate_ilvl(t_b, t_ilvl)
         o_raid_dmg_sum += o_raid_dmg
@@ -1760,9 +1737,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             b["oursRaidDps"], b["theirsRaidDps"] = ro["oursRaidDps"], ro["theirsRaidDps"]
             b["oursRaidHps"], b["theirsRaidHps"] = ro["oursRaidHps"], ro["theirsRaidHps"]
 
-    # Tier-wide damage contribution by class + item level by role.
+    # Tier-wide item level by role.
     output_breakdown = {
-        "classShare": class_dmg_share(o_class_dmg, t_class_dmg),
         "oursRoleIlvl": role_ilvl(o_ilvl, ours_roster),
         "theirsRoleIlvl": role_ilvl(t_ilvl, theirs_roster),
     }
@@ -1778,7 +1754,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
-                                  tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash)
+                                  tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash,
+                                  death_causes=death_causes_rows)
 
     eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 

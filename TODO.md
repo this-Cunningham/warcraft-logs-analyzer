@@ -8,6 +8,66 @@ Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of eac
 
 ---
 
+## TODO: auto-name reports by guild — "Imminent" vs "Benchmark (Guildname)"
+
+> When generating the report, name each side after the guild rather than the report title.
+> The person generating the report should see their guild name (e.g. "Imminent"); the other
+> side should be labeled "Benchmark (Guildname)" throughout. The file should also be named
+> after the guilds, not the report codes. Right now "New Mount" and "SSC / TK" make it hard
+> to remember which is which.
+
+Why: the report's whole value proposition is "your raid vs the benchmark" — the labels are the
+spine of every comparison card, every delta, every tab header. Opaque report titles break that
+at a glance. Guild names are already in the data (`rankings.data[*].guild.name` in the parses
+JSON — confirmed present, e.g. `"guild":{"name":"Imminent","server":{"name":"Nightslayer"}}`),
+so this is a cheap fetch with high clarity payoff.
+
+Design notes:
+- `compare_raids.py` auto-detects guild name from the parses data and passes it as
+  `--ours-name` / `--theirs-name` to `build_deepdive.py`; manual `--ours-name` override
+  still wins if the user supplies it.
+- Theirs label: `"Benchmark (Guildname)"` keeps the "this is the benchmark" orientation
+  clear — a reader who didn't generate the report knows at a glance which side to aspire to.
+- Output filename: `imminent-vs-guildname.html` (slugified lowercase) rather than
+  `code1-vs-code2.html`.
+- Edge case: multiple guilds in one report (PUG night) — fall back to report title or
+  the most-common guild name across the parses entries.
+
+---
+
+## TODO: skill behavior — generate + open report, no inline analysis
+
+> Update the skill so it just generates the report and serves/opens it in a browser. Don't do
+> any separate analysis in the chat response unless separately asked.
+
+Why: the report *is* the product — the insight lives there, not in the chat transcript. Summarizing
+findings in chat after generating the report is redundant (the user can read the report) and
+implicitly frames the chat as the deliverable. The soul says the report exists to surface
+highest-leverage gaps at a glance; that job belongs to the report, not a bullet list in the reply.
+
+Changes needed in the skill instructions (SKILL.md / the warcraft-logs-analyzer skill prompt):
+strip the "reason over the JSON to surface insights" step and the final chat-summary convention;
+replace with: run `compare_raids.py`, open/serve the report, confirm it's live. Analysis on
+demand only — if the user asks a follow-up question, answer it; otherwise stop at "report is ready."
+
+---
+
+## TODO: soul audit — review report against PRODUCT_MANAGER_SOUL.md and reorganize
+
+> Read PRODUCT_MANAGER_SOUL.md and then reorganize any parts of the report that need to
+> be reorganized in ways that match our goals.
+
+This is a chore, not a feature. The soul has three hard filters: gaps ranked by payoff,
+every insight actionable, lean on top / depth on demand. Walk every section and ask the
+one-line test: *"Would this help an unfamiliar raid leader decide what to fix next —
+honestly, at a glance?"* Anything that fails (data dump, raw count, section that doesn't
+point at a behavior change) gets removed, moved behind a drill-down, or reframed. The
+pending TODOs (Pack-by-Pack removal, sub-tab for CC, spec-instead-of-role, absolute
+timeline axis, gap-sorted DPS by Spec) are all partial outputs of this audit — this item
+is the holistic pass that catches what those missed.
+
+---
+
 ## TODO: more / better insights — what other data can we leverage?
 
 > What else can we do to give better insights and ability to improve our raid? What other
@@ -18,40 +78,10 @@ _(to be replaced)_
 
 ---
 
-## TODO: character-vs-character comparison (not just raid-vs-raid)
+## TODO: Trash tab — next-pass ideas
 
-> Instead of comparing two raids, add the ability to compare a **specific character** to
-> **another character** for a given boss fight.
+> Pending ideas surfaced while building the (shipped) Trash tab.
 
-Why: the current report is raid-vs-raid aggregates. The deepest coaching is 1:1 — line up our
-mage against their mage (or the boss's best-parsing mage) on the same encounter and see exactly
-where the gap is. Overlaps with the existing "per-class rotation / ability-mix" and "per-player
-inspection" backlog notes.
-
-Sketch / data already proven available:
-- Pick a boss (shared `encounterID`) + a character from each side.
-- Pull per-character for that fight: `dd.abilities[]` (ability-by-ability damage mix — already
-  fetched today), `Casts` (rotation/CD usage + cast counts), `activeTime` (downtime), parse
-  percentile (`rankings`), gear/enchants/gems (`playerDetails.combatantInfo`), deaths.
-- Render a side-by-side: parse, DPS, activity, ability mix (which spells, what share), CD fire
-  counts, gear deltas. Highlight the biggest contributors to the gap.
-- Could also compare our character to the **global best** same-spec parse via
-  `worldData.encounter(id).characterRankings` rather than a second report.
-- Open design Qs: where does it live — a new top-level tab ("Players"/"Head-to-Head"), or a
-  drilldown launched from a roster row? How to pick the opponent (manual, or auto-match same
-  spec)? Single boss at a time, or across all shared bosses?
-
----
-
-## DONE: "Trash" tab — per-trash-pack panels + intra-pack kill order
-
-Shipped. The **Trash** tab has five sections — Trash at a Glance, What's Killing Us on Trash,
-Kill Priority by Mob Type (descriptive), Crowd Control on Trash (descriptive), and a single-raid
-Pack-by-Pack drill-down with intra-pack kill order, deaths, and per-mob CC. Hybrid comparison
-(benchmark on night-totals + mob-type; per-pull detail ours-only). On by default. See SKILL.md
-for the data sources and caveats.
-
-**Next-pass ideas surfaced while building it** (not yet done):
 - Feed the big trash-deaths gap (e.g. 48 vs 11) into the Overview **Biggest Gaps** scorecard — it's
   a high-leverage gap that currently only lives in the Trash tab.
 - **Lust/cooldowns on trash** as a *descriptive* (not "waste") comparison — the benchmark sets the bar.
@@ -131,15 +161,9 @@ The granular stream is large, but volume is controllable:
    prefer measurable focus *concentration* and *switch latency* (boss-agnostic, no hardcoded "correct
    target"); only where we encode TBC add priorities, label them explicitly as our assumption.
    Data: `events(Casts/DamageDone)` + `targetID` + `Summons` for spawns.
-2. **Per-boss timeline vs benchmark** — *the user's "timeline view."* **✅ SHIPPED (2026-06-01).** A
-   per-boss **Timeline** sub-tab (default) overlays our DPS/HPS curve on the benchmark's, each kill
-   normalized to its own 0–100% so different-length fights line up, annotated with death ticks,
-   Bloodlust verticals, and phase dividers — surfacing *where* the fight was lost. Implementation note:
-   curves are **event-binned** (`_binned_curves` in fetch_report → `timeline-<enc>.json`; 40 buckets,
-   DamageDone+Healing `amount`), **not** `graph()` — the graph endpoint returns an opaque ~2× rolling
-   rate that would contradict the exact Raid DPS shown elsewhere. ~3–6 pts/boss/side. Rendered as a
-   hand-rolled inline SVG (`tlChart` in report.html). This established the timeline plumbing the
-   remaining candidates (#1 targeting, #3 cooldowns, #4 threat, #5 cascades) can reuse.
+2. **Per-boss timeline vs benchmark** — already shipped (per-boss **Timeline** sub-tab; event-binned
+   DPS/HPS curves, `tlChart` in report.html). Established the timeline plumbing the remaining
+   candidates (#1 targeting, #3 cooldowns, #4 threat, #5 cascades) can reuse.
 3. **Cooldown-timing timeline.** When the big raid/personal CDs actually fired vs the optimal window —
    Bloodlust, Power Infusion, trinkets, Combustion/Recklessness/Death Wish. "You lusted at 0:45 (P1)
    vs benchmark at 2:30 (execute)." Data: `events(Casts)` filtered to a CD ability-id set. (Already
@@ -163,6 +187,25 @@ feels right); and how much extra fetch/points the event pulls add over today's t
 
 ---
 
+## TODO: timeline x-axis — use absolute seconds, not % of fight
+
+> The timeline view should not be % based on the time x-axis. This makes it harder to compare
+> when fights are different lengths.
+
+Why: the current 0–100% normalization was chosen so two kills of different lengths overlay on the
+same axis, but it obscures *when* things happened in real time — "our DPS fell at 60%" reads
+differently depending on whether the fight was 3 minutes or 8. Absolute seconds is the honest axis:
+the reader can immediately place events ("we lost DPS at 2:30") and the charts give accurate phase
+timing. When fight lengths differ, the shorter kill's line simply ends earlier — the gap is visible,
+not hidden by compression.
+
+Design note: death/lust/phase markers are currently placed as % of each fight's duration; they'd
+need to convert to absolute seconds. The benchmark line ending early (their faster kill) is itself
+signal — it shows *how much sooner* they finished. Open Q: whether to offer a toggle (absolute /
+normalized) or just switch outright.
+
+---
+
 ## TODO: redesign "DPS by Spec" in boss panes — gap-sorted bar chart
 
 > Update "dps by spec" within each boss pane to look more like the "Damage Contribution by Class"
@@ -181,6 +224,77 @@ Design notes:
 - Sort descending by gap: specs where we contribute the least relative to the benchmark rise to top.
 - Keep the focus on specs both sides actually field — whether a side is *missing* a spec entirely is
   a roster-composition story, surfaced in the composition section, not framed as a per-boss DPS gap.
+
+---
+
+## TODO: sort "What's Killing Us on Trash" by biggest delta we can improve
+
+> Sort the "What's Killing Us on Trash" section by the biggest delta we can improve.
+
+Why: currently the table is ranked worst-for-us by raw ours count, but the highest-leverage
+rows are those where the benchmark avoids a death we're taking — i.e. the biggest positive
+delta (our deaths − their deaths for that killing blow). Sorting by that delta puts the most
+actionable rows first: abilities the benchmark has solved and we haven't. Rows where both
+sides take equal damage are real but lower priority; rows where only we die are the fix-it
+list. Fits the soul's gap-ranked hierarchy and surfaces what to fix *next*.
+
+---
+
+## TODO: per-player consumables table — show spec instead of role
+
+> In the Per-Player Consumables table, replace the role label next to each player's name
+> with their spec. "Healer" becomes "Holy", etc.
+
+Why: spec is more specific and more actionable — a raid leader scanning for offenders can
+immediately tell if it's the Holy Priest or the Disc Priest who skipped their flask. "Healer"
+carries no useful signal beyond what the row context already implies. The primary spec per
+player is already computed in `primary_spec_map` (used throughout the report), so this is a
+pure display change with no new data needed.
+
+---
+
+## TODO: Prep enchant audit — treat Windfury as a valid weapon-slot substitute for melee
+
+> In the Prep tab, the weapon-oil check should be "Oil/Windfury" for melee. A melee player
+> in a Windfury shaman group won't apply a weapon oil — Windfury replaces it. The correct
+> logic: if no oil AND a caster → ✗ (always a gap); if no oil AND melee AND no Windfury
+> → ✗ (real gap); if no oil AND melee AND Windfury present → ✓ (covered).
+
+Why: flagging well-prepared melee as missing prep is a false positive — it will erode trust
+in the enchant audit and cause raid leaders to ignore real gaps. The soul's data-integrity
+principle is clear: don't surface a "gap" that isn't one. Windfury Totem is a buff aura
+already present in the data we fetch (Buffs table or `combatantInfo.auras`), so the check is
+achievable without extra API calls.
+
+Data notes:
+- Windfury Totem buff aura: spell id 25587 (rank 5, the raid-tier version); check presence
+  on the player for the boss fight in question.
+- Melee specs that benefit: Warrior (all), Rogue, Enhancement Shaman, Feral Druid (cat),
+  Ret Paladin, Hunter (melee-range edge case — likely skip). Casters and healers never
+  substitute oil for Windfury regardless of group.
+- A player can be in a non-Windfury group even if the raid has a shaman (totems are
+  group-scoped, not raid-wide) — so check the buff on the *individual*, not just whether
+  the raid has a shaman.
+
+---
+
+## TODO: move "Crowd Control on Trash" into its own sub-tab
+
+> Move the "Crowd Control on Trash" section into its own sub-tab within the Trash tab.
+
+Why: the Trash tab is getting long — CC is detail, not a headline gap. Moving it behind a sub-tab
+keeps the main Trash view lean (Glance + What's Killing Us + Kill Order as the primary read) while
+preserving the CC breakdown for leaders who want to drill in. Consistent with the soul's
+"lean on top, deep on demand" layout principle. The Kill Order section already uses a sub-tab
+toggle (`.btab[data-ktab]`), so the pattern and plumbing already exist.
+
+---
+
+## TODO: remove Pack-by-Pack section from the Trash tab
+
+> Remove the entire Pack-by-Pack section and any dangling references to it.
+
+Soul check: Pack-by-Pack is a single-raid per-pull drill-down (our raid only, no benchmark comparison). It's the closest thing to a raw data dump in the report — a list of every pull with its mobs, kill timeline, deaths, and CC detail. It doesn't rank gaps or tell the leader what to fix first; a reader has to do all that work themselves. Removing it tightens the Trash tab to the sections that do point at actionable gaps (Glance, What's Killing Us, Kill Order, CC). Dangling refs likely live in `build_deepdive.py` (`trash_packs`/`build_trash`), `SKILL.md`, `report.html`, and potentially `TODO.md` itself (the DONE section above mentions it).
 
 ---
 

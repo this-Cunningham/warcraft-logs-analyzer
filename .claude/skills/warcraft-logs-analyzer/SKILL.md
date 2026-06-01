@@ -77,15 +77,29 @@ near expiry. `lib.invoke_query` raises on GraphQL errors.
 - **Rate limits**: the API is points-based per hour (`rateLimitData`). Batch
   fields into one query where possible rather than many small calls.
 
+## The report is the deliverable — don't analyze in chat
+
+**The report _is_ the product.** When the user shares report URL(s), your job is to
+**generate the report and open/serve it**, then stop — not to summarize findings in the
+chat. The insight lives in the report (the Biggest Gaps scorecard, the per-boss tabs);
+re-stating it in a bullet list is redundant and implicitly frames the chat as the
+deliverable. The normal flow is just: run `compare_raids.py`, confirm the report opened,
+and report that it's ready. **Analysis on demand only** — if the user then asks a specific
+follow-up question, answer it; otherwise the report speaks for itself.
+
 ## Workflow for analyzing a raid
+
+For a benchmark comparison (the headline mode), the whole flow is one command —
+`compare_raids.py` (see *Generating the HTML report* below). It fetches, builds, and opens
+the report with no model in the loop. The steps below apply only when you genuinely need to
+answer an ad-hoc data question the report doesn't already cover:
 
 1. Resolve the report **code** from the user's URL.
 2. Pull report summary (title, zone, fights, players) — see
    `queries/report-summary.graphql`.
 3. Pull the data the question needs (parses, damage/healing tables, deaths).
-4. Reason over the JSON to surface insights (low parses, avoidable deaths,
-   downtime, comparison gaps).
-5. Generate the HTML report (see below) into `reports/`.
+4. Generate the HTML report (see below) into `reports/`, then open/serve it. Reason over the
+   raw JSON only to answer a specific follow-up the user asked — not as a routine chat summary.
 
 ## Workflow for comparing two raids
 
@@ -137,8 +151,12 @@ python3 scripts/compare_raids.py --ours-url "https://.../reports/OURS" --theirs-
 ```
 `compare_raids.py` resolves report codes from the URLs, intersects encounter IDs to
 find the shared bosses automatically, fetches parses + heavy tables for those bosses,
-builds the report, and opens it. Titles/zone default to the reports' own metadata
-(override with `--ours-name`/`--theirs-name`, set `--out-file`, or pass `--no-open`).
+builds the report, and opens it. **Each side is named after its GUILD** (from
+`rankings.data[*].guild.name`, most-common wins on a PUG night): yours shows the guild
+name (e.g. "Imminent"); theirs is framed `"Benchmark (Guildname)"` so a reader knows which
+side to aspire to. The output file is named after the guilds too (`imminent-vs-squawk.html`,
+slugified), not the opaque report codes. Falls back to the report title when no guild is
+present; manual `--ours-name`/`--theirs-name` still override (also `--out-file`, `--no-open`).
 Re-running with the same inputs produces the same report — generation is pure Python +
 the static template, with no model in the path.
 
@@ -167,7 +185,9 @@ the static template, with no model in the path.
      build_deepdive.py → `gapsScorecard()`) — a single ranking pass over every tracked dimension
      (parse, kill time, raid DPS, deaths, overheal, activity, avoidable dmg/s, flask, food, enchants,
      missing buff/debuff providers, **wipes**, **worst tier-wide spec DPS gap**, **worst buff/debuff
-     uptime gap**). Each candidate gets a hand-tuned severity in [0,1] and an actionable sentence;
+     uptime gap**, **trash deaths** — fed in from the Trash tab's glance via the `trash=` arg so the
+     avoidable-trash-death gap surfaces on the Overview, not only deep in the Trash tab). Each
+     candidate gets a hand-tuned severity in [0,1] and an actionable sentence;
      only dimensions where we trail are kept, top 7 render as severity-colored cards (high/med/low).
      Then the Raid Summary cards (incl. **Total Wipes** when attempt data is present), then a
      **Boss-by-Boss** section with one **sub-tab per boss** (`mountOverview()` wires the
@@ -200,8 +220,10 @@ the static template, with no model in the path.
      battle/guardian label verified once against Wowhead (WCL has no category field). A "Flask of …"/
      "Elixir of …" name fallback covers any id not yet listed. Extend the id sets when a new tier's
      data surfaces a consumable buff not yet mapped.
-   - **Prep — Per-Player Consumables** (ours only): a **matrix** — one row per raider (sorted
-     **worst-prepared first**), the shared bosses across the top, and under each boss five
+   - **Prep — Per-Player Consumables** (ours only): a **matrix** — one row per raider (labeled with
+     their **primary spec**, not a bare role — "Holy" not "Healer", so a leader can tell the offender
+     apart at a glance; from `primary_spec_map`, falls back to role), sorted **worst-prepared first**,
+     the shared bosses across the top, and under each boss five
      sub-columns **F · B · G · Fd · P** (flask / battle elixir / guardian elixir / food / combat
      potion). A leading **Prep** column shows consumed-bosses / bosses-played, so a red streak across
      a row is a chronic offender. "Consumed" = a **flask OR a battle + guardian elixir pair**
@@ -220,6 +242,16 @@ the static template, with no model in the path.
      **shared-boss roster** (same player set as Composition) — `audit_report` takes the roster names
      and filters playerDetails, which is otherwise fetched across all kills. (Gem *count* was dropped
      — without socket counts it can't flag empty sockets, so the raw number wasn't an actionable gap.)
+     **Windfury counts as a valid weapon-slot buff for melee.** A melee player in a Windfury group
+     won't apply a weapon oil — Windfury substitutes for it — so flagging them "no oil" is a false
+     positive. `audit_report` takes the primary-spec map + a per-player Windfury set: `_is_melee`
+     classifies melee specs (Warrior/Rogue all specs; Enhancement/Retribution/Feral; hunters excluded
+     as ranged), and `windfury_players()` reads Windfury presence **per-player** from the shared-boss
+     `consumes-<enc>.json` auras (NOT the raid-aggregate Buffs table — Windfury is group-scoped, so a
+     raid can have a shaman yet a given player be in a non-WF group; matched by name "Windfury" or
+     `WINDFURY_IDS`). A melee with no oil but Windfury is **covered** (`weaponCovered`, shown "✓ WF"),
+     not a gap; the "No Weapon Oil/WF" count and column reflect this. Graceful: no consumes files →
+     empty WF set → no melee upgraded (same as before).
    - **Prep** also carries raid **avg item level** (from `fights.averageItemLevel` over the
      shared bosses), plus **Item Level by Role** (`role_ilvl`) — average equipped ilvl split into
      dps / healer / tank (from the dd/heal/dt tables), so an under-geared role stands out instead of
@@ -244,11 +276,14 @@ the static template, with no model in the path.
      - **Per-Boss Execution** — each boss is a card with an output strip (Raid DPS, activity, overheal,
        dmg taken/s) plus eight sub-tabs (**Timeline** is the default when present):
      - **Timeline** (`timeline_view` → `timelineChart`/`tlChart`) — **Raid DPS and HPS over the course
-       of the fight, ours vs benchmark**, each kill stretched to its own 0–100% so two fights of
-       different length overlay — the read is *where* the gap opens (matched early then a cliff after a
-       death, or trailing throughout). Annotated with death ticks (▲, per side), Bloodlust verticals
-       (⚡, per side), and phase dividers (your fight). Rendered as a hand-rolled inline SVG line chart
-       (no libs). **Curves are computed from events, not `graph()`** — see the data note below.
+       of the fight, ours vs benchmark**, on a shared **absolute-seconds x-axis** (m:ss). Both kills
+       share one real-time axis, so the read is *where* the gap opens in real time ("we lost DPS at
+       2:30") AND the shorter kill's line simply **ends earlier** — that gap is the benchmark finishing
+       sooner (each side's curve point i is placed at i/(n-1) of its OWN fight length, so a side stops
+       at its own duration). Annotated with death ticks (▲, per side), Bloodlust verticals
+       (⚡, per side), and phase dividers (your fight) — all at absolute seconds. Rendered as a
+       hand-rolled inline SVG line chart (no libs). **Curves are computed from events, not `graph()`**
+       — see the data note below.
      - **Buff Uptime** — boss debuffs + raid buffs, laid out value←bar—name—bar→value with a
        delta, sorted by delta (most-improvable / biggest deficit first).
      - **DPS by Spec** (`spec_gap` → `specDpsView`) — the DamageDone table bucketed by (class,
@@ -272,23 +307,30 @@ the static template, with no model in the path.
      `renderTrash()`): WCL already splits trash into discrete pull **segments** (`fights(killType:Trash)`),
      each auto-named after its notable mob, with `enemyNPCs` (mob ids + counts) and `masterData.actors`
      resolving ids→names. The tab follows the **hybrid** comparison rule: benchmark-compare only what
-     aligns across guilds (pull boundaries don't), keep per-pull detail single-raid (ours).
+     aligns across guilds — deaths, CC counts, mob-type kill priority, and exact-roster pack matches
+     (pull boundaries themselves don't align, so anything that would need them is omitted).
      **Scoped to the shared zone(s):** the two reports can cover different content (ours SSC+TK, theirs
      SSC+Gruul), so trash is restricted to the `gameZone`s present in **both** reports' trash
      (`_trash_zones` intersection → `_filter_to_zones` drops every off-zone fight's deaths/kills/CC),
      mirroring how the boss tab only compares shared encounters. Each trash fight carries `gameZone{id name}`
      (added to the fetch query); the shared zone name(s) show in the Glance hint (`trash.zones`). Older data
-     folders without `gameZone` skip filtering gracefully. Five sections:
+     folders without `gameZone` skip filtering gracefully. Three sections — **Glance**, **What's Killing
+     Us on Trash**, and a sub-tabbed **Kill Order & Crowd Control** (kept lean: Kill Order is the
+     default, Crowd Control is one click away):
      - **Trash at a Glance** (`_trash_glance`) — total trash pulls, clear time, and deaths, ours vs
        benchmark. Clear time is a **rough proxy** (routes/skips differ between guilds — labeled as such);
        deaths are the clean signal.
      - **What's Killing Us on Trash** (`trash_death_causes`) — player trash deaths aggregated by killing
-       blow, ranked worst-for-us, ours vs benchmark. Mob/ability killing blows align across guilds. Same
-       idea as the boss "What's Killing Us." (Source: the **friendly Deaths table** over all trash fights
-       — entries carry the killing-blow *name* and a `fight` id; events only carry the ability's game id.)
-     - **Kill Order vs Benchmark** — two complementary lenses behind a **sub-tab toggle** (`.btab[data-ktab]`,
-       wired by `mountTrash()`); **Same-Pack Matches is the default** (primary), **Pairwise Priority** is the
-       secondary tab:
+       blow, ranked by the **biggest improvable delta** (ours − theirs deaths), ours vs benchmark, so the
+       blows the benchmark has solved and we haven't (the fix-it list) sit above blows both raids take
+       equally. Mob/ability killing blows align across guilds. Same idea as the boss "What's Killing Us."
+       (Source: the **friendly Deaths table** over all trash fights — entries carry the killing-blow
+       *name* and a `fight` id; events only carry the ability's game id.)
+     - **Kill Order & Crowd Control** — a **two-tab toggle** (`.btab[data-ttab]` → Kill Order | Crowd
+       Control, `killOrderBody`/`trashCcView`) keeps the page lean: **Kill Order is the default**, Crowd
+       Control is one click in. `mountTrash()` wires both this outer `data-ttab` toggle and the inner
+       `data-ktab` toggle below. **Kill Order** itself nests two complementary lenses (`.btab[data-ktab]`):
+       **Same-Pack Matches is the default** (primary), **Pairwise Priority** the secondary:
        - **Same-Pack Matches** (`trash_identical_packs` → `sameMatchesBody`/`killSeq`) — kill order **only for
          packs both raids pulled with the EXACT same roster** (same mob types AND counts; `_roster_sig` =
          sorted `(name, count)` tuples from `enemyNPCs`). The high-confidence "same pack" test: identical
@@ -308,22 +350,22 @@ the static template, with no model in the path.
        object, no position in TBC, segment names are a single notable mob). Same-Pack gives a few rock-solid
        1:1 comparisons; Pairwise gives broad coverage. (Earlier name-matching wrongly paired a 6-mob pull with
        a 2-mob pull; composition-by-type-set ignored counts.)
-     - **Crowd Control on Trash** (`trash_cc_compare` + `trash_cc_by_mob`) — first a by-type summary
-       (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) ours vs benchmark, then a **by-mob
-       breakdown** (`trash_cc_by_mob` → one row per (mob, CC type): which mob gets CC'd, by which CC, how
-       often, ours vs benchmark — grouped per mob, most-CC'd first). The by-mob view is the actionable one:
-       e.g. benchmark Polymorphs the Greyheart Nether-Mage 73× and you 2×, pinpointing a caster you should
-       be CCing. All **descriptive** (more CC isn't better — a raid that safely AoEs trash may need little).
-       Count = landed `applydebuff` events. **CC is classified by NAME, not spell id** — unlike consumable
-       *buffs* (which WCL renames to their effect, so those are id-classified), CC *debuffs* keep their real
-       spell name, so a curated name allowlist (`report_common.HARD_CC_NAMES` / `cc_label()`) is reliable and
-       rank-proof, and it correctly excludes look-alikes (Ice Trap/Explosive Trap are AoE slow/damage; Kidney
-       Shot/Cheap Shot/Gouge/Bash/Hammer of Justice are rotational stuns, not a lockout).
-     - **Pack-by-Pack** (`trash_packs`) — **single-raid (ours)** drill-down: every pack grouped by pull
-       name, sorted worst-first by deaths, each expandable (`<details>`) to per-pull mobs, **exact kill-order
-       timeline**, deaths (player + killing blow + time), and **which mob got CC'd, by whom**. No benchmark
-       comparison here (that's the Matched Packs section) — pull boundaries don't align, so this is your
-       raid's detail. The TODO's "per-pack panels + intra-pack kill order" ask. (Raid markers dropped — not needed.)
+       - **Crowd Control** (`trash_cc_compare` + `trash_cc_by_mob` → `trashCcView`, the second `data-ttab`
+         tab) — first a by-type summary (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …)
+         ours vs benchmark, then a **by-mob breakdown** (`trash_cc_by_mob` → one row per (mob, CC type):
+         which mob gets CC'd, by which CC, how often, ours vs benchmark — grouped per mob, most-CC'd first).
+         The by-mob view is the actionable one: e.g. benchmark Polymorphs the Greyheart Nether-Mage 73× and
+         you 2×, pinpointing a caster you should be CCing. All **descriptive** (more CC isn't better — a raid
+         that safely AoEs trash may need little). Count = landed `applydebuff` events. **CC is classified by
+         NAME, not spell id** — unlike consumable *buffs* (which WCL renames to their effect, so those are
+         id-classified), CC *debuffs* keep their real spell name, so a curated name allowlist
+         (`report_common.HARD_CC_NAMES` / `cc_label()`) is reliable and rank-proof, and it correctly excludes
+         look-alikes (Ice Trap/Explosive Trap are AoE slow/damage; Kidney Shot/Cheap Shot/Gouge/Bash/Hammer
+         of Justice are rotational stuns, not a lockout).
+     - *(The old single-raid **Pack-by-Pack** per-pull drill-down was removed — it was the closest thing to
+       a raw data dump in the report: a list of every pull's mobs/kill-order/deaths/CC that didn't rank a
+       gap or say what to fix first. The benchmark-compared Same-Pack Matches and CC views carry the
+       actionable trash signal; `trash_packs`/`trashPacksView`/`trashPull` and their CSS are gone.)*
 
    Heavy tables (dd/heal/dt/intr/disp/**deaths**) are fetched only for the shared bosses via
    `fetch_report.py --full-encounters <ids>` since the responses are large. `phaseTransitions`
@@ -341,9 +383,10 @@ the static template, with no model in the path.
    matches the table totals and stays honest. Cost is ~3–6 points/boss/side (both curves; one event
    page for most fights since `limit:10000` is accepted), so a full 2-report comparison adds ~20–60
    points — well under the 3600/hr cap. Build-side, `timeline_view` overlays the two curves on a shared
-   0–100%-of-fight axis (each kill normalized to its own length) and places death/lust/phase markers as
-   % of each fight; graceful — a data folder without `timeline-<enc>.json` just builds without the
-   Timeline sub-tab (it falls back to Buff Uptime as the default).
+   **absolute-seconds axis** (`_side_timeline` emits each side's `durSec` + markers as `tSec`/`lustSec`;
+   `tlChart` maps each curve point i to i/(n-1) of its own `durSec`, so the shorter kill's line ends
+   first) and places death/lust/phase markers at real seconds; graceful — a data folder without
+   `timeline-<enc>.json` just builds without the Timeline sub-tab (it falls back to Buff Uptime as the default).
 
    **Trash data** is fetched **on by default** by `fetch_report.fetch()` (also runnable alone via
    `fetch_report.py --trash-only`) and is cheap (~7–9 calls): trash is split into pull segments, and
@@ -378,8 +421,8 @@ the static template, with no model in the path.
 - **Trash clear time and pull counts** are a *rough* cross-guild proxy — routes, skips, and how a
   guild chain-pulls all differ, so don't over-read a clear-time delta; **trash deaths** are the clean
   signal. **Trash pull boundaries don't align across guilds**, which is why the benchmark comparison
-  is done at the night-total and mob-*type* level (which align) and the per-pull Pack-by-Pack view is
-  single-raid (ours) only.
+  is done at the night-total and mob-*type* level (which align), plus exact-roster Same-Pack matches —
+  not at the per-pull level (the raw per-pull drill-down was removed as a near data-dump).
 - **Trash kill priority and CC are descriptive, not better/worse.** Kill order is pull-dependent and
   CC needs differ by strategy (an AoE-zerg comp uses little CC) — both are framed as "here's how you
   differ from the benchmark," never scored, per the product soul.

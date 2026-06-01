@@ -271,12 +271,14 @@ function gapsScorecard(d){
 function renderOverview(d){
   const s=d.summary, parseD=deltaHigh(s.oursAvgParse,s.theirsAvgParse),
     deathD=deltaLow(s.oursDeaths,s.theirsDeaths), timeD=deltaLow(Math.round(s.oursDurationMs/1000),Math.round(s.theirsDurationMs/1000));
+  const wipeCard=s.hasAttempts?`<div class="card"><div class="label">Total Wipes</div><div class="vals"><span class="v ours">${s.oursWipes}</span><span class="v theirs">${s.theirsWipes}</span><span class="delta ${deltaLow(s.oursWipes,s.theirsWipes).cls}">${deltaLow(s.oursWipes,s.theirsWipes).txt}</span></div></div>`:"";
   let h=gapsScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Shared Bosses</div><div class="vals"><span class="v">${s.bossCount}</span></div></div>
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
-  </div><h2 class="section">Boss-by-Boss<span class="hint">Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, and both rosters side by side.</span></h2>`;
+    ${wipeCard}
+  </div><h2 class="section">Boss-by-Boss<span class="hint">Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, attempts, and both rosters side by side.</span></h2>`;
   const obosses=asArr(d.bosses);
   // One sub-tab per boss; first boss active by default (or the remembered selection).
   const oat=obosses.some(b=>String(b.encounterID)===overviewTab)?overviewTab:(obosses[0]?String(obosses[0].encounterID):"");
@@ -284,12 +286,15 @@ function renderOverview(d){
   for(const b of obosses){
     const rdps=b.oursRaidDps!=null?metricBars("Raid DPS",b.oursRaidDps,b.theirsRaidDps,fmtR,Math.max(b.oursRaidDps,b.theirsRaidDps,1),false):"";
     const rhps=b.oursRaidHps!=null?metricBars("Raid HPS",b.oursRaidHps,b.theirsRaidHps,fmtR,Math.max(b.oursRaidHps,b.theirsRaidHps,1),false):"";
+    // Wipes only when at least one side had them (a 0-vs-0 bar is noise on a one-shot boss).
+    const wipes=((b.oursWipes||0)+(b.theirsWipes||0))>0?metricBars("Wipes before kill",b.oursWipes||0,b.theirsWipes||0,x=>x,Math.max(b.oursWipes||0,b.theirsWipes||0,1),true):"";
     h+=`<div class="bsub ${String(b.encounterID)===oat?'active':''}" data-otab="${b.encounterID}">
       <div class="boss"><h3>${esc(b.name)}<span class="badge">encounter ${b.encounterID}</span></h3>
       ${metricBars("Kill time",b.ours.durationMs,b.theirs.durationMs,fmtTime,Math.max(b.ours.durationMs,b.theirs.durationMs),true)}
       ${rdps}${rhps}
       ${metricBars("Avg parse",b.ours.avgParse,b.theirs.avgParse,x=>x,100,false)}
       ${metricBars("Deaths",b.ours.deaths,b.theirs.deaths,x=>x,Math.max(b.ours.deaths,b.theirs.deaths,1),true)}
+      ${wipes}
       <div class="rostergrid">
         <div><h4 class="ours">${esc(d.ours.title)}</h4>${rosterTable(b.ours.players)}</div>
         <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${rosterTable(b.theirs.players)}</div>
@@ -399,23 +404,21 @@ function renderEnchants(d){
     ${consumeMatrix(ppc)}`;
   }
 
-  h+=`<h2 class="section">Enchants &amp; Gems Audit<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
+  h+=`<h2 class="section">Enchants &amp; Weapon Oils<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils/sharpening stones are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
   <div class="cards">
     ${acard("Missing Enchants (raid)",au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants,meD)}
     ${acard("Fully Enchanted Players",`${au.ours.fullyEnchanted}/${au.ours.playerCount}`,`${au.theirs.fullyEnchanted}/${au.theirs.playerCount}`,feD)}
     ${acard("No Weapon Oil/Stone",au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil,oilD)}
-    ${acard("Avg Gems / Player",au.ours.avgGems,au.theirs.avgGems,null)}
     ${acard("Avg Item Level",au.ours.avgIlvl||"—",au.theirs.avgIlvl||"—",ilvlD)}
   </div>
   <h4 class="ours">${esc(d.ours.title)} — per-player preparation</h4>
-  <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil</th><th>Gems</th></tr></thead><tbody>`;
+  <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil</th></tr></thead><tbody>`;
   const pls=[...asArr(au.ours.players)].sort((a,b)=>b.missingCount-a.missingCount);
   for(const p of pls){
     const miss=asArr(p.missingEnchants);
     h+=`<tr><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td><td class="role">${esc(p.role)}</td>
       <td>${miss.length?`<span class="warnpill">${miss.map(esc).join(", ")}</span>`:'<span class="yes">✓ full</span>'}</td>
-      <td>${p.weaponOil?'<span class="yes">✓</span>':'<span class="no">✗</span>'}</td>
-      <td class="num">${p.gems}</td></tr>`;
+      <td>${p.weaponOil?'<span class="yes">✓</span>':'<span class="no">✗</span>'}</td></tr>`;
   }
   h+=`</tbody></table>`;
 
@@ -435,24 +438,18 @@ function renderBosses(d){
   const dp=d.deep; if(!dp) return "<p>No boss data.</p>";
   let h="";
 
-  /* Clear efficiency */
-  const e=dp.efficiency;
-  if(e){
-    const spanD=deltaLow(Math.round(e.ours.spanMs/60000),Math.round(e.theirs.spanMs/60000));
-    const dtD=deltaLow(Math.round(e.ours.downtimeMs/60000),Math.round(e.theirs.downtimeMs/60000));
-    h+=`<h2 class="section">Clear Efficiency<span class="hint">First-pull to last-kill wall-clock vs time spent in boss fights. Out-of-boss time covers trash, wipes, and breaks.</span></h2>
-    <div class="cards">
-      <div class="card"><div class="label">Raid Wall-clock</div><div class="vals"><span class="v ours">${fmtMin(e.ours.spanMs)}</span><span class="v theirs">${fmtMin(e.theirs.spanMs)}</span><span class="delta ${spanD.cls}">${spanD.txt}m</span></div></div>
-      <div class="card"><div class="label">In Boss Fights</div><div class="vals"><span class="v ours">${fmtMin(e.ours.combatMs)}</span><span class="v theirs">${fmtMin(e.theirs.combatMs)}</span></div></div>
-      <div class="card"><div class="label">Out of Boss (trash/wipes)</div><div class="vals"><span class="v ours">${fmtMin(e.ours.downtimeMs)}</span><span class="v theirs">${fmtMin(e.theirs.downtimeMs)}</span><span class="delta ${dtD.cls}">${dtD.txt}m</span></div></div>
-      <div class="card"><div class="label">Boss Kills Logged</div><div class="vals"><span class="v ours">${e.ours.kills}</span><span class="v theirs">${e.theirs.kills}</span></div></div>
-    </div>`;
-  }
+  /* Raid-wide gaps first (most actionable), then the per-boss drill-down. */
 
-  /* What's killing us — killing blows aggregated across the whole shared clear. */
+  /* 1. What's killing us — killing blows aggregated across the whole shared clear. */
   h+=deathCausesView(d);
 
-  /* Output quality (activity / overheal / damage taken / mechanics) */
+  /* 2. Lowest-hanging DPS — per-spec gap pooled across every shared boss. */
+  h+=tierSpecGapView(d);
+
+  /* 3. Buff & debuff coverage gaps — uptime averaged across bosses, biggest deficit first. */
+  h+=tierUptimeGapView(d);
+
+  /* 4. Output quality (activity / overheal / damage taken / raid output) */
   const q=dp.quality;
   if(q){
     const actD=deltaHigh(q.oursActivity,q.theirsActivity), ohD=deltaLow(q.oursOverheal,q.theirsOverheal);
@@ -467,16 +464,29 @@ function renderBosses(d){
       <button class="dmgbtn ${persec?'':'on'}" data-mode="total">Overall</button>
     </div></div>
     <div class="cards">
-      <div class="card"><div class="label">Avg DPS Activity</div><div class="vals"><span class="v ours">${q.oursActivity}%</span><span class="v theirs">${q.theirsActivity}%</span><span class="delta ${actD.cls}">${actD.txt}</span></div></div>
-      <div class="card"><div class="label">Avg Healer Overheal</div><div class="vals"><span class="v ours">${q.oursOverheal}%</span><span class="v theirs">${q.theirsOverheal}%</span><span class="delta ${ohD.cls}">${ohD.txt}</span></div></div>
-      <div class="card"><div class="label">${persec?"Dmg Taken/s (ex-tanks)":"Dmg Taken (ex-tanks)"}</div><div class="vals"><span class="v ours">${dmFmt(dmO)}</span><span class="v theirs">${dmFmt(dmT)}</span><span class="delta ${dmD.cls}">${dmD.txt}</span></div></div>
-      <div class="card"><div class="label">Dispels / Interrupts</div><div class="vals"><span class="v ours">${q.oursDispels}/${q.oursInterrupts}</span><span class="v theirs">${q.theirsDispels}/${q.theirsInterrupts}</span></div></div>
       <div class="card"><div class="label">Raid DPS</div><div class="vals"><span class="v ours">${fmtR(q.oursRaidDps||0)}</span><span class="v theirs">${fmtR(q.theirsRaidDps||0)}</span><span class="delta ${deltaRate(q.oursRaidDps||0,q.theirsRaidDps||0).cls}">${deltaRate(q.oursRaidDps||0,q.theirsRaidDps||0).txt}</span></div></div>
+      <div class="card"><div class="label">Avg DPS Activity</div><div class="vals"><span class="v ours">${q.oursActivity}%</span><span class="v theirs">${q.theirsActivity}%</span><span class="delta ${actD.cls}">${actD.txt}</span></div></div>
+      <div class="card"><div class="label">${persec?"Dmg Taken/s (ex-tanks)":"Dmg Taken (ex-tanks)"}</div><div class="vals"><span class="v ours">${dmFmt(dmO)}</span><span class="v theirs">${dmFmt(dmT)}</span><span class="delta ${dmD.cls}">${dmD.txt}</span></div></div>
       <div class="card"><div class="label">Raid HPS</div><div class="vals"><span class="v ours">${fmtR(q.oursRaidHps||0)}</span><span class="v theirs">${fmtR(q.theirsRaidHps||0)}</span><span class="delta ${deltaRate(q.oursRaidHps||0,q.theirsRaidHps||0).cls}">${deltaRate(q.oursRaidHps||0,q.theirsRaidHps||0).txt}</span></div></div>
+      <div class="card"><div class="label">Avg Healer Overheal</div><div class="vals"><span class="v ours">${q.oursOverheal}%</span><span class="v theirs">${q.theirsOverheal}%</span><span class="delta ${ohD.cls}">${ohD.txt}</span></div></div>
     </div>`;
   }
 
-  /* Per-boss buff/debuff uptime + lust timing + execution strip */
+  /* 5. Clear efficiency — wall-clock vs in-combat (where time leaks between pulls). */
+  const e=dp.efficiency;
+  if(e){
+    const spanD=deltaLow(Math.round(e.ours.spanMs/60000),Math.round(e.theirs.spanMs/60000));
+    const dtD=deltaLow(Math.round(e.ours.downtimeMs/60000),Math.round(e.theirs.downtimeMs/60000));
+    h+=`<h2 class="section">Clear Efficiency<span class="hint">First-pull to last-kill wall-clock vs time spent in boss fights. Out-of-boss time covers trash, wipes, and breaks.</span></h2>
+    <div class="cards">
+      <div class="card"><div class="label">Raid Wall-clock</div><div class="vals"><span class="v ours">${fmtMin(e.ours.spanMs)}</span><span class="v theirs">${fmtMin(e.theirs.spanMs)}</span><span class="delta ${spanD.cls}">${spanD.txt}m</span></div></div>
+      <div class="card"><div class="label">In Boss Fights</div><div class="vals"><span class="v ours">${fmtMin(e.ours.combatMs)}</span><span class="v theirs">${fmtMin(e.theirs.combatMs)}</span></div></div>
+      <div class="card"><div class="label">Out of Boss (trash/wipes)</div><div class="vals"><span class="v ours">${fmtMin(e.ours.downtimeMs)}</span><span class="v theirs">${fmtMin(e.theirs.downtimeMs)}</span><span class="delta ${dtD.cls}">${dtD.txt}m</span></div></div>
+      <div class="card"><div class="label">Boss Kills Logged</div><div class="vals"><span class="v ours">${e.ours.kills}</span><span class="v theirs">${e.theirs.kills}</span></div></div>
+    </div>`;
+  }
+
+  /* 6. Per-boss buff/debuff uptime + lust timing + execution strip */
   const pb=asArr(dp.perBoss);
   if(pb.length){
     h+=`<h2 class="section">Per-Boss Execution<span class="hint">Per fight: an output-quality strip plus tabs for buff/debuff uptime, damage taken, deaths, interrupts, dispels, and phase timing. Bloodlust time is shown in each header.</span></h2>
@@ -615,6 +625,54 @@ function deathCausesView(d){
   }
   return h+`</tbody></table>`;
 }
+// Tier-wide "lowest-hanging fruit": per-spec avg DPS pooled across all bosses, biggest deficit first.
+function tierSpecGapView(d){
+  const all=rowsOf(d.deep&&d.deep.tierSpecGap);
+  const both=all.filter(r=>r.both), oneSide=all.filter(r=>!r.both);
+  if(!both.length) return "";
+  const max=Math.max(1,...both.map(r=>Math.max(r.oursAvg,r.theirsAvg)));
+  const w=v=>Math.max(2,Math.round(v/max*100));
+  let h=`<h2 class="section">Lowest-Hanging DPS — Spec Gaps<span class="hint">Each DPS spec's average per-player DPS pooled across every shared boss, ours vs the benchmark's same spec. Specs where you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Per-player averages, so roster-count differences don't skew it.</span></h2>
+    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg DPS / player, by spec (tier-wide)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+  for(const r of both){
+    const diff=r.deficit; // theirs − ours; >0 = we trail (bad)
+    const dcls=diff>0?"bad":(diff<0?"good":"flat");
+    const dtxt=(diff>0?"−":diff<0?"+":"")+fmtR(Math.abs(diff));
+    h+=`<div class="dval lo">${fmtR(r.oursAvg)}</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.oursAvg)}%"></div></div>
+      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirsAvg)}%"></div></div>
+      <div class="dval ro">${fmtR(r.theirsAvg)}</div>
+      <div class="delta ${dcls}">${dtxt}</div>`;
+  }
+  h+=`</div></div>`;
+  if(oneSide.length){
+    const theirs=oneSide.filter(r=>r.theirsSamples>0).map(r=>`${esc(r.spec)} ${esc(r.class)}`);
+    const ours=oneSide.filter(r=>r.oursSamples>0).map(r=>`${esc(r.spec)} ${esc(r.class)}`);
+    const note=[];
+    if(theirs.length) note.push(`Benchmark also fielded: <b>${theirs.join(", ")}</b>`);
+    if(ours.length) note.push(`Only you fielded: <b>${ours.join(", ")}</b>`);
+    if(note.length) h+=`<p class="srcs" style="margin-top:8px">${note.join(" &nbsp;·&nbsp; ")}</p>`;
+  }
+  return h;
+}
+// Tier-wide buff/debuff uptime gaps: where we most consistently trail on maintaining an aura.
+function tierUptimeGapView(d){
+  const rows=rowsOf(d.deep&&d.deep.tierUptimeGap);
+  if(!rows.length) return "";
+  const behind=rows.filter(r=>r.deficit>0);
+  let h=`<h2 class="section">Buff &amp; Debuff Coverage Gaps<span class="hint">Each raid buff and boss debuff's average uptime across the shared bosses, ours vs the benchmark. Auras you maintain less consistently than the benchmark are listed first — keeping persistent buffs/debuffs near 100% is free, repeatable throughput. (Short cooldowns like Bloodlust naturally read low on both sides.)</span></h2>`;
+  if(!behind.length) return h+`<p class="num" style="padding:6px 2px">You match or beat the benchmark on every tracked buff/debuff uptime — no coverage gap.</p>`;
+  h+=`<table><thead><tr><th>Buff / Debuff</th><th>Type</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  for(const r of behind){
+    const dl=deltaHigh(r.ours,r.theirs); // higher uptime better
+    h+=`<tr><td style="font-weight:600">${esc(r.name)}</td><td class="role">${esc(r.kind)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
 // Per-boss DPS-by-spec gap: specs ranked by per-player deficit to the benchmark's same spec.
 function specDpsView(b){
   const rows=rowsOf(b.specGap);
@@ -648,11 +706,10 @@ function statStrip(b){
       else{const better=lower?diff<0:diff>0;cls=better?"good":"bad";dtxt=(diff>0?"+":"−")+f(Math.abs(diff));}}
     return `<div class="stat"><span class="sl">${label}</span><span class="sv"><span class="cours">${o==null?"—":f(o)}</span> <span class="cthe">${t==null?"—":f(t)}</span> <span class="delta ${cls}">${dtxt}</span></span></div>`;};
   return `<div class="strip">
+    ${cell("Raid DPS",b.oursRaidDps,b.theirsRaidDps,fmtR,false)}
     ${cell("DPS activity",b.oursActivity,b.theirsActivity,x=>x+"%",false)}
     ${cell("Healer overheal",b.oursOverheal,b.theirsOverheal,x=>x+"%",true)}
-    ${dmgMode==="persec"?cell("Dmg taken/s (ex-tanks)",b.oursDtps,b.theirsDtps,x=>x.toLocaleString(),true):cell("Dmg taken (ex-tanks)",b.oursDmgTaken,b.theirsDmgTaken,fmtM,true)}
-    ${cell("Interrupts",b.oursInterrupts,b.theirsInterrupts,x=>x,false)}
-    ${cell("Dispels",b.oursDispels,b.theirsDispels,x=>x,false)}</div>`;
+    ${dmgMode==="persec"?cell("Dmg taken/s (ex-tanks)",b.oursDtps,b.theirsDtps,x=>x.toLocaleString(),true):cell("Dmg taken (ex-tanks)",b.oursDmgTaken,b.theirsDmgTaken,fmtM,true)}</div>`;
 }
 function topSources(b){
   const rows=rowsOf(b.dmgCompare);
@@ -715,7 +772,7 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="bosses">Bosses</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="bosses">Execution</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-composition">${renderComposition(d)}</div>
   <div class="panel" id="p-enchants">${renderEnchants(d)}</div>

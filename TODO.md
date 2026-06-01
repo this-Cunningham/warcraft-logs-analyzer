@@ -191,10 +191,40 @@ Most of Tier 1 needs **zero new API calls** — it re-slices data `fetch_report.
   `role_ilvl()` averages equipped item level per role (dps/healer/tank) from the dd/heal/dt tables,
   shown as ours-vs-benchmark cards in a new "Item Level by Role" section on the Prep tab.
 
-## TODO: wipe / attempt counts per boss (one cheap new query)
+## TODO: wipe / attempt counts per boss (one cheap new query) — **DONE**
 
 > Only real new fetch in this batch. Add `fights(killType:Encounters)` and count non-kills per
 > encounter → "you wiped 12× on Kael; they one-shot it." Big execution/progression signal.
+- **DONE** — `fetch_report.py` adds one cheap `fights(killType:Encounters){encounterID kill}` query →
+  `attempts.json`; `attempt_map` tallies kills vs wipes per boss. Surfaced as a **Total Wipes**
+  summary card + a per-boss **"Wipes before kill"** bar on the Overview (shown only when either raid
+  wiped), and feeds the Biggest Gaps scorecard. Graceful if `attempts.json` is absent.
+
+---
+
+# Report reorganization + gap-surfacing pass (2026-06-01)
+
+Reorganized the report for a clearer funnel and added comprehensive (tier-wide) gap views.
+
+**Reorganized:**
+- Renamed the **Bosses** tab → **Execution**; it now leads with raid-wide gap analysis
+  (What's Killing Us → Lowest-Hanging DPS spec gaps → Buff/Debuff coverage gaps → Output Quality →
+  Clear Efficiency) before the per-boss drill-down, instead of front-loading Clear Efficiency.
+- Overview Raid Summary gained a **Total Wipes** card; boss cards gained **Wipes** bars.
+
+**Removed (noise, not a clean benchmark signal):**
+- **Avg Gems / Player** card + per-player **Gems** column (gem *count* without socket count can't
+  flag empty sockets — `audit_report` no longer computes it).
+- **Dispels / Interrupts** raw-count card in Output Quality, and Interrupts/Dispels from the per-boss
+  strip (raw totals aren't better/worse; the meaningful interrupt view is per-boss kicked-vs-leaked).
+  Removed the now-dead `count_actions` and the `quality.*Interrupts/*Dispels` aggregates.
+
+**Added (comprehensive gap identification, stitched from data we already fetch):**
+- **Lowest-Hanging DPS — Spec Gaps** (`tier_spec_gap`): per-player DPS pooled by spec across ALL
+  shared bosses, ranked by deficit to the benchmark's same spec — the tier-wide "which spec to coach".
+- **Buff & Debuff Coverage Gaps** (`tier_uptime_gap`): per-aura uptime averaged across bosses, listing
+  only where we trail, biggest deficit first.
+- Both feed the Biggest Gaps scorecard (alongside the new wipe signal).
 
 ## TODO: cooldown usage counts (raid-level)
 

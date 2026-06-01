@@ -153,7 +153,6 @@ def audit_report(directory, allow_names):
             ci = pl.get("combatantInfo")
             gear = (ci.get("gear") if isinstance(ci, dict) else None) or []
             missing = []
-            gems = 0
             weapon_oil = False
             for slot in sorted(ENCH_SLOTS):
                 item = next((g for g in gear if g.get("slot") == slot), None)
@@ -162,12 +161,9 @@ def audit_report(directory, allow_names):
                         missing.append(ENCH_SLOTS[slot])
                     if slot == 15 and item.get("temporaryEnchant") and int(item.get("temporaryEnchant", 0)) != 0:
                         weapon_oil = True
-            for item in gear:
-                if item.get("gems"):
-                    gems += len(item["gems"])
             players.append({
                 "name": pl["name"], "class": pl.get("type"), "role": _ROLE_LABEL[rn],
-                "missingEnchants": missing, "missingCount": len(missing), "gems": gems,
+                "missingEnchants": missing, "missingCount": len(missing),
                 "weaponOil": weapon_oil,
             })
     return {
@@ -176,7 +172,6 @@ def audit_report(directory, allow_names):
         "playersNoWeaponOil": len([p for p in players if not p["weaponOil"]]),
         "fullyEnchanted": len([p for p in players if p["missingCount"] == 0]),
         "playerCount": len(players),
-        "avgGems": avg([p["gems"] for p in players]),
     }
 
 
@@ -589,6 +584,69 @@ def death_cause_compare(per_boss):
     return rows
 
 
+# ---------- WIPE / ATTEMPT COUNTS (one cheap query per report) ----------
+def attempt_map(directory):
+    """encounterID(str) -> {kills, wipes, attempts} from attempts.json. killType:Encounters lists
+    every boss pull; `kill` flags the successful one, so wipes = pulls that weren't the kill.
+    Graceful (empty) if the file is missing, so older data folders still build."""
+    path = os.path.join(directory, "attempts.json")
+    if not os.path.isfile(path):
+        return {}
+    fights = read_json(path)["reportData"]["report"]["fights"]
+    out = {}
+    for f in fights:
+        enc = str(f.get("encounterID"))
+        if not enc or enc == "0":
+            continue
+        rec = out.setdefault(enc, {"kills": 0, "wipes": 0})
+        if f.get("kill"):
+            rec["kills"] += 1
+        else:
+            rec["wipes"] += 1
+    for rec in out.values():
+        rec["attempts"] = rec["kills"] + rec["wipes"]
+    return out
+
+
+# ---------- TIER-WIDE GAP ROLLUPS (stitch per-boss data into one comprehensive view) ----------
+def tier_spec_gap(o_pool, t_pool):
+    """Comprehensive "lowest-hanging fruit" view: pool every DPS player's per-boss DPS by spec across
+    ALL shared bosses, then rank specs by the per-player deficit to the benchmark's same spec. Floats
+    the spec that's most behind tier-wide to the top — that's where coaching pays off most."""
+    rows = []
+    for key in set(o_pool) | set(t_pool):
+        o = o_pool.get(key)
+        t = t_pool.get(key)
+        ref = o or t
+        o_d = o["dps"] if o else []
+        t_d = t["dps"] if t else []
+        o_avg = round(sum(o_d) / len(o_d)) if o_d else 0
+        t_avg = round(sum(t_d) / len(t_d)) if t_d else 0
+        rows.append({
+            "class": ref["class"], "spec": ref["spec"],
+            "oursAvg": o_avg, "theirsAvg": t_avg, "deficit": t_avg - o_avg,
+            "oursSamples": len(o_d), "theirsSamples": len(t_d),
+            "both": bool(o_d) and bool(t_d),
+        })
+    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
+    return rows
+
+
+def tier_uptime_gap(acc):
+    """Comprehensive buff/debuff coverage: average each aura's uptime % across the shared bosses,
+    ours vs theirs, ranked by the biggest deficit (where we most consistently trail on maintaining
+    a raid buff or boss debuff). Complements the per-boss uptime bars with a tier-wide priority list."""
+    rows = []
+    for name, rec in acc.items():
+        o, t = rec["o"], rec["t"]
+        o_avg = round(sum(o) / len(o)) if o else 0
+        t_avg = round(sum(t) / len(t)) if t else 0
+        rows.append({"name": name, "kind": rec["kind"], "ours": o_avg, "theirs": t_avg,
+                     "deficit": t_avg - o_avg})
+    rows.sort(key=lambda r: -r["deficit"])
+    return rows
+
+
 def ability_agg(report, tank_names):
     agg = {}
     if not report.get("dt"):
@@ -607,23 +665,6 @@ def dmg_compare(o_report, o_tank, t_report, t_tank, n):
     rows = [{"name": nm, "ours": int(oa.get(nm, 0)), "theirs": int(ta.get(nm, 0))} for nm in names]
     rows.sort(key=lambda r: max(r["ours"], r["theirs"]), reverse=True)
     return rows[:n]
-
-
-def count_actions(report, alias):
-    """Interrupts/Dispels nest as data.entries[0].entries[] (by ability)."""
-    inner = _inner_entries(report, alias)
-    if not inner:
-        return 0
-    c = 0
-    for ab in inner:
-        if not ab:
-            continue
-        if ab.get("details"):
-            for d in ab["details"]:
-                c += int(d.get("total", 0))
-        elif ab.get("total") is not None:
-            c += int(ab["total"])
-    return c
 
 
 def int_break(report, spec_map):
@@ -842,7 +883,7 @@ def _fmt_dur(ms):
     return "{}:{:02d}".format(s // 60, s % 60)
 
 
-def biggest_gaps(summary, quality, consumables, audit, comp_gaps, n=7):
+def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None, n=7):
     """Score every tracked dimension by how far behind the benchmark we are, then surface the
     worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
     (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
@@ -938,6 +979,30 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, n=7):
             "Benchmark brings {} raid-wide buff/debuff{} you don't (e.g. {}). Slot the class/spec to gain it."
             .format(len(missing), "s" if len(missing) > 1 else "", eg))
 
+    # Wipes / attempts (only when attempt data is present; more pulls = a fight you don't have down).
+    if summary.get("hasAttempts"):
+        ow, tw = summary["oursWipes"], summary["theirsWipes"]
+        if ow > tw:
+            add((ow - tw) / (bosses * 3.0), "Wiping more on progression",
+                "{} wipes across the shared bosses vs {} for the benchmark. Repeated pulls = a fight not yet on farm."
+                .format(ow, tw))
+
+    # Biggest per-spec DPS deficit tier-wide (the lowest-hanging coaching target).
+    if tier_spec:
+        worst = next((r for r in tier_spec if r["both"] and r["deficit"] > 0), None)
+        if worst:
+            add(worst["deficit"] / 800.0, "A spec is underperforming tier-wide",
+                "{} {} average {}/s vs {}/s across the tier — your biggest per-spec DPS gap. Coach rotation/gear."
+                .format(worst["spec"], worst["class"], _fmt_k(worst["oursAvg"]), _fmt_k(worst["theirsAvg"])))
+
+    # Biggest buff/debuff uptime deficit tier-wide.
+    if tier_uptime:
+        worst = next((r for r in tier_uptime if r["deficit"] >= 3), None)
+        if worst:
+            add(worst["deficit"] / 40.0, "A raid buff/debuff is under-maintained",
+                "{} {} uptime averages {}% vs {}% tier-wide. Keeping it up is free throughput."
+                .format(worst["name"], worst["kind"], worst["ours"], worst["theirs"]))
+
     cand.sort(key=lambda c: -c["sev"])
     out = []
     for c in cand[:n]:
@@ -955,6 +1020,18 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     bosses = [{"encounterID": int(i), "name": ours_idx[i]["name"], "ours": ours_idx[i], "theirs": theirs_idx[i]}
               for i in common_ids]
+
+    # Wipe/attempt counts per shared boss (graceful if attempts.json predates this feature).
+    ours_att = attempt_map(ours_dir)
+    theirs_att = attempt_map(theirs_dir)
+    for b in bosses:
+        enc = str(b["encounterID"])
+        oa, ta = ours_att.get(enc, {}), theirs_att.get(enc, {})
+        b["oursWipes"], b["theirsWipes"] = oa.get("wipes", 0), ta.get("wipes", 0)
+        b["oursAttempts"], b["theirsAttempts"] = oa.get("attempts", 0), ta.get("attempts", 0)
+        b["hasAttempts"] = bool(oa) or bool(ta)
+    has_attempts = any(b["hasAttempts"] for b in bosses)
+
     summary = {
         "bossCount": len(bosses),
         "oursAvgParse": avg([b["ours"]["avgParse"] for b in bosses]),
@@ -963,6 +1040,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "theirsDeaths": ssum([b["theirs"]["deaths"] for b in bosses]),
         "oursDurationMs": ssum([b["ours"]["durationMs"] for b in bosses]),
         "theirsDurationMs": ssum([b["theirs"]["durationMs"] for b in bosses]),
+        "oursWipes": ssum([b["oursWipes"] for b in bosses]),
+        "theirsWipes": ssum([b["theirsWipes"] for b in bosses]),
+        "hasAttempts": has_attempts,
     }
 
     # Composition
@@ -1017,6 +1097,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     o_class_dmg, t_class_dmg = {}, {}
     o_ilvl, t_ilvl = {}, {}
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
+    # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
+    tier_o_spec, tier_t_spec = {}, {}
+    tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     per_boss = []
     for b in bosses:
         enc = str(b["encounterID"])
@@ -1060,6 +1143,21 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         o_raid_heal_sum += o_raid_heal
         t_raid_heal_sum += t_raid_heal
 
+        # Pool per-spec DPS across bosses for the tier-wide "lowest-hanging fruit" rollup.
+        for pool, rep, sp, ro, cl, dur in ((tier_o_spec, o_b, ours_spec, ours_role, ours_cls, o_dur),
+                                           (tier_t_spec, t_b, theirs_spec, theirs_role, theirs_cls, t_dur)):
+            for key, bucket in spec_dps_buckets(rep, sp, ro, cl, dur).items():
+                ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "dps": []})
+                ent["dps"].extend(p["dps"] for p in bucket["players"])
+        # Sample buff/debuff uptimes for the tier-wide coverage rollup.
+        for kind, rows_ in (("buff", buff_rows), ("debuff", debuff_rows)):
+            for r in rows_:
+                rec = tier_upt.setdefault(r["name"], {"kind": kind, "o": [], "t": []})
+                if r["ours"] is not None:
+                    rec["o"].append(r["ours"])
+                if r["theirs"] is not None:
+                    rec["t"].append(r["theirs"])
+
         per_boss.append({
             "encounterID": b["encounterID"], "name": b["name"],
             "oursLustSec": lust_sec(_auras(o_b, "buffs"), ours_fights[enc]["start"]),
@@ -1075,8 +1173,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "oursDurMs": o_dur, "theirsDurMs": t_dur,
             "oursDtps": dtps(o_dmg, o_dur), "theirsDtps": dtps(t_dmg, t_dur),
             "dmgCompare": dmg_compare(o_b, ours_tank, t_b, theirs_tank, 7),
-            "oursInterrupts": count_actions(o_b, "intr"), "theirsInterrupts": count_actions(t_b, "intr"),
-            "oursDispels": count_actions(o_b, "disp"), "theirsDispels": count_actions(t_b, "disp"),
             "interrupts": int_compare(o_b, t_b, ours_spec, theirs_spec),
             "unkicked": unkicked_compare(o_b, t_b),
             "dispelsList": disp_compare(o_b, t_b),
@@ -1098,10 +1194,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "oursDmgTaken": o_dmg_sum, "theirsDmgTaken": t_dmg_sum,
         "oursDtps": round(o_dmg_sum * 1000 / o_dur_sum) if o_dur_sum > 0 else 0,
         "theirsDtps": round(t_dmg_sum * 1000 / t_dur_sum) if t_dur_sum > 0 else 0,
-        "oursInterrupts": ssum([p["oursInterrupts"] for p in per_boss]),
-        "theirsInterrupts": ssum([p["theirsInterrupts"] for p in per_boss]),
-        "oursDispels": ssum([p["oursDispels"] for p in per_boss]),
-        "theirsDispels": ssum([p["theirsDispels"] for p in per_boss]),
         # Raid DPS/HPS, time-weighted across the shared bosses.
         "oursRaidDps": rate(o_raid_dmg_sum, o_dur_sum), "theirsRaidDps": rate(t_raid_dmg_sum, t_dur_sum),
         "oursRaidHps": rate(o_raid_heal_sum, o_dur_sum), "theirsRaidHps": rate(t_raid_heal_sum, t_dur_sum),
@@ -1123,8 +1215,12 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     }
     # "What's killing us" — death causes aggregated across the whole shared clear.
     death_causes_rows = death_cause_compare(per_boss)
+    # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
+    tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
+    tier_uptime = tier_uptime_gap(tier_upt)
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
-    gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps)
+    gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
+                                  tier_spec=tier_spec, tier_uptime=tier_uptime)
 
     eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 
@@ -1133,7 +1229,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
-                 "deathCauses": death_causes_rows,
+                 "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff},
     }
     out_full = render_report(payload, out_file)

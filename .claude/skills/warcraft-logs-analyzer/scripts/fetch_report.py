@@ -5,6 +5,7 @@ per-report folder. Run once per report, then feed both folders to build_deepdive
 
 Writes:
     <out_dir>/fights.json          (boss kills: id, name, encounterID, start/end, size, ilvl)
+    <out_dir>/attempts.json        (every boss pull kill+wipe, for per-boss wipe/attempt counts)
     <out_dir>/playerdetails.json   (combatantInfo: gear/enchants/gems, potionUse)
     <out_dir>/boss-<encounterID>.json  (per-kill: buffs + boss debuffs, in one call)
     <out_dir>/consumes-<encounterID>.json  (shared bosses only: per-player buff auras for the
@@ -84,6 +85,15 @@ def fetch(code, out_dir, full_encounters=None):
     fights = kills["reportData"]["report"]["fights"]
     fight_ids = [int(f["id"]) for f in fights]
     print("[{}] {} boss kills".format(code, len(fights)))
+
+    # 1b) Attempt/wipe counts per encounter (one cheap call). killType:Encounters returns every
+    #     boss pull (kills AND wipes); `kill` flags which succeeded → wipes = pulls before the kill.
+    attempts_q = (
+        "query A($code:String!){reportData{report(code:$code){"
+        "fights(killType:Encounters){encounterID kill}}}}"
+    )
+    attempts = lib.invoke_query(attempts_q, {"code": code})
+    _save(attempts, os.path.join(out_dir, "attempts.json"))
 
     # 2) Player details (gear/enchants/gems/potions) across all kills - gear is static,
     #    one call covers the roster.

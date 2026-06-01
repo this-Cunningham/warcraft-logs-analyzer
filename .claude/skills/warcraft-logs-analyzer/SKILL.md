@@ -23,33 +23,49 @@ auth needed.
    `WCL_CLIENT_SECRET`. Create a client at
    https://www.warcraftlogs.com/api/clients (NOT a "Public Client").
 2. Confirm connectivity and dump the schema (writes `schema.json` to repo root):
-   ```powershell
-   .\.claude\skills\warcraft-logs-analyzer\scripts\introspect.ps1
+   ```bash
+   python3 .claude/skills/warcraft-logs-analyzer/scripts/introspect.py
    ```
    Browse `schema.json` to confirm exact field names before writing a new query.
 
 ## Running queries
 
-All scripts are PowerShell (no Node/Python needed on this machine).
+All scripts are **Python 3 (standard library only — nothing to `pip install`)**, so
+they run on macOS' system `python3` and on Windows (use `python` if `python3`
+isn't on PATH). Run them from the repo root.
 
 - **Ad-hoc / from a file:**
-  ```powershell
-  .\.claude\skills\warcraft-logs-analyzer\scripts\query.ps1 `
-    -QueryFile .\.claude\skills\warcraft-logs-analyzer\queries\report-summary.graphql `
-    -Variables '{"code":"aBcD1234"}'
+  ```bash
+  python3 .claude/skills/warcraft-logs-analyzer/scripts/query.py \
+    --query-file .claude/skills/warcraft-logs-analyzer/queries/report-summary.graphql \
+    --variables '{"code":"aBcD1234"}'
   ```
 - **Inline:**
-  ```powershell
-  .\.claude\skills\warcraft-logs-analyzer\scripts\query.ps1 -Query 'query { rateLimitData { limitPerHour pointsSpentThisHour } }'
+  ```bash
+  python3 .claude/skills/warcraft-logs-analyzer/scripts/query.py --query 'query { rateLimitData { limitPerHour pointsSpentThisHour } }'
   ```
-- **From your own code (dot-source the lib):**
-  ```powershell
-  . .\.claude\skills\warcraft-logs-analyzer\scripts\lib.ps1
-  $data = Invoke-WclQuery -Query (Get-Content -Raw .\...\report-summary.graphql) -Variables @{ code = 'aBcD1234' }
+  > **Windows/PowerShell gotcha:** PowerShell strips the inner `"` when passing inline
+  > JSON to a native exe, so `--variables '{"code":"abc"}'` arrives as invalid JSON.
+  > Backslash-escape the quotes: `--variables '{\"code\":\"abc\"}'`. (bash/zsh on macOS
+  > need no escaping.) The main `compare_raids.py` entry point takes plain URLs and
+  > avoids this entirely.
+- **From your own code (import the lib):**
+  ```python
+  import sys; sys.path.insert(0, ".claude/skills/warcraft-logs-analyzer/scripts")
+  import lib
+  data = lib.invoke_query(open(".../report-summary.graphql").read(), {"code": "aBcD1234"})
   ```
 
 The token is fetched once and cached in `.wcl-token.json` (gitignored) until
-near expiry. `Invoke-WclQuery` throws on GraphQL errors.
+near expiry. `lib.invoke_query` raises on GraphQL errors.
+
+> **Porting note:** these scripts were ported 1:1 from the original PowerShell
+> (`*.ps1`, still in `scripts/` until the Python path is validated on macOS, then
+> removed). The generated HTML and its `DATA` payload are unchanged — only the
+> fetch/build layer moved to Python. The port was verified to reproduce the
+> PowerShell output exactly (aside from Python emitting proper JSON arrays where
+> PowerShell's `ConvertTo-Json` collapsed single-element arrays to bare objects —
+> the template's `asArr` helper already handles both).
 
 ## Key concepts
 
@@ -90,63 +106,70 @@ modern theme, no CDN (works offline). Its inline JS reads a `const DATA = ...`
 blob; the build script injects it by replacing the literal `/*__DATA__*/null`.
 
 **Comparison report (two reports, shared bosses):**
-1. Save each report's parses to a file (see `queries/` + `query.ps1 -OutFile`):
-   ```powershell
-   .\scripts\query.ps1 -Query 'query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}' -Variables '{"code":"OURS"}'  -OutFile .\data\ours-parses.json
-   .\scripts\query.ps1 -Query 'query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}' -Variables '{"code":"THEIRS"}' -OutFile .\data\demo-parses.json
+1. Save each report's parses to a file (see `queries/` + `query.py --out-file`):
+   ```bash
+   python3 scripts/query.py --query 'query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}' --variables '{"code":"OURS"}'  --out-file data/ours-parses.json
+   python3 scripts/query.py --query 'query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}' --variables '{"code":"THEIRS"}' --out-file data/demo-parses.json
    ```
 2. Build the HTML (intersects on `encounterID`, computes duration/deaths/parse deltas):
-   ```powershell
-   .\scripts\build-comparison.ps1 -OursFile .\data\ours-parses.json -TheirsFile .\data\demo-parses.json `
-     -OursName "Our Raid" -TheirsName "Benchmark" -ZoneName "SSC / TK" -OutFile .\reports\comparison.html
+   ```bash
+   python3 scripts/build_comparison.py --ours-file data/ours-parses.json --theirs-file data/demo-parses.json \
+     --ours-name "Our Raid" --theirs-name "Benchmark" --zone-name "SSC / TK" --out-file reports/comparison.html
    ```
    Output lands in `reports/` (gitignored). It's self-contained — the user just
    opens the file. The `rankings` JSON already carries per-player class/spec/role/
    rankPercent/amount + fight duration + deaths, so no extra table calls are needed
    for the comparison view.
 
-**Encoding (PS 5.1 gotcha):** read templates with
-`[IO.File]::ReadAllText($p,[Text.Encoding]::UTF8)` and write output with
-`[IO.File]::WriteAllText($p,$html,(New-Object Text.UTF8Encoding $false))`.
-`Get-Content`/`Set-Content -Encoding utf8` mangle `·`, `−`, and accented names.
+**Encoding:** Python handles this natively — the builders read with `utf-8-sig`
+(tolerates the BOM the old PowerShell `Set-Content -Encoding utf8` left on cached
+JSON) and write the HTML as UTF-8 without a BOM. `json.dumps` ascii-escapes
+non-ASCII (`·`, `−`, accented player names) into the `DATA` blob, so they survive
+intact regardless of how the file is opened.
 
 **Preview:** the report needs no server, but to screenshot it use the
-`report-preview` config in `.claude/launch.json` (a PowerShell static server,
-`.claude/preview-server.ps1`) and the preview tools. Restart the server to bust
+`report-preview` config in `.claude/launch.json` (a stdlib Python static server,
+`.claude/preview-server.py`) and the preview tools. Restart the server to bust
 the browser cache after regenerating.
 
 **Deep-dive (tabbed) report — Overview + Dive Deeper:**
 
 **Easiest path — one deterministic command (no manual params, no LLM in the loop):**
-```powershell
-.\scripts\Compare-Raids.ps1 -OursUrl "https://.../reports/OURS" -TheirsUrl "https://.../reports/THEIRS"
+```bash
+python3 scripts/compare_raids.py --ours-url "https://.../reports/OURS" --theirs-url "https://.../reports/THEIRS"
 ```
-`Compare-Raids.ps1` resolves report codes from the URLs, intersects encounter IDs to
+`compare_raids.py` resolves report codes from the URLs, intersects encounter IDs to
 find the shared bosses automatically, fetches parses + heavy tables for those bosses,
 builds the report, and opens it. Titles/zone default to the reports' own metadata
-(override with `-OursName`/`-TheirsName`, set `-OutFile`, or `-NoOpen`). Re-running with
-the same inputs produces the same report — generation is pure PowerShell + the static
-template, with no model in the path.
+(override with `--ours-name`/`--theirs-name`, set `--out-file`, or pass `--no-open`).
+Re-running with the same inputs produces the same report — generation is pure Python +
+the static template, with no model in the path.
 
 **Manual path (if you need to run the stages individually):**
 1. Fetch everything for each report (kills, playerDetails, per-boss buffs/debuffs):
-   ```powershell
-   .\scripts\fetch-report.ps1 -Code OURS   -OutDir .\data\ours
-   .\scripts\fetch-report.ps1 -Code THEIRS -OutDir .\data\demo
+   ```bash
+   python3 scripts/fetch_report.py --code OURS   --out-dir data/ours
+   python3 scripts/fetch_report.py --code THEIRS --out-dir data/demo
    ```
-   Also save each report's parses (see above) to `.\data\ours-parses.json` / `demo-parses.json`.
+   For the shared bosses, add `--full-encounters <id> <id> ...` to also pull the heavy
+   output tables. Also save each report's parses (see above) to `data/ours-parses.json` /
+   `data/demo-parses.json`.
 2. Build the tabbed report:
-   ```powershell
-   .\scripts\build-deepdive.ps1 -OursDir .\data\ours -TheirsDir .\data\demo `
-     -OursParses .\data\ours-parses.json -TheirsParses .\data\demo-parses.json `
-     -OursName "Our Raid" -TheirsName "Benchmark" -ZoneName "SSC / TK" -OutFile .\reports\deepdive.html
+   ```bash
+   python3 scripts/build_deepdive.py --ours-dir data/ours --theirs-dir data/demo \
+     --ours-parses data/ours-parses.json --theirs-parses data/demo-parses.json \
+     --ours-name "Our Raid" --theirs-name "Benchmark" --zone-name "SSC / TK" --out-file reports/deepdive.html
    ```
    The report has four top-level tabs: **Overview | Composition | Enchants | Bosses**.
    - **Composition**: Raid Composition & buff-provider gap analysis (class/spec → raid buff
-     it brings; provider table is in build-deepdive.ps1).
+     it brings; provider table is `PROVIDER_CHECKS` in build_deepdive.py). Each player's
+     spec is their **primary (most-frequent) spec across the shared bosses** (`primary_spec_map`),
+     not whatever the first-iterated fight showed — so a Feral druid who bear-tanks one fight
+     as "Guardian" still reads as Feral (and still counts as a Leader-of-the-Pack provider).
+     This keeps the spec counts and the provider-gap status order-independent and consistent.
    - **Enchants**: Enchants & Gems audit (per-player missing enchants from
      `combatantInfo.gear.permanentEnchant`). Restricted to the **shared-boss roster** (same
-     player set as Composition) — `Audit-Report` takes the roster names and filters
+     player set as Composition) — `audit_report` takes the roster names and filters
      playerDetails, which is otherwise fetched across all kills.
    - **Enchants** also carries raid **avg item level** (from `fights.averageItemLevel` over the
      shared bosses) alongside the gem/enchant stats.
@@ -173,7 +196,7 @@ template, with no model in the path.
        numbered.
 
    Heavy tables (dd/heal/dt/intr/disp/**deaths**) are fetched only for the shared bosses via
-   `fetch-report.ps1 -FullEncounters <ids>` since the responses are large. `phaseTransitions`
+   `fetch_report.py --full-encounters <ids>` since the responses are large. `phaseTransitions`
    ride along on the cheap `fights` query (all kills), so they're always present.
 
 **TBC Classic data caveats (verified):**
@@ -185,8 +208,8 @@ template, with no model in the path.
 - `table(Buffs/Debuffs)` uptime is **raid-aggregate**, not per-player.
 - Clear-efficiency uses kills only, so "Out of Boss" time includes trash + wipes.
 - Composition (from parses) and the Enchants audit (from playerDetails) now share the
-  same **shared-boss roster**: build-deepdive passes the composition roster names into
-  `Audit-Report`, which skips any playerDetails entry not on a shared boss. The two player
+  same **shared-boss roster**: build_deepdive passes the composition roster names into
+  `audit_report`, which skips any playerDetails entry not on a shared boss. The two player
   counts line up. (The raw playerDetails JSON still spans all kills; the audit just ignores
   off-shared-boss players.)
 - `Interrupts` table is often empty for fights with no interruptible casts (e.g. Vashj

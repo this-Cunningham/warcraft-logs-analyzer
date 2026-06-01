@@ -40,6 +40,9 @@
   .card .vals{display:flex;align-items:baseline;gap:10px;margin-top:8px;flex-wrap:wrap}
   .card .v{font-size:22px;font-weight:700}
   .card .v.ours{color:var(--ours)} .card .v.theirs{color:var(--theirs)}
+  .card .vcol{display:flex;flex-direction:column;align-items:flex-start}
+  .card .vlab{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-top:1px;opacity:.85;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .vlab.ours{color:var(--ours)} .card .vlab.theirs{color:var(--theirs)}
   .card .delta{margin-left:auto;font-size:13px;font-weight:600}
   .delta.good{color:var(--good)} .delta.bad{color:var(--bad)} .delta.flat{color:var(--muted)}
 
@@ -232,13 +235,19 @@ function renderEnchants(d){
   const oilD=deltaLow(au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil);
   const feD=deltaHigh(au.ours.fullyEnchanted,au.theirs.fullyEnchanted);
   const ilvlD=deltaHigh(au.ours.avgIlvl||0,au.theirs.avgIlvl||0);
+  // Labeled stat card: each value tagged with its team name so the Enchants tab is self-explanatory.
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const acard=(label,ov,tv,dl)=>`<div class="card"><div class="label">${label}</div><div class="vals">`+
+    `<span class="vcol"><span class="v ours">${ov}</span><span class="vlab ours">${oT}</span></span>`+
+    `<span class="vcol"><span class="v theirs">${tv}</span><span class="vlab theirs">${tT}</span></span>`+
+    (dl?`<span class="delta ${dl.cls}">${dl.txt}</span>`:"")+`</div></div>`;
   h+=`<h2 class="section">Enchants &amp; Gems Audit<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils are free damage/survivability left on the table. (Potion use isn't tracked in Classic logs.)</span></h2>
   <div class="cards">
-    <div class="card"><div class="label">Missing Enchants (raid)</div><div class="vals"><span class="v ours">${au.ours.totalMissingEnchants}</span><span class="v theirs">${au.theirs.totalMissingEnchants}</span><span class="delta ${meD.cls}">${meD.txt}</span></div></div>
-    <div class="card"><div class="label">Fully Enchanted Players</div><div class="vals"><span class="v ours">${au.ours.fullyEnchanted}/${au.ours.playerCount}</span><span class="v theirs">${au.theirs.fullyEnchanted}/${au.theirs.playerCount}</span><span class="delta ${feD.cls}">${feD.txt}</span></div></div>
-    <div class="card"><div class="label">No Weapon Oil/Stone</div><div class="vals"><span class="v ours">${au.ours.playersNoWeaponOil}</span><span class="v theirs">${au.theirs.playersNoWeaponOil}</span><span class="delta ${oilD.cls}">${oilD.txt}</span></div></div>
-    <div class="card"><div class="label">Avg Gems / Player</div><div class="vals"><span class="v ours">${au.ours.avgGems}</span><span class="v theirs">${au.theirs.avgGems}</span></div></div>
-    <div class="card"><div class="label">Avg Item Level</div><div class="vals"><span class="v ours">${au.ours.avgIlvl||"—"}</span><span class="v theirs">${au.theirs.avgIlvl||"—"}</span><span class="delta ${ilvlD.cls}">${ilvlD.txt}</span></div></div>
+    ${acard("Missing Enchants (raid)",au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants,meD)}
+    ${acard("Fully Enchanted Players",`${au.ours.fullyEnchanted}/${au.ours.playerCount}`,`${au.theirs.fullyEnchanted}/${au.theirs.playerCount}`,feD)}
+    ${acard("No Weapon Oil/Stone",au.ours.playersNoWeaponOil,au.theirs.playersNoWeaponOil,oilD)}
+    ${acard("Avg Gems / Player",au.ours.avgGems,au.theirs.avgGems,null)}
+    ${acard("Avg Item Level",au.ours.avgIlvl||"—",au.theirs.avgIlvl||"—",ilvlD)}
   </div>
   <h4 class="ours">${esc(d.ours.title)} — per-player preparation</h4>
   <table><thead><tr><th>Player</th><th>Role</th><th>Missing Enchants</th><th>Wpn Oil</th><th>Gems</th></tr></thead><tbody>`;
@@ -298,7 +307,12 @@ function renderBosses(d){
   /* Per-boss buff/debuff uptime + lust timing + execution strip */
   const pb=asArr(dp.perBoss);
   if(pb.length){
-    h+=`<h2 class="section">Per-Boss Execution<span class="hint">Per fight: an output-quality strip plus tabs for buff/debuff uptime, damage taken, deaths, interrupts, dispels, and phase timing. Bloodlust time is shown in each header.</span></h2>`;
+    h+=`<h2 class="section">Per-Boss Execution<span class="hint">Per fight: an output-quality strip plus tabs for buff/debuff uptime, damage taken, deaths, interrupts, dispels, and phase timing. Bloodlust time is shown in each header.</span></h2>
+    <p class="srcs" style="margin:-6px 0 18px;line-height:1.5">
+      <b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss. It is <b>not</b> the number of raiders who had it: "Blessing of Kings 30%" means Kings was up for 30% of the fight's duration, <i>not</i> that 30% of players had it.
+      Persistent raid buffs and key boss debuffs (Curse of the Elements, Faerie Fire, Sunder/Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums of Battle read low because they only last a few seconds — that's expected, not a problem. Higher is better, and a red bar means you trailed the benchmark.
+      <br><span style="opacity:.85">Note: this is a raid-aggregate "was it up at all" measure, so it shows whether a buff existed on the raid — not how many players it reached.</span>
+    </p>`;
     for(const b of pb){
       const lust=(s)=>s==null?'<span class="no">none</span>':fmtTime(s*1000)+" in";
       const at=bossTab[b.encounterID]||"buffs";
@@ -348,7 +362,7 @@ function interruptView(b){
   };
   // Interruptible enemy casts that completed = missed kicks (lower "went off" is better).
   const ukTbl=()=>{
-    let h=`<table><thead><tr><th>Interruptible cast</th><th>${esc(DATA.ours.title)} <span class="role">kicked / went off</span></th><th>${esc(DATA.theirs.title)} <span class="role">kicked / went off</span></th></tr></thead><tbody>`;
+    let h=`<table><thead><tr><th>Interruptible cast</th><th>${esc(DATA.ours.title)} <span class="role">kicked / leaked</span></th><th>${esc(DATA.theirs.title)} <span class="role">kicked / leaked</span></th></tr></thead><tbody>`;
     for(const r of uk){
       const og=r.oursWentOff, tg=r.theirsWentOff;
       h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
@@ -361,7 +375,7 @@ function interruptView(b){
     <div><h4>Abilities Interrupted</h4>${ab.length?abTbl():'<p class="num">None</p>'}</div>
     <div><h4>Interrupters by Spec</h4>${it.length?itTbl():'<p class="num">None</p>'}</div>
   </div>`;
-  if(uk.length) out+=`<div style="margin-top:16px"><h4>Casts That Went Off Un-kicked<span class="hint" style="display:block">Interruptible enemy casts that completed — i.e. missed interrupts. Lower is better.</span></h4>${ukTbl()}</div>`;
+  if(uk.length) out+=`<div style="margin-top:16px"><h4>Interrupt Success — Kicked vs Leaked<span class="hint" style="display:block">Per ability: <b>kicked</b> = interrupts you landed; <b>leaked</b> = interruptible casts that still went off un-kicked. A <span class="warnpill">highlighted</span> leaked count is a miss — lower is better, 0 leaked is ideal.</span></h4>${ukTbl()}</div>`;
   return out;
 }
 function deathsView(b){
@@ -396,7 +410,7 @@ function dispelsView(b){
 }
 function phasesView(b){
   const rows=rowsOf(b.phases);
-  if(!rows.length) return `<p class="num" style="padding:8px 2px">This encounter has no distinct phases (single-phase fight).</p>`;
+  if(!rows.length) return `<p class="num" style="padding:8px 2px">No phase breakdown for this encounter — Warcraft Logs doesn't expose phase transitions for every TBC fight (often only the scripted multi-phase bosses, e.g. Lady Vashj).</p>`;
   const oTot=rows.reduce((s,r)=>s+(r.oursMs||0),0), tTot=rows.reduce((s,r)=>s+(r.theirsMs||0),0);
   let h=`<p class="srcs">Time spent in each phase, with its share of the kill. A longer phase than the benchmark is where the fight is slipping — extra adds, slower transitions, or a missed burn.</p>
   <table><thead><tr><th>Phase</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;

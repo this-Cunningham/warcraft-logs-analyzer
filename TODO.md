@@ -135,6 +135,16 @@ spike against a real report to see if merged pulls are detectable before buildin
 
 ---
 
+## TODO: Crowd Control tab — remove CC type summary table
+
+> Remove the top overall CC summary table from the Crowd Control tab; keep only the per-mob breakdown.
+
+The by-mob table ("which mob gets CC'd, by which CC, how often") is the actionable view — it tells you
+specifically what to CC. The top summary (Polymorph N, Banish N, …) is redundant: the totals are
+implied by the mob breakdown and add no signal a leader would act on. Cut it to keep the tab lean.
+
+---
+
 ## BUG: Consumables Coverage — elixir pair not counted as "flasked"
 
 > The Flask coverage card doesn't count a battle + guardian elixir combo as equivalent to a flask.

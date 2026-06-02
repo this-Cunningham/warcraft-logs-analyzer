@@ -12,6 +12,24 @@ it actually *populated in TBC* (a schema field ≠ usable data).
 
 ---
 
+## Build status (update — 2026-06-02)
+
+Acting on review, four candidates were **built and verified end-to-end** on the test reports (the report
+generates, the data flows, the JS validates):
+
+- ✅ **#4 Wipe depth** — per-boss "Best attempt: X% boss HP remaining (PhaseName)" (sub-1% → "<1%").
+- ✅ **A Named phases** — `report.phases` joined to transitions; upgrades Phases, wipe depth, death timing
+  (Kael'thas → "P5: Gravity Lapse"). *Corrected a stale SKILL caveat.*
+- ✅ **#2 Cooldown & Trinket usage** — per-spec activations/min, ours vs benchmark. **Reworked during the
+  build:** verified that TBC logs marquee cooldowns only as **buffs** (no cast events), so it reads buff
+  `uses` for cooldowns + casts for trinkets (disjoint sources). Captures hunters'/warriors' CDs correctly.
+- ✅ **Casts rotation / ability-mix** — per-spec cast-share vs benchmark, descriptive (neutral Δ).
+
+**Still a spike (not built):** **#3 focus-fire** — plan in [`focus-fire-spike-plan.md`](focus-fire-spike-plan.md);
+**#1 threat / early-aggro** — the cheaper next new-modality win (see verdict table below).
+
+---
+
 ## TL;DR — ranked verdict table
 
 | # | Candidate | New modality? | Data source | Gap it reveals | Soul-fit | API cost | Populated in TBC? (evidence) | **Verdict** |

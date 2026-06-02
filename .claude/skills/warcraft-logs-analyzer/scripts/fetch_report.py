@@ -33,6 +33,8 @@ LITE_Q = (
     "debuffs: table(dataType:Debuffs, fightIDs:$f, hostilityType:Enemies)}}}"
 )
 # Heavy call (shared bosses): adds the output tables for the Dive Deeper modules.
+# `casts` powers the Cooldown Usage + Rotation (ability-mix) views — it carries every ability a player
+# cast (incl. non-damaging cooldowns/trinkets the DamageDone table can't show), with a per-ability count.
 FULL_Q = (
     "query F($code:String!,$f:[Int]!){reportData{report(code:$code){"
     "buffs: table(dataType:Buffs, fightIDs:$f) "
@@ -42,6 +44,7 @@ FULL_Q = (
     "dt: table(dataType:DamageTaken, fightIDs:$f) "
     "intr: table(dataType:Interrupts, fightIDs:$f) "
     "disp: table(dataType:Dispels, fightIDs:$f) "
+    "casts: table(dataType:Casts, fightIDs:$f) "
     "deaths: table(dataType:Deaths, fightIDs:$f)}}}"
 )
 
@@ -200,10 +203,14 @@ def fetch(code, out_dir, full_encounters=None):
     os.makedirs(out_dir, exist_ok=True)
 
     # 1) Boss kills (phaseTransitions ride along here - cheap, used by the Phases view).
+    #    `report.phases` rides along too: it carries the human PHASE NAMES (PhaseMetadata) that
+    #    phaseTransitions lacks — populated in TBC for scripted multi-phase bosses (e.g. Kael'thas
+    #    "P5: Gravity Lapse"). Maps phase id -> name for the Phases view, death timing, and wipe depth.
     kills_q = (
         "query K($code:String!){reportData{report(code:$code){title "
         "fights(killType:Kills){id name encounterID difficulty startTime endTime "
-        "size averageItemLevel phaseTransitions{id startTime}}}}}"
+        "size averageItemLevel phaseTransitions{id startTime}} "
+        "phases{encounterID separatesWipes phases{id name isIntermission}}}}}"
     )
     kills = lib.invoke_query(kills_q, {"code": code})
     _save(kills, os.path.join(out_dir, "fights.json"))
@@ -213,9 +220,11 @@ def fetch(code, out_dir, full_encounters=None):
 
     # 1b) Attempt/wipe counts per encounter (one cheap call). killType:Encounters returns every
     #     boss pull (kills AND wipes); `kill` flags which succeeded → wipes = pulls before the kill.
+    #     `fightPercentage` (boss HP% remaining at wipe) + `lastPhase` ride along for WIPE DEPTH —
+    #     how far the best attempt got, so progression walls surface ("best Kael'thas: 21.6%, P5").
     attempts_q = (
         "query A($code:String!){reportData{report(code:$code){"
-        "fights(killType:Encounters){encounterID kill}}}}"
+        "fights(killType:Encounters){encounterID kill fightPercentage lastPhase}}}}"
     )
     attempts = lib.invoke_query(attempts_q, {"code": code})
     _save(attempts, os.path.join(out_dir, "attempts.json"))

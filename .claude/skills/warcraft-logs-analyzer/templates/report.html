@@ -138,7 +138,10 @@
   table.cmatrix th,table.cmatrix td{padding:4px 0;text-align:center;border-bottom:1px solid rgba(38,47,64,.5)}
   table.cmatrix th.cbgrp{font-size:11px;color:var(--txt);text-transform:none;letter-spacing:0;font-weight:700;
     padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-  table.cmatrix th.csub2{font-size:10px;color:var(--muted);font-weight:600;width:24px;padding:3px 0;text-transform:none;letter-spacing:0}
+  table.cmatrix th.csub2{font-size:10px;color:var(--warn);font-weight:700;width:24px;padding:3px 0;text-transform:none;letter-spacing:0}
+  /* Legend key tying the yellow F/B/G/Fd/P column letters to their meaning. */
+  .clegend{display:flex;flex-wrap:wrap;gap:14px;margin:6px 0 0;font-size:12px;color:var(--muted)}
+  .clegend .ckey b{color:var(--warn);font-weight:700;margin-right:4px}
   table.cmatrix td.cc{width:24px;font-variant-numeric:tabular-nums}
   table.cmatrix .cbsep{border-left:1px solid var(--line)}
   table.cmatrix .cmname{text-align:left;white-space:nowrap;padding:4px 12px 4px 4px;position:sticky;left:0;background:var(--panel)}
@@ -265,7 +268,9 @@ function consumeMatrix(ppc){
     }
     body+=row+`</tr>`;
   }
-  return `<div class="cmwrap"><table class="cmatrix"><thead>${h1}${h2}</thead><tbody>${body}</tbody></table></div>`;
+  // Legend key above the table — ties each yellow column letter to its full name (same SUB source).
+  const legend=`<div class="clegend">${SUB.map(([s,full])=>`<span class="ckey"><b>${s}</b>${esc(full)}</span>`).join("")}</div>`;
+  return `${legend}<div class="cmwrap"><table class="cmatrix"><thead>${h1}${h2}</thead><tbody>${body}</tbody></table></div>`;
 }
 function metricBars(label,o,t,fmt,maxVal,lowerBetter){
   const f=fmt||(x=>x), max=maxVal||Math.max(o,t,1), w=v=>Math.max(6,Math.round(v/max*100));
@@ -426,7 +431,7 @@ function renderEnchants(d){
   /* Per-player consumables matrix — bosses across the top, offenders at the top. */
   const ppc=dp.perPlayerConsumes;
   if(ppc&&rowsOf(ppc.players).length){
-    h+=`<h2 class="section">Per-Player Consumables<span class="hint">Each raider in ${oT} × each shared boss, sub-columns <b>F</b>lask · <b>B</b>attle elixir · <b>G</b>uardian elixir · <b>Fd</b> food · <b>P</b> combat potions. A player is "prepared" with a <b>flask</b> <i>or</i> a <b>battle + guardian pair</b>, plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red cell)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed via that route (e.g. no flask because elixirs cover it). So "had guardian, no battle elixir" shows as <span style="color:var(--good)">G ✓</span> next to a red <span style="color:var(--bad)">B ✗</span>. Sorted worst-prepared first; the Prep column is bosses-consumed / played. Source: per-player buff tables (catches pre-pull consumables the event stream misses).</span></h2>
+    h+=`<h2 class="section">Per-Player Consumables<span class="hint">Each raider in ${oT} × each shared boss; the yellow <b>F · B · G · Fd · P</b> sub-columns are keyed just above the table. A player is "prepared" with a <b>flask</b> <i>or</i> a <b>battle + guardian pair</b>, plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red cell)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed via that route (e.g. no flask because elixirs cover it). So "had guardian, no battle elixir" shows as <span style="color:var(--good)">G ✓</span> next to a red <span style="color:var(--bad)">B ✗</span>. Sorted worst-prepared first; the Prep column is bosses-consumed / played. Source: per-player buff tables (catches pre-pull consumables the event stream misses).</span></h2>
     ${consumeMatrix(ppc)}`;
   }
 

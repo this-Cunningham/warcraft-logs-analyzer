@@ -100,6 +100,11 @@ encounter, on each side independently. Audit all other night-total or report-wid
 same issue — any value computed from the full report window rather than the shared-boss window is suspect
 when the two reports cover different raid zones.
 
+Also investigate **Trash at a Glance** for the same issue — pull count, clear time, and deaths are
+already zone-scoped to the shared zone, but if one raid did more optional pulls within that zone the
+pull count comparison may still not be apples-to-apples. Deaths are the clean signal; pull count and
+clear time should be labeled or treated as rough proxies if the scoping can't be made exact.
+
 ---
 
 ## BUG: Consumables Coverage — elixir pair not counted as "flasked"

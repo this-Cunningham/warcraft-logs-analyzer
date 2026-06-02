@@ -2,7 +2,7 @@
 name: backlog
 description: Add a longer-term idea to BACKLOG.md, in the voice of the product. Invoked by the user as `/backlog <the idea>`.
 model: sonnet
-allowed-tools: Read, Edit, Write
+allowed-tools: Read, Edit, Bash
 ---
 
 # backlog
@@ -16,11 +16,10 @@ research, design, or are lower priority right now.
 ## Steps
 
 1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root) — this is the product's soul.
-   Every item must answer to it: does the idea reveal an actionable gap,
-   honestly, at a glance? Use it to frame *why* the item matters and to phrase it
-   in the product's voice (neutral analyst; gap-focused; not a data dump).
-2. **Read `BACKLOG.md`** (repo root) — understand its current sections and style.
-   If it doesn't exist yet, create it with the same header structure as `TODO.md`.
+   Every item must answer to it: does the idea reveal an actionable gap, honestly,
+   at a glance? Use it to frame *why* the item matters and to phrase it in the
+   product's voice (neutral analyst; gap-focused; not a data dump).
+2. **Read `BACKLOG.md`** at the path below — understand its current sections and style.
 3. **Place the item.** Decide whether it belongs under an existing section or
    warrants a new `## BACKLOG:` header. Match the existing format exactly:
    - A `## BACKLOG: <short title>` header (only if it's a new section).
@@ -29,6 +28,17 @@ research, design, or are lower priority right now.
      it enables — and any obvious data source or open question.
 4. **Edit `BACKLOG.md`** to insert it. Keep it lightweight; do not rewrite or
    reorder existing items. Newest ideas go at the bottom of their section.
+5. **Commit** the change directly to main:
+   ```
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" add BACKLOG.md
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" commit -m "BACKLOG: <short title>"
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push
+   ```
+
+## Paths (always use these absolute paths)
+
+- Soul: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\PRODUCT_MANAGER_SOUL.md`
+- File: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\BACKLOG.md`
 
 ## Notes
 

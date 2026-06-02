@@ -2,7 +2,7 @@
 name: todo
 description: Add a backlog item to TODO.md, in the voice of the product. Invoked by the user as `/todo <the idea>`.
 model: sonnet
-allowed-tools: Read, Edit
+allowed-tools: Read, Edit, Bash
 ---
 
 # todo
@@ -14,10 +14,10 @@ Add this idea to `TODO.md`, framed against the product's guiding principles.
 ## Steps
 
 1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root) — this is the product's soul.
-   Every backlog item must answer to it: does the idea reveal an actionable gap,
-   honestly, at a glance? Use it to frame *why* the item matters and to phrase it
-   in the product's voice (neutral analyst; gap-focused; not a data dump).
-2. **Read `TODO.md`** (repo root) — understand its current sections and style
+   Every item must answer to it: does the idea reveal an actionable gap, honestly,
+   at a glance? Use it to frame *why* the item matters and to phrase it in the
+   product's voice (neutral analyst; gap-focused; not a data dump).
+2. **Read `TODO.md`** at the path below — understand its current sections and style
    (markdown `## TODO:` headers, a `>` blockquote restating the ask, then notes).
 3. **Place the item.** Decide whether it belongs under an existing section or
    warrants a new `## TODO:` section. Match the existing format exactly:
@@ -27,6 +27,17 @@ Add this idea to `TODO.md`, framed against the product's guiding principles.
      it enables — and any obvious data source or open question.
 4. **Edit `TODO.md`** to insert it. Keep it lightweight; do not rewrite or
    reorder existing items. Newest ideas go at the bottom of their section.
+5. **Commit** the change directly to main:
+   ```
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" add TODO.md
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" commit -m "TODO: <short title>"
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push
+   ```
+
+## Paths (always use these absolute paths)
+
+- Soul: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\PRODUCT_MANAGER_SOUL.md`
+- File: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\TODO.md`
 
 ## Notes
 

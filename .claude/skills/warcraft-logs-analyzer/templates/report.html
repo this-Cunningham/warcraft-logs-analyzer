@@ -490,6 +490,10 @@ function renderBosses(d){
   h+=cdUsageView(d);
   h+=rotationView(d);
 
+  /* 3d. Early aggro (threat pulls, table(Threat)) + focus-fire concentration (targetID) — new modalities. */
+  h+=threatPullsView(d);
+  h+=focusFireView(d);
+
   /* 4. Output quality (activity / overheal / damage taken / raid output) */
   const q=dp.quality;
   if(q){
@@ -779,6 +783,39 @@ function rotationView(d){
     h+=`</tbody></table></div>`;
   }
   return h;
+}
+// Early aggro — non-tank players who held the BOSS's aggro (a threat pull). Tier-wide, ours vs benchmark.
+function threatPullsView(d){
+  const rows=rowsOf(d.deep&&d.deep.threatPulls&&d.deep.threatPulls.rows);
+  if(!rows.length) return ""; // no pulls on either side → nothing to coach
+  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a non-tank held the <b>boss's</b> aggro — a threat pull (open softer, use Misdirection / Tricks of the Trade, or let the tank build threat first). Scoped to the named boss (not its adds) and to brief snaps — a sustained hold is an intended off-tank — so it <b>under-counts, never over-counts</b>. "Opener" pulls (first 30s) are the most fixable. Lower is better.</span></h2>
+    <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th class="role">earliest (yours)</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaLow(r.oursTotal,r.theirsTotal);
+    const op=r.oursOpener?` <span class="role">(${r.oursOpener} in opener)</span>`:"";
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.oursTotal}${op}</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirsTotal}</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num role">${r.oursEarliest!=null?fmtTime(r.oursEarliest*1000):"—"}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Focus-fire — on multi-target fights, avg share of raid damage on the most-focused enemy, ours vs benchmark.
+function focusFireView(d){
+  const rows=rowsOf(d.deep&&d.deep.focusFire);
+  if(!rows.length) return "";
+  let h=`<h2 class="section">Target Focus — Multi-Target Fights<span class="hint">On fights with multiple damage targets, the average share of raid damage landing on the single most-focused enemy at each moment, ours vs the benchmark (computed from the damage timeline — same data, no extra fetch). Higher = the raid concentrates fire; lower = damage is split across targets. The benchmark sets the bar: trailing it means you spread damage where they focus the priority. Only multi-target fights appear; single-target fights carry no signal. Descriptive of focus-vs-spread, not an absolute score.</span></h2>
+    <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th class="role">enemies hit</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaHigh(r.ours,r.theirs);
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num role">${r.oursTargets} vs ${r.theirsTargets}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
 }
 // Per-boss DPS-by-spec gap: mirrored bars (ours ← spec → theirs), ranked by per-player deficit so
 // the area we can most improve sits at the top. Only specs BOTH raids fielded — "who's missing a

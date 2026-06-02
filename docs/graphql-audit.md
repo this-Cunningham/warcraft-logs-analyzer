@@ -25,8 +25,17 @@ generates, the data flows, the JS validates):
   `uses` for cooldowns + casts for trinkets (disjoint sources). Captures hunters'/warriors' CDs correctly.
 - ✅ **Casts rotation / ability-mix** — per-spec cast-share vs benchmark, descriptive (neutral Δ).
 
-**Still a spike (not built):** **#3 focus-fire** — plan in [`focus-fire-spike-plan.md`](focus-fire-spike-plan.md);
-**#1 threat / early-aggro** — the cheaper next new-modality win (see verdict table below).
+- ✅ **#1 Threat / early-aggro** (`table(Threat)`) — "Early Aggro — Threat Pulls": per-boss count of a
+  non-tank holding the **named boss's** aggro, ours vs benchmark, opener-weighted; feeds the Overview
+  scorecard ("Pulling aggro in the opener"). Built the **scoped** version and **cut the naive
+  aggro-uptime %** exactly as the audit warned (it reads 131%/62% on multi-tank/phase fights).
+- ✅ **#3 Focus-fire — concentration (M1)** (`events.targetID`) — "Target Focus — Multi-Target Fights":
+  avg share of raid damage on the most-focused enemy, ours vs benchmark. Built it for **zero extra API
+  cost** by binning the Timeline's existing DamageDone pull by `targetID`. Only multi-target fights show.
+
+**Still a spike (not built):** **#3 Focus-fire — switch-latency (M2)** + named-add labels — plan in
+[`focus-fire-spike-plan.md`](focus-fire-spike-plan.md). Lower-priority leftovers: cross-guild leaderboard
+(redundant with parses), raid incoming-damage timeline (candidate B).
 
 ---
 

@@ -320,6 +320,27 @@ the static template, with no model in the path.
        **Descriptive, NOT scored** — a different cast mix can be gear/talent/fight-driven, not strictly
        "worse", so the diff is neutral (the soul's Dispels-view rule). Stays at the **spec** grain (no
        per-player breakdown). `min_share` drops trivial fillers so the rotation's backbone shows, not noise.
+     - **Early Aggro — Threat Pulls** (`threat_pulls` → `threatPullsView`, feeds the Overview scorecard) —
+       a **new modality** (`table(Threat)`, never used before): per shared boss, the count of times a
+       **non-tank** roster player held the **named boss's** aggro, ours vs benchmark, with an "opener"
+       count (first 30s) + earliest pull time. **Clean better/worse** (fewer = better → open softer /
+       Misdirection / Tricks). **Two scopings keep it honest (verified live):** (1) scoped to the target
+       whose name == the encounter boss — counting *all* enemies over-counts wildly on multi-add fights
+       (raw "tank aggro-uptime" reads **131%** on Al'ar with two tanks, **62%** on Kael across phases, so
+       that naive metric was deliberately NOT built); (2) scoped to **brief** bands (≤15s) — a sustained
+       hold is an intended off-tank, not a snap pull. Tanks + pets/non-roster actors excluded. It
+       **under-counts, never over-counts** (a long pull, or a parse-mis-roled feral off-tank, is dropped,
+       never falsely flagged). The **opener** count (cleanest — opener pulls are unambiguous, vs
+       mechanic-driven mid-fight threat churn) feeds the Biggest Gaps scorecard via `threat=`.
+     - **Target Focus — Multi-Target Fights** (`focus_view` → `focusFireView`) — focus-fire concentration:
+       on fights with multiple damage targets, the average share of raid damage on the single most-focused
+       enemy per time slice, ours vs benchmark (higher = concentrated fire, lower = split). **Computed off
+       the SAME DamageDone event pull the Timeline already does** (`_binned_curves` also bins `amount` by
+       `targetID`), so it adds **no API cost**. Only **multi-target** fights appear: `multiTarget` =
+       top-enemy share <80% of fight damage AND ≥2 enemies taking ≥5% each (single-target is ~100% by
+       definition — no signal). Descriptive of focus-vs-spread, benchmark as the bar. (The companion
+       **switch-latency-to-a-new-add** metric — M2 in `docs/focus-fire-spike-plan.md` — is not yet built;
+       concentration is M1.)
      - **Output Quality** — time-weighted **Raid DPS / Raid HPS**, avg DPS activity (`dd.activeTime`/
        duration), damage taken ex-tanks (`dt`, with an in-report **Per second / Overall** toggle that
        also switches the per-boss damage breakdowns), healer overheal (`heal.overheal`). (The old raw
@@ -442,9 +463,10 @@ the static template, with no model in the path.
        gap or say what to fix first. The benchmark-compared Same-Pack Matches and CC views carry the
        actionable trash signal; `trash_packs`/`trashPacksView`/`trashPull` and their CSS are gone.)*
 
-   Heavy tables (dd/heal/dt/intr/disp/**casts**/**deaths**) are fetched only for the shared bosses via
-   `fetch_report.py --full-encounters <ids>` since the responses are large. (`casts` powers the Rotation
-   view + the trinket half of Cooldown Usage.) `phaseTransitions` ride along on the cheap `fights` query
+   Heavy tables (dd/heal/dt/intr/disp/**casts**/**threat**/**deaths**) are fetched only for the shared
+   bosses via `fetch_report.py --full-encounters <ids>` since the responses are large. (`casts` powers the
+   Rotation view + the trinket half of Cooldown Usage; `threat` powers Early Aggro. Focus-fire concentration
+   needs no extra fetch — it's binned off the Timeline's existing DamageDone event pull by `targetID`.) `phaseTransitions` ride along on the cheap `fights` query
    (all kills) and **`report.phases`** (named phases) rides along there too, so both are always present.
    **Wipe/attempt counts + wipe depth** come from one extra cheap query per report
    (`fights(killType:Encounters){encounterID kill fightPercentage lastPhase}` → `attempts.json`);

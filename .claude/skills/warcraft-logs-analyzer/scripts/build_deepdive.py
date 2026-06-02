@@ -610,6 +610,57 @@ def timeline_view(o_curves, t_curves, o_deaths, t_deaths, o_lust, t_lust, o_dur,
     }
 
 
+def focus_view(o_tl, t_tl):
+    """Focus-fire concentration for a MULTI-TARGET boss: average share of raid damage on the single
+    most-focused enemy per time slice, ours vs the benchmark (from the timeline's per-slice `focus`
+    data — computed off the same event pull, no extra cost). Higher = the raid concentrates fire;
+    lower = damage split across targets. Returns None unless BOTH sides register as multi-target — a
+    single-target fight is ~100% by definition and carries no signal, so there's nothing to compare."""
+    of = (o_tl or {}).get("focus") or {}
+    tf = (t_tl or {}).get("focus") or {}
+    if not of.get("multiTarget") or not tf.get("multiTarget"):
+        return None
+
+    def avg_conc(f):
+        vals = [c for c in (f.get("conc") or []) if c is not None]
+        return round(sum(vals) / len(vals)) if vals else None
+
+    o_avg, t_avg = avg_conc(of), avg_conc(tf)
+    if o_avg is None or t_avg is None:
+        return None
+    return {"oursConc": o_avg, "theirsConc": t_avg,
+            "oursTargets": of.get("distinctTargets"), "theirsTargets": tf.get("distinctTargets")}
+
+
+def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_band_sec=15):
+    """Early-aggro / threat pulls: a NON-TANK roster player who held the NAMED BOSS's aggro (`table(Threat)`
+    bands). Scoped two ways to stay clean (both verified against real fights): (1) to the boss target by
+    name — counting all enemies over-counts badly on multi-add fights (Al'ar reads 131% tank-uptime, Kael
+    62%); (2) to BRIEF bands (<= max_band_sec) — a sustained hold is an intended off-tank, not a snap pull.
+    Tanks are excluded (holding aggro is their job); pets and non-roster actors are excluded (only roster
+    players count). This UNDER-counts rather than over-counts — a long pull, or a parse-mis-roled feral
+    off-tank, is dropped, never falsely flagged. Returns total pulls + opener (first `opener_sec`) +
+    earliest pull time."""
+    start = int(fight_info["start"])
+    threat = ((report.get("threat") or {}).get("data") or {}).get("threat") or []
+    pulls = []
+    for t in threat:
+        nm = t.get("name")
+        if nm not in role_map or role_map.get(nm) == "tank":
+            continue  # only roster non-tank players (tanks/pets/NPCs excluded)
+        for tg in (t.get("targets") or []):
+            if tg.get("name") != boss_name:
+                continue  # scope to the actual boss, not its adds
+            for b in (tg.get("bands") or []):
+                dur = (int(b["endTime"]) - int(b["startTime"])) / 1000.0
+                rel = (int(b["startTime"]) - start) / 1000.0
+                if 0 <= dur <= max_band_sec and rel >= 0:
+                    pulls.append(round(rel))
+    pulls.sort()
+    return {"total": len(pulls), "opener": sum(1 for r in pulls if r <= opener_sec),
+            "earliestSec": pulls[0] if pulls else None}
+
+
 # --- Dive Deeper output-quality extractors (heavy tables) ---
 def activity_pct(report, dur, dps_names):
     if not report.get("dd") or dur <= 0:
@@ -1285,7 +1336,7 @@ def _fmt_dur(ms):
 
 
 def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None,
-                 trash=None, death_causes=None, leaked=None, n=7):
+                 trash=None, death_causes=None, leaked=None, threat=None, n=7):
     """Score every tracked dimension by how far behind the benchmark we are, then surface the
     worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
     (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
@@ -1439,6 +1490,16 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
                 "on a cast you do kick. Assign a kick rotation.".format(
                     worst["oursLeaked"], worst["name"], "s" if worst["oursLeaked"] != 1 else "",
                     worst["theirsLeaked"]))
+
+    # Early aggro: a non-tank held a boss's aggro in the opener (first 30s) more than the benchmark.
+    # The cleanest threat signal (opener pulls are unambiguous, vs mechanic-driven mid-fight churn).
+    if threat:
+        do = (threat.get("oursOpener", 0) or 0) - (threat.get("theirsOpener", 0) or 0)
+        if do >= 1:
+            add(do / 3.0, "Pulling aggro in the opener",
+                "A non-tank held a boss's aggro in the first 30s {}× vs {}× for the benchmark — open "
+                "softer, or use Misdirection / Tricks of the Trade.".format(
+                    threat.get("oursOpener", 0), threat.get("theirsOpener", 0)))
 
     cand.sort(key=lambda c: -c["sev"])
     out = []
@@ -2207,6 +2268,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "deathCascade": death_cascades(o_deaths),
             "openerGap": opener_gap(o_tl, t_tl),
             "phases": phase_compare(ours_fights[enc], theirs_fights[enc], pn),
+            "threat": {"ours": threat_pulls(o_b, ours_fights[enc], ours_role, b["name"]),
+                       "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
+            "focus": focus_view(o_tl, t_tl),
             "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
                                       o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
         })
@@ -2257,6 +2321,23 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         cd_usage_pool(ours_dir, ours_idx, common_ids, ours_spec, ours_role, ours_cls, ours_fights),
         cd_usage_pool(theirs_dir, theirs_idx, common_ids, theirs_spec, theirs_role, theirs_cls, theirs_fights))
     tier_rot = tier_rotation(tier_o_rot, tier_t_rot)
+    # Tier-wide early-aggro (threat pulls) + focus-fire concentration, rolled up from the per-boss data.
+    threat_rows = []
+    for p in per_boss:
+        o = (p.get("threat") or {}).get("ours") or {}
+        t = (p.get("threat") or {}).get("theirs") or {}
+        if (o.get("total") or 0) or (t.get("total") or 0):
+            threat_rows.append({"boss": p["name"], "oursTotal": o.get("total", 0), "oursOpener": o.get("opener", 0),
+                                "theirsTotal": t.get("total", 0), "theirsOpener": t.get("opener", 0),
+                                "oursEarliest": o.get("earliestSec")})
+    threat_summary = {"rows": threat_rows,
+                      "oursTotal": ssum([r["oursTotal"] for r in threat_rows]),
+                      "theirsTotal": ssum([r["theirsTotal"] for r in threat_rows]),
+                      "oursOpener": ssum([r["oursOpener"] for r in threat_rows]),
+                      "theirsOpener": ssum([r["theirsOpener"] for r in threat_rows])}
+    focus_rows = [{"boss": p["name"], "ours": p["focus"]["oursConc"], "theirs": p["focus"]["theirsConc"],
+                   "oursTargets": p["focus"].get("oursTargets"), "theirsTargets": p["focus"].get("theirsTargets")}
+                  for p in per_boss if p.get("focus")]
 
     # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
     # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
@@ -2265,7 +2346,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
                                   tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash,
-                                  death_causes=death_causes_rows, leaked=leaked_rows)
+                                  death_causes=death_causes_rows, leaked=leaked_rows, threat=threat_summary)
     # "What You're Doing Well" — the same comparison, the other direction (where we lead the benchmark).
     did_well = strengths(summary, quality, consumables, audit, gaps,
                          tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash)
@@ -2279,6 +2360,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
+                 "threatPulls": threat_summary, "focusFire": focus_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
     }
     out_full = render_report(payload, out_file)

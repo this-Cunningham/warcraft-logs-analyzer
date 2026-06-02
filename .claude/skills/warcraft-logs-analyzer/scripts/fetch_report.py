@@ -45,6 +45,7 @@ FULL_Q = (
     "intr: table(dataType:Interrupts, fightIDs:$f) "
     "disp: table(dataType:Dispels, fightIDs:$f) "
     "casts: table(dataType:Casts, fightIDs:$f) "
+    "threat: table(dataType:Threat, fightIDs:$f) "
     "deaths: table(dataType:Deaths, fightIDs:$f)}}}"
 )
 
@@ -79,19 +80,26 @@ def _fetch_per_player_buffs(code, fid, player_ids):
 
 
 def _binned_curves(code, fid, start, end, n=40):
-    """Exact DPS/HPS-over-time curves for one fight.
+    """Exact DPS/HPS-over-time curves for one fight, plus FOCUS-FIRE concentration (free — same pull).
 
     Bins friendly DamageDone / Healing event `amount`s into `n` equal time buckets across the
     fight and divides each by the bucket width -> DPS/HPS per slice. This is computed from events
     on purpose: the cheaper `graph()` endpoint returns an opaque rolling rate (~2x true DPS, and
     the ratio drifts), which would contradict the exact time-weighted Raid DPS shown elsewhere in
     the report. Event-binning matches the table totals, so the timeline stays honest. Both reports
-    use the same fixed `n`, so the two curves overlay index-for-index on a 0-100%-of-fight axis."""
+    use the same fixed `n`, so the two curves overlay index-for-index on a 0-100%-of-fight axis.
+
+    The DamageDone events already carry `targetID`, so for **no extra API cost** we also bin damage
+    per target → focus concentration: in each slice, the share of raid damage on the single
+    most-damaged enemy (high = focused fire, low = damage split across targets). Used only on
+    multi-target fights (single-target fights are ~100% by definition and carry no signal)."""
     dur = max(1, int(end) - int(start))
     width = dur / n  # ms per bucket
 
-    def curve(dtype):
+    def curve(dtype, with_focus=False):
         buckets = [0.0] * n
+        tgt_bucket = [dict() for _ in range(n)] if with_focus else None  # bucket -> {targetID: dmg}
+        tgt_total = {} if with_focus else None                          # targetID -> total dmg (whole fight)
         cur = int(start)
         while cur is not None and cur < int(end):
             q = ("query Q($c:String!,$f:[Int]!,$st:Float!,$et:Float!){reportData{report(code:$c){"
@@ -100,16 +108,36 @@ def _binned_curves(code, fid, start, end, n=40):
             ev = lib.invoke_query(q, {"c": code, "f": [fid], "st": cur, "et": int(end)})["reportData"]["report"]["events"]
             for e in ev["data"]:
                 amt = e.get("amount") or 0
-                bi = int((e["timestamp"] - int(start)) // width)
-                buckets[min(max(bi, 0), n - 1)] += amt
+                bi = min(max(int((e["timestamp"] - int(start)) // width), 0), n - 1)
+                buckets[bi] += amt
+                if with_focus and amt:
+                    tid = e.get("targetID")
+                    if tid is not None:
+                        tgt_bucket[bi][tid] = tgt_bucket[bi].get(tid, 0) + amt
+                        tgt_total[tid] = tgt_total.get(tid, 0) + amt
             nxt = ev.get("nextPageTimestamp")
             if not nxt or nxt <= cur:
                 break
             cur = int(nxt)
         secs = width / 1000.0
-        return [round(b / secs) for b in buckets]
+        rates = [round(b / secs) for b in buckets]
+        if not with_focus:
+            return rates, None
+        # Per-slice focus concentration = top target's share of that slice's damage.
+        conc = []
+        for tb in tgt_bucket:
+            tot = sum(tb.values())
+            conc.append(round(100 * max(tb.values()) / tot) if tot > 0 else None)
+        grand = sum(tgt_total.values()) or 1
+        top_overall = (max(tgt_total.values()) / grand) if tgt_total else 1.0
+        n_sig = sum(1 for v in tgt_total.values() if v / grand >= 0.05)  # enemies taking >=5% of damage
+        focus = {"conc": conc, "topShareOverall": round(100 * top_overall), "distinctTargets": n_sig,
+                 "multiTarget": top_overall < 0.80 and n_sig >= 2}
+        return rates, focus
 
-    return {"durMs": dur, "n": n, "dps": curve("DamageDone"), "hps": curve("Healing")}
+    dps, focus = curve("DamageDone", with_focus=True)
+    hps, _ = curve("Healing")
+    return {"durMs": dur, "n": n, "dps": dps, "hps": hps, "focus": focus}
 
 
 # Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,

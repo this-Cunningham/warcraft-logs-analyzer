@@ -1,8 +1,10 @@
-# Focus-fire / target-switch latency — spike plan (for review, not yet built)
+# Focus-fire / target-switch latency — spike plan
 
-**Status:** plan only — nothing here is implemented. This is the design for candidate **#3** from the
-[GraphQL audit](graphql-audit.md) (the flagship time-resolved idea, also TODO #1). It's the heaviest of
-the audit candidates (event pulls), so it gets a written plan to approve *before* any code.
+**Status (updated 2026-06-02):** **M1 (focus concentration) is BUILT** — shipped as the "Target Focus —
+Multi-Target Fights" view (`focus_view` → `focusFireView`), computed for *zero extra API cost* by binning
+the Timeline's existing DamageDone pull by `targetID` (see `_binned_curves`). **M2 (switch-latency to a new
+add) and named-add labels remain unbuilt** — the rest of this doc is the design for those. This is
+candidate **#3** from the [GraphQL audit](graphql-audit.md) (the flagship time-resolved idea, also TODO #1).
 
 ## The gap it reveals
 

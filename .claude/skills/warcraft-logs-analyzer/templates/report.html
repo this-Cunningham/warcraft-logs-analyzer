@@ -324,13 +324,19 @@ function renderOverview(d){
     const rhps=b.oursRaidHps!=null?metricBars("Raid HPS",b.oursRaidHps,b.theirsRaidHps,fmtR,Math.max(b.oursRaidHps,b.theirsRaidHps,1),false):"";
     // Wipes only when at least one side had them (a 0-vs-0 bar is noise on a one-shot boss).
     const wipes=((b.oursWipes||0)+(b.theirsWipes||0))>0?metricBars("Wipes before kill",b.oursWipes||0,b.theirsWipes||0,x=>x,Math.max(b.oursWipes||0,b.theirsWipes||0,1),true):"";
+    // Wipe DEPTH: how close the best attempt got (boss HP% remaining) + the phase it died in — a clean
+    // ABSOLUTE progression read (where the wall is), shown only when we actually wiped this boss.
+    // Sub-1% reads "<1%" — avoids false precision on a near-kill (and on bosses whose health resets at a
+    // phase transition, e.g. Al'ar, where the raw fightPercentage can collapse to ~0 without being a kill).
+    const pctTxt=p=>p<1?"<1%":(Math.round(p*10)/10)+"%";
+    const wd=(b.oursWipes>0&&b.oursBestWipePct!=null)?`<p class="srcs" style="margin:-4px 0 10px">Best attempt: <b style="color:var(--ours)">${pctTxt(b.oursBestWipePct)}</b> boss HP remaining${b.oursBestWipePhase?` <span class="num">(${esc(b.oursBestWipePhase)})</span>`:""}${(b.theirsWipes>0&&b.theirsBestWipePct!=null)?` &nbsp;·&nbsp; benchmark <b style="color:var(--theirs)">${pctTxt(b.theirsBestWipePct)}</b>`:""}</p>`:"";
     h+=`<div class="bsub ${String(b.encounterID)===oat?'active':''}" data-otab="${b.encounterID}">
       <div class="boss"><h3>${esc(b.name)}<span class="badge">encounter ${b.encounterID}</span></h3>
       ${metricBars("Kill time",b.ours.durationMs,b.theirs.durationMs,fmtTime,Math.max(b.ours.durationMs,b.theirs.durationMs),true)}
       ${rdps}${rhps}
       ${metricBars("Avg parse",b.ours.avgParse,b.theirs.avgParse,x=>x,100,false)}
       ${metricBars("Deaths",b.ours.deaths,b.theirs.deaths,x=>x,Math.max(b.ours.deaths,b.theirs.deaths,1),true)}
-      ${wipes}
+      ${wipes}${wd}
       <div class="rostergrid">
         <div><h4 class="ours">${esc(d.ours.title)}</h4>${sideRosters(b.ours.players)}</div>
         <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${sideRosters(b.theirs.players)}</div>
@@ -479,6 +485,15 @@ function renderBosses(d){
 
   /* 3b. Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
   h+=leakedInterruptsView(d);
+
+  /* 3c. Cooldown usage (clean better/worse) + rotation / ability-mix (descriptive), from Casts. */
+  h+=cdUsageView(d);
+  h+=rotationView(d);
+
+  /* 3d. Early aggro (threat pulls), focus concentration, and per-target engagement — new modalities. */
+  h+=threatPullsView(d);
+  h+=focusFireView(d);
+  h+=targetEngagementView(d);
 
   /* 4. Output quality (activity / overheal / damage taken / raid output) */
   const q=dp.quality;
@@ -639,7 +654,7 @@ function phasesView(b){
     const o=r.oursMs||0,t=r.theirsMs||0;
     const d=deltaLow(Math.round(o/1000),Math.round(t/1000));
     const oS=oTot?Math.round(o/oTot*100):0, tS=tTot?Math.round(t/tTot*100):0;
-    h+=`<tr><td style="font-weight:600">Phase ${r.id}</td>
+    h+=`<tr><td style="font-weight:600">${r.name?esc(r.name):"Phase "+r.id}</td>
       <td><span class="cours">${fmtTime(o)}</span> <span class="num">(${oS}%)</span></td>
       <td><span class="cthe">${fmtTime(t)}</span> <span class="num">(${tS}%)</span></td>
       <td class="delta ${d.cls}">${d.txt}s</td></tr>`;
@@ -726,6 +741,109 @@ function leakedInterruptsView(d){
       <td class="num role">${r.oursKicked}×</td></tr>`;
   }
   return h+`</tbody></table>`;
+}
+// Cooldown usage by spec: tracked DPS cooldown/trinket activations per minute, pooled across bosses,
+// ours vs the benchmark's same spec. Clean better/worse — pressing them more is throughput.
+function cdUsageView(d){
+  const both=rowsOf(d.deep&&d.deep.tierCdUsage).filter(r=>r.both&&(r.ours>0||r.theirs>0));
+  if(!both.length) return "";
+  const max=Math.max(0.1,...both.map(r=>Math.max(r.ours,r.theirs)));
+  const w=v=>Math.max(2,Math.round(v/max*100));
+  const fmtC=v=>(Math.round(v*100)/100).toFixed(2);
+  let h=`<h2 class="section">Cooldown &amp; Trinket Usage — By Spec<span class="hint">Major on-demand DPS cooldowns and on-use trinkets fired per minute (normalized for fight length), each DPS spec ours vs the benchmark's same spec, pooled across all shared bosses. Pressing these on cooldown is free, repeatable throughput; a red bar means you sit on them more than the benchmark. Cooldowns are read from <b>buff applications</b> (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane Power, Icy Veins, Adrenaline Rush, Blade Flurry, Elemental Mastery, Blood Fury, Berserking, …) and trinkets from their <b>on-use cast</b> — in TBC each logs in only one of those places. Measured identically on both sides, so the gap is a fair like-for-like. Specs with no tracked cooldown aren't shown. Higher is better.</span></h2>
+    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Cooldown activations / min, by spec</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+  for(const r of both){
+    const diff=r.deficit; // theirs − ours; >0 = we fire fewer (bad)
+    const dcls=diff>0?"bad":(diff<0?"good":"flat");
+    const dtxt=(diff>0?"−":diff<0?"+":"")+fmtC(Math.abs(diff));
+    h+=`<div class="dval lo">${fmtC(r.ours)}</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
+      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
+      <div class="dval ro">${fmtC(r.theirs)}</div>
+      <div class="delta ${dcls}">${dtxt}</div>`;
+  }
+  return h+`</div></div>`;
+}
+// Rotation / ability mix: per spec (both raids fielded), how the cast composition differs from the
+// benchmark's same spec. DESCRIPTIVE (a different mix can be gear/talent/fight-driven, not strictly
+// worse), so neutral Δ with no good/bad coloring — same rule as the Dispels view. Spec-level only.
+function rotationView(d){
+  const rows=rowsOf(d.deep&&d.deep.tierRotation);
+  if(!rows.length) return "";
+  let h=`<h2 class="section">Rotation — Ability Mix<span class="hint">For each DPS spec both raids fielded, the share of that spec's casts spent on each ability, ours vs the benchmark's same spec (pooled across all shared bosses). The abilities whose share differs most are shown — a big gap can flag a rotation difference (too much filler, a missing maintenance cast, a different priority). <b>Descriptive, not scored:</b> a different mix isn't automatically worse, so read it as "here's how your rotation differs," then weigh it against the spec's playbook.</span></h2>`;
+  for(const r of rows){
+    h+=`<div style="margin:0 0 16px"><h4 style="color:${cc(r.class)};margin:0 0 6px">${esc(r.spec)} ${esc(r.class)}</h4>
+      <table><thead><tr><th>Ability</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ share</th></tr></thead><tbody>`;
+    for(const a of rowsOf(r.abilities)){
+      h+=`<tr><td style="font-weight:600">${esc(a.name)}</td>
+        <td class="num" style="color:var(--ours)">${a.ours}%</td>
+        <td class="num" style="color:var(--theirs)">${a.theirs}%</td>
+        <td class="num">${a.diff>0?"+":""}${a.diff} pts</td></tr>`;
+    }
+    h+=`</tbody></table></div>`;
+  }
+  return h;
+}
+// Early aggro — non-tank players who held the BOSS's aggro (a threat pull). Tier-wide, ours vs benchmark.
+function threatPullsView(d){
+  const rows=rowsOf(d.deep&&d.deep.threatPulls&&d.deep.threatPulls.rows);
+  if(!rows.length) return ""; // no pulls on either side → nothing to coach
+  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a non-tank held the <b>boss's</b> aggro — a threat pull (open softer, use Misdirection / Tricks of the Trade, or let the tank build threat first). Scoped to the named boss (not its adds) and to brief snaps — a sustained hold is an intended off-tank — so it <b>under-counts, never over-counts</b>. "Opener" pulls (first 30s) are the most fixable. Lower is better.</span></h2>
+    <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th class="role">earliest (yours)</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaLow(r.oursTotal,r.theirsTotal);
+    const op=r.oursOpener?` <span class="role">(${r.oursOpener} in opener)</span>`:"";
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.oursTotal}${op}</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirsTotal}</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num role">${r.oursEarliest!=null?fmtTime(r.oursEarliest*1000):"—"}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Focus-fire — on multi-target fights, avg share of raid damage on the most-focused enemy, ours vs benchmark.
+function focusFireView(d){
+  const rows=rowsOf(d.deep&&d.deep.focusFire);
+  if(!rows.length) return "";
+  let h=`<h2 class="section">Target Focus — Multi-Target Fights<span class="hint">On fights where damage is genuinely split across enemies, the average share of raid damage on the single most-focused enemy per slice, ours vs the benchmark (computed from the damage timeline — no extra fetch). Higher = the raid concentrates fire; lower = damage spread. The benchmark sets the bar. Only multi-target fights appear. Descriptive of focus-vs-spread.</span></h2>
+    <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th class="role">enemies hit</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaHigh(r.ours,r.theirs);
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num role">${r.oursTargets} vs ${r.theirsTargets}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Enemy targets — per boss, every named target (the BOSS, flagged, plus its adds): when it first appeared
+// (first hit ≈ spawn) and how long it was engaged/survived (median, first hit→last), ours vs benchmark.
+// DESCRIPTIVE (a long-lived add can be intentional — e.g. holding Al'ar's embers until called), so the Δ is
+// neutral, like Dispels. Surfaces things like "when the Kael'thas weapons spawn" and how each raid cleared
+// them; the boss row anchors the timeline (and on multi-phase bosses, engaged span < kill time is telling).
+function targetEngagementView(d){
+  const bosses=rowsOf(d.deep&&d.deep.targetEngagement).filter(b=>rowsOf(b.targets).length);
+  if(!bosses.length) return "";
+  let h=`<h2 class="section">Enemy Targets — Engagement &amp; Survival<span class="hint">For each fight with more than one target, every enemy by name — the <b>boss</b> (tagged) and its <b>adds</b>: <b>first seen</b> (time of first damage — a proxy for spawn, since true spawn times aren't exposed) and how long it was <b>engaged / survived</b> (median, first hit → last), ours vs the benchmark, with counts. Reads top-to-bottom as the fight's target timeline. <b>Descriptive, not scored</b> — a longer-lived add is sometimes intentional (holding it until called), and a boss's engaged span can be shorter than kill time when it's untargetable in phases; read it against your plan. Single-target fights are omitted (the boss's span just restates kill time).</span></h2>`;
+  for(const b of bosses){
+    h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>
+      <table><thead><tr><th>Target</th><th>First seen</th><th>Engaged · ${esc(d.ours.title)}</th><th>· ${esc(d.theirs.title)}</th><th>Δ</th><th class="role">count (you vs bench)</th></tr></thead><tbody>`;
+    for(const a of rowsOf(b.targets)){
+      const both=a.oursLife!=null&&a.theirsLife!=null;
+      const dtxt=both?((a.oursLife-a.theirsLife>0?"+":(a.oursLife-a.theirsLife<0?"−":""))+Math.abs(Math.round((a.oursLife-a.theirsLife)*10)/10)+"s"):"—";
+      const tag=a.isBoss?` <span class="role" style="color:var(--theirs)">boss</span>`:"";
+      h+=`<tr><td style="font-weight:600">${esc(a.name)}${tag}</td>
+        <td class="num">${a.firstSec!=null?fmtTime(a.firstSec*1000):"—"}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${a.oursLife!=null?a.oursLife+"s":"—"}</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${a.theirsLife!=null?a.theirsLife+"s":"—"}</td>
+        <td class="num">${dtxt}</td>
+        <td class="num role">${a.oursCount} vs ${a.theirsCount}</td></tr>`;
+    }
+    h+=`</tbody></table></div>`;
+  }
+  return h;
 }
 // Per-boss DPS-by-spec gap: mirrored bars (ours ← spec → theirs), ranked by per-player deficit so
 // the area we can most improve sits at the top. Only specs BOTH raids fielded — "who's missing a

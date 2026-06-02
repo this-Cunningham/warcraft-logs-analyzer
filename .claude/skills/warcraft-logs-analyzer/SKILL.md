@@ -201,7 +201,11 @@ the static template, with no model in the path.
      **Boss-by-Boss** section with one **sub-tab per boss** (`mountOverview()` wires the
      `.btab[data-otab]` / `.bsub[data-otab]` toggle) — each boss panel shows kill time, **Raid DPS** /
      **Raid HPS** comparison bars (per-boss total dmg/heal ÷ duration), avg parse, deaths, **wipes
-     before the kill** (shown only when either raid wiped), and both rosters side by side. Each side's
+     before the kill** (shown only when either raid wiped), **wipe depth** (when we wiped this boss:
+     "Best attempt: X% boss HP remaining (PhaseName)" — `attempt_map` tracks the closest wipe's
+     `fightPercentage` + `lastPhase`; a clean ABSOLUTE progression read of where the wall is. Sub-1%
+     renders "<1%" to avoid false precision on phase-reset bosses like Al'ar whose `fightPercentage`
+     can collapse to ~0 without being a kill), and both rosters side by side. Each side's
      roster renders as a **DPS/tanks table + a SEPARATE Healers table** (`sideRosters` → `rosterTable`):
      healer parses are HPS-based (see the parse-metric caveat below), so they get their own table with an
      **HPS** column rather than being mixed into a DPS-labeled one.
@@ -296,6 +300,60 @@ the static template, with no model in the path.
        an interruptible ability the raid NEVER attempted to kick is absent from the table entirely, so this
        **under-counts, never over-counts**. The worst improvable leak (delta ≥ 2) also feeds the Overview
        Biggest Gaps scorecard via the `leaked=` arg.
+     - **Cooldown & Trinket Usage** (`cd_usage_pool`/`tier_cd_usage` → `cdUsageView`) — major on-demand
+       DPS cooldowns + on-use trinkets fired **per minute**, pooled by (class, primary spec) across the
+       shared bosses, ours vs the benchmark's same spec (mirrored bars, biggest deficit first; specs only
+       one raid fielded and specs with no tracked cooldown are dropped). **Clean better/worse** — pressing
+       them on cooldown is repeatable throughput. **Data sourcing is the subtle part (verified live):** in
+       TBC the marquee off-GCD cooldowns (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane
+       Power, Icy Veins, …) generate **no cast events** — they log only as **buffs** with a `totalUses`
+       count — so `cd_usage_pool` reads the per-player buff `uses` (the `consumes-<enc>.json` files) for
+       cooldowns (`COOLDOWN_NAMES`). **Trinkets are the mirror image:** a trinket's *use* logs as a cast
+       under its item name, but its resulting buff is renamed by WCL to the effect ("Haste"), so trinkets
+       (`TRINKET_NAMES`) are read from the **Casts** table. The two sources are disjoint, so they never
+       double-count. Both sides are measured identically, so the gap is a fair like-for-like even where a
+       given cooldown isn't logged. Extend the name sets as new tiers surface more.
+     - **Rotation — Ability Mix** (`rotation_buckets`/`tier_rotation` → `rotationView`) — for each DPS spec
+       both raids fielded, the **share** of that spec's casts spent on each ability, ours vs the benchmark's
+       same spec (pooled across shared bosses; the abilities whose share differs most are shown). Built from
+       the **Casts** table (`dd.abilities` only covers damaging abilities; Casts covers the whole rotation).
+       **Descriptive, NOT scored** — a different cast mix can be gear/talent/fight-driven, not strictly
+       "worse", so the diff is neutral (the soul's Dispels-view rule). Stays at the **spec** grain (no
+       per-player breakdown). `min_share` drops trivial fillers so the rotation's backbone shows, not noise.
+     - **Early Aggro — Threat Pulls** (`threat_pulls` → `threatPullsView`, feeds the Overview scorecard) —
+       a **new modality** (`table(Threat)`, never used before): per shared boss, the count of times a
+       **non-tank** roster player held the **named boss's** aggro, ours vs benchmark, with an "opener"
+       count (first 30s) + earliest pull time. **Clean better/worse** (fewer = better → open softer /
+       Misdirection / Tricks). **Two scopings keep it honest (verified live):** (1) scoped to the target
+       whose name == the encounter boss — counting *all* enemies over-counts wildly on multi-add fights
+       (raw "tank aggro-uptime" reads **131%** on Al'ar with two tanks, **62%** on Kael across phases, so
+       that naive metric was deliberately NOT built); (2) scoped to **brief** bands (≤15s) — a sustained
+       hold is an intended off-tank, not a snap pull. Tanks + pets/non-roster actors excluded. It
+       **under-counts, never over-counts** (a long pull, or a parse-mis-roled feral off-tank, is dropped,
+       never falsely flagged). The **opener** count (cleanest — opener pulls are unambiguous, vs
+       mechanic-driven mid-fight threat churn) feeds the Biggest Gaps scorecard via `threat=`.
+     - **Target Focus — Multi-Target Fights** (`focus_view` → `focusFireView`) — avg share of raid damage on
+       the single most-focused enemy per time slice, ours vs benchmark (higher = concentrated fire, lower =
+       split). **Computed off the SAME DamageDone event pull the Timeline already does** (`_binned_curves`
+       also bins `amount` by `targetID`), so **no API cost**. Shown only when **both** sides are genuinely
+       multi-target: `multiTarget` = top-enemy share <80% of fight damage AND ≥2 enemies ≥5% (a single-target
+       burn is ~100% — no signal). Descriptive of focus-vs-spread.
+     - **Enemy Targets — Engagement & Survival** (`target_engagement`/`_targets_by_name` →
+       `targetEngagementView`) — per boss with >1 target, **every enemy by name** (from `masterData` NPCs)
+       — the **boss itself** (tagged `isBoss`) **and** its adds: when each **first appeared** (first-damage
+       time — a spawn proxy, since true spawn times aren't exposed; the `summon` events are player totems)
+       and how long it was **engaged / survived** (median first-hit→last), ours vs benchmark, with counts.
+       Sorted chronologically, so it reads as the fight's target timeline (Kael'thas: advisors → all 7
+       weapons at ~2:20 → Phoenix; Al'ar's embers; Kael himself first-seen 5:29, engaged 217s of a 546s
+       fight — i.e. untargetable in P1–3, which kill time alone can't show). **Including the boss is the
+       point on multi-phase and COUNCIL fights** (Illidari Council / High King Maulgar — every member shows,
+       the name-matched one tagged boss). Boss = target whose name == the encounter (fallback: top-damage
+       target — never hardcoded). Non-boss targets <1% of fight damage are dropped (stray cleave); a
+       lone-boss single-target fight returns nothing (its span just restates kill time). **Descriptive, NOT
+       scored** — a longer-lived add can be intentional (holding it until called), so the Δ is neutral (the
+       soul's Dispels-view rule); the leader reads it against their plan. (Tracks per-(targetID,instance)
+       damage spans in `_binned_curves` — no extra fetch. The literal "switch-latency / spawn→engage" idea
+       is a verified dead-end: spawn times aren't exposed, so engagement/survival is the buildable cousin.)
      - **Output Quality** — time-weighted **Raid DPS / Raid HPS**, avg DPS activity (`dd.activeTime`/
        duration), damage taken ex-tanks (`dt`, with an in-report **Per second / Overall** toggle that
        also switches the per-boss damage breakdowns), healer overheal (`heal.overheal`). (The old raw
@@ -349,8 +407,11 @@ the static template, with no model in the path.
        removes heavily while we ignore is a dispel-priority gap. **Kept per-boss on purpose** — aggregating
        tier-wide would lose which fight a dispel happened on / where it's being prioritized.
      - **Phases** — per-phase duration + share of kill with a delta, from `fight.phaseTransitions`
-       (single-phase fights show a graceful note). TBC has no phase *names*, so phases are
-       numbered.
+       (single-phase fights show a graceful note). **Phase NAMES** come from the report-level
+       `report.phases` field (`PhaseMetadata{id,name}`), which IS populated in TBC for scripted
+       multi-phase bosses (e.g. Kael'thas "P5: Gravity Lapse") — `phaseTransitions` itself carries
+       only id+time, so the two are joined by phase id (`phase_name_map`). Bosses with no named
+       phases fall back to "Phase N"; everything is graceful on data folders predating the field.
    - **Trash** (a whole-night view of how the raid handles trash — `build_trash()` →
      `renderTrash()`): WCL already splits trash into discrete pull **segments** (`fights(killType:Trash)`),
      each auto-named after its notable mob, with `enemyNPCs` (mob ids + counts) and `masterData.actors`
@@ -415,12 +476,15 @@ the static template, with no model in the path.
        gap or say what to fix first. The benchmark-compared Same-Pack Matches and CC views carry the
        actionable trash signal; `trash_packs`/`trashPacksView`/`trashPull` and their CSS are gone.)*
 
-   Heavy tables (dd/heal/dt/intr/disp/**deaths**) are fetched only for the shared bosses via
-   `fetch_report.py --full-encounters <ids>` since the responses are large. `phaseTransitions`
-   ride along on the cheap `fights` query (all kills), so they're always present. **Wipe/attempt
-   counts** come from one extra cheap query per report (`fights(killType:Encounters){encounterID kill}`
-   → `attempts.json`); `attempt_map` in build_deepdive tallies kills vs wipes per boss (graceful — an
-   older data folder without `attempts.json` just builds without the wipe views).
+   Heavy tables (dd/heal/dt/intr/disp/**casts**/**threat**/**deaths**) are fetched only for the shared
+   bosses via `fetch_report.py --full-encounters <ids>` since the responses are large. (`casts` powers the
+   Rotation view + the trinket half of Cooldown Usage; `threat` powers Early Aggro. Focus-fire concentration
+   needs no extra fetch — it's binned off the Timeline's existing DamageDone event pull by `targetID`.) `phaseTransitions` ride along on the cheap `fights` query
+   (all kills) and **`report.phases`** (named phases) rides along there too, so both are always present.
+   **Wipe/attempt counts + wipe depth** come from one extra cheap query per report
+   (`fights(killType:Encounters){encounterID kill fightPercentage lastPhase}` → `attempts.json`);
+   `attempt_map` in build_deepdive tallies kills vs wipes per boss AND the closest wipe's depth+phase
+   (graceful — an older data folder without `attempts.json` just builds without the wipe views).
 
    **Timeline curves** (`timeline-<enc>.json`, shared bosses only) power the per-boss Timeline sub-tab.
    `_binned_curves` in fetch_report pages **DamageDone + Healing events** and bins `amount` into 40
@@ -458,6 +522,21 @@ the static template, with no model in the path.
   **auras in the `Buffs` table** with a `totalUses` count, which is how the Consumables Coverage
   panel surfaces them. Potion buff names ("Destruction", "Haste", etc.) are matched via a curated
   `POTION_NAMES` set and are approximate (a few names can come from non-potion sources).
+- **Cooldowns log as BUFFS, not casts, in TBC (verified).** The marquee off-GCD DPS cooldowns
+  (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane Power, Icy Veins, …) generate **no cast
+  events** — they appear only in the `Buffs` table with a `totalUses` (activation) count. So the
+  Cooldown & Trinket Usage view reads per-player buff `uses` (`COOLDOWN_NAMES`, from the per-player
+  `consumes-<enc>.json`). **On-use trinkets are the inverse:** their *use* logs as a cast under the
+  item name, but the resulting buff is renamed to the effect ("Haste"), so trinkets (`TRINKET_NAMES`)
+  are read from the `Casts` table. The two sources are disjoint — no double-count.
+- **Wipe depth** uses `ReportFight.fightPercentage` (boss HP% remaining at the wipe) + `lastPhase`,
+  ridden along on the `fights(killType:Encounters)` attempts query. Populated and meaningful (Kael'thas
+  21.6%, P5), but **phase-reset bosses (e.g. Al'ar) can report ~0% on a non-kill wipe**, so the report
+  shows sub-1% as "<1%" rather than a falsely-precise "0.0%". `wipeCalledTime` is null (Companion-app
+  only — dead). `lastPhase` is 0 on short/non-phased fights — only trust it where named phases exist.
+- **Phase NAMES exist via `report.phases` (PhaseMetadata), even in TBC** — corrects the earlier
+  "TBC has no phase names" note, which was only true of `phaseTransitions` (id+time). Only scripted
+  multi-phase bosses carry them; joined to phase transitions by id (`phase_name_map`).
 - Enchant audit checks core slots only (Head, Shoulder, Chest, Legs, Feet, Wrist,
   Hands, Back, Weapon). Rings (enchanter-only) and offhand/ranged are excluded to
   avoid false "missing" flags. Empty slots (`id:0`) are skipped.
@@ -483,11 +562,12 @@ the static template, with no model in the path.
   CC needs differ by strategy (an AoE-zerg comp uses little CC) — both are framed as "here's how you
   differ from the benchmark," never scored, per the product soul.
 
-**Next-pass ideas (proven data pattern, not yet built):** DPS/healer cooldown usage
-(`Casts` filtered to CD ability IDs — Combustion, Recklessness, Death Wish, trinkets,
-Power Infusion, racials), per-class rotation / ability-mix comparison (`dd.abilities[]`
-already fetched — compare a player to the benchmark's best same-spec player), death
-timeline & cause (`Deaths` table timestamps + killing blow).
+**Shipped from the next-pass list:** death timeline & cause (Deaths timing/cascade + "What's Killing
+Us"); **cooldown/trinket usage** (Cooldown & Trinket Usage view — note the correction below: in TBC
+cooldowns log as **buffs**, not casts, so it reads buff `uses`, with trinkets from casts); **rotation /
+ability-mix** (Rotation view, from the `Casts` table at the spec grain, descriptive). **Still open:**
+threat / early-aggro (`table(Threat)` — a spike, see `docs/graphql-audit.md`), focus-fire / target-switch
+latency (`events.targetID` — a spike, plan in `docs/focus-fire-spike-plan.md`).
 
 For a single-raid (non-comparison) report, reuse the same template/JS by
 emitting one "team" or extend the template — the data shape is documented inline.

@@ -519,7 +519,37 @@ def fight_map(directory):
     return m
 
 
-KEY_BUFFS = ["Bloodlust", "Heroism", "Battle Shout", "Blessing of Kings", "Gift of the Wild",
+def phase_name_map(directory):
+    """encounterID(str) -> {phaseId(int): name} from report.phases (PhaseMetadata). report.phases
+    carries the human phase NAMES (e.g. "P5: Gravity Lapse") that phaseTransitions lacks — populated
+    in TBC only for scripted multi-phase bosses, so this is naturally empty for the rest and for data
+    folders that predate the field (everything downstream falls back to "Phase N")."""
+    try:
+        rep = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]
+    except (OSError, KeyError, ValueError):
+        return {}
+    out = {}
+    for ep in (rep.get("phases") or []):
+        names = {int(pm["id"]): pm["name"] for pm in (ep.get("phases") or [])
+                 if pm.get("id") is not None and pm.get("name")}
+        if names:
+            out[str(ep.get("encounterID"))] = names
+    return out
+
+
+def npc_name_map(directory):
+    """report actor id -> name, from the report-wide masterData NPCs on fights.json. Lets the
+    add-handling view name each enemy (Ember of Al'ar, Phaseshift Bulwark, …) and identify the BOSS
+    by name so it's never mistaken for an add. Graceful {} on data folders predating the masterData fetch."""
+    try:
+        rep = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]
+    except (OSError, KeyError, ValueError):
+        return {}
+    return {int(a["id"]): a.get("name") for a in (((rep.get("masterData") or {}).get("npcs")) or [])
+            if a.get("id") is not None}
+
+
+KEY_BUFFS =["Bloodlust", "Heroism", "Battle Shout", "Blessing of Kings", "Gift of the Wild",
              "Ferocious Inspiration", "Leader of the Pack", "Drums of Battle", "Arcane Brilliance", "Windfury"]
 KEY_DEBUFFS = ["Sunder Armor", "Expose Armor", "Curse of the Elements", "Faerie Fire", "Misery",
                "Judgement of Wisdom", "Judgement of the Crusader", "Demoralizing Shout"]
@@ -590,6 +620,121 @@ def timeline_view(o_curves, t_curves, o_deaths, t_deaths, o_lust, t_lust, o_dur,
         "ours": _side_timeline(o_curves, o_deaths, o_lust, o_dur, o_info),
         "theirs": _side_timeline(t_curves, t_deaths, t_lust, t_dur, t_info),
     }
+
+
+def focus_view(o_tl, t_tl):
+    """Focus-fire concentration for a MULTI-TARGET boss: average share of raid damage on the single
+    most-focused enemy per time slice, ours vs the benchmark (from the timeline's per-slice `focus`
+    data — computed off the same event pull, no extra cost). Higher = the raid concentrates fire;
+    lower = damage split across targets. Returns None unless BOTH sides register as multi-target — a
+    single-target fight is ~100% by definition and carries no signal, so there's nothing to compare."""
+    of = (o_tl or {}).get("focus") or {}
+    tf = (t_tl or {}).get("focus") or {}
+    if not of.get("multiTarget") or not tf.get("multiTarget"):
+        return None
+
+    def avg_conc(f):
+        vals = [c for c in (f.get("conc") or []) if c is not None]
+        return round(sum(vals) / len(vals)) if vals else None
+
+    oc, tc = avg_conc(of), avg_conc(tf)
+    if oc is None or tc is None:
+        return None
+    return {"oursConc": oc, "theirsConc": tc,
+            "oursTargets": of.get("distinctTargets"), "theirsTargets": tf.get("distinctTargets")}
+
+
+def _targets_by_name(tl, npc_map, boss_name):
+    """Per enemy NAME on one side: {count, medLifeSec, firstSec, isBoss}. Includes the BOSS (flagged
+    `isBoss`) so it anchors the timeline and council / multi-boss fights surface every member. The boss is
+    the target whose name == the encounter (fallback: the single highest-damage target — never hardcoded).
+    Non-boss targets below 1% of fight damage are dropped as stray-cleave noise. Every real add is kept,
+    long-lived ones included (a raid may hold an add by design). Lifespans are per-instance first-hit→last."""
+    spans = ((tl or {}).get("focus") or {}).get("targetSpans") or {}
+    if not spans:
+        return {}
+    total = sum(s.get("dmg", 0) for s in spans.values()) or 1
+    name_match = {tid for tid, s in spans.items() if (npc_map.get(int(tid)) or "") == boss_name}
+    boss_ids = name_match or {max(spans, key=lambda k: spans[k].get("dmg", 0))}
+    agg = {}
+    for tid, s in spans.items():
+        nm = npc_map.get(int(tid))
+        lifes = s.get("lifespans") or []
+        if not nm or not lifes:
+            continue
+        rec = agg.setdefault(nm, {"count": 0, "lifes": [], "firstSec": None, "dmg": 0, "isBoss": False})
+        rec["count"] += len(lifes)
+        rec["lifes"].extend(lifes)
+        rec["dmg"] += s.get("dmg", 0)
+        if tid in boss_ids:
+            rec["isBoss"] = True
+        fs = s.get("firstSec")
+        if fs is not None and (rec["firstSec"] is None or fs < rec["firstSec"]):
+            rec["firstSec"] = fs
+    out = {}
+    for nm, r in agg.items():
+        if not r["isBoss"] and r["dmg"] / total < 0.01:  # stray-cleave noise (non-boss, <1% of fight damage)
+            continue
+        out[nm] = {"count": r["count"], "firstSec": r["firstSec"], "isBoss": r["isBoss"],
+                   "medLife": round(sorted(r["lifes"])[len(r["lifes"]) // 2], 1)}
+    return out
+
+
+def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
+    """Per enemy TYPE (by name) — the boss AND its adds: when each first appeared (first-damage time, a
+    spawn proxy — true spawn times aren't exposed) and how long it was engaged / survived (median
+    first-hit→last), ours vs benchmark, with counts + an `isBoss` flag. DESCRIPTIVE, not scored — a
+    longer-lived add can be intentional (e.g. holding Al'ar's embers until called), so the leader reads it
+    against their plan, like the Dispels view. Sorted by first-appearance, so it reads as the fight's
+    target timeline (e.g. Kael'thas: advisors → all 7 weapons at ~2:20 → Phoenix). Returns [] for a
+    lone-boss (single-target) fight — there the boss's engaged span just restates the kill time shown
+    elsewhere, so there's nothing extra to say."""
+    oa = _targets_by_name(o_tl, o_npc, boss_name)
+    ta = _targets_by_name(t_tl, t_npc, boss_name)
+    names = set(oa) | set(ta)
+    if len(names) < 2:  # lone boss → nothing beyond kill time
+        return []
+    rows = []
+    for nm in names:
+        o, t = oa.get(nm), ta.get(nm)
+        first = (o or {}).get("firstSec")
+        if first is None:
+            first = (t or {}).get("firstSec")
+        rows.append({"name": nm, "isBoss": bool((o or {}).get("isBoss") or (t or {}).get("isBoss")),
+                     "firstSec": first,
+                     "oursLife": o["medLife"] if o else None, "theirsLife": t["medLife"] if t else None,
+                     "oursCount": o["count"] if o else 0, "theirsCount": t["count"] if t else 0})
+    rows.sort(key=lambda r: (r["firstSec"] if r["firstSec"] is not None else 1e9))
+    return rows
+
+
+def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_band_sec=15):
+    """Early-aggro / threat pulls: a NON-TANK roster player who held the NAMED BOSS's aggro (`table(Threat)`
+    bands). Scoped two ways to stay clean (both verified against real fights): (1) to the boss target by
+    name — counting all enemies over-counts badly on multi-add fights (Al'ar reads 131% tank-uptime, Kael
+    62%); (2) to BRIEF bands (<= max_band_sec) — a sustained hold is an intended off-tank, not a snap pull.
+    Tanks are excluded (holding aggro is their job); pets and non-roster actors are excluded (only roster
+    players count). This UNDER-counts rather than over-counts — a long pull, or a parse-mis-roled feral
+    off-tank, is dropped, never falsely flagged. Returns total pulls + opener (first `opener_sec`) +
+    earliest pull time."""
+    start = int(fight_info["start"])
+    threat = ((report.get("threat") or {}).get("data") or {}).get("threat") or []
+    pulls = []
+    for t in threat:
+        nm = t.get("name")
+        if nm not in role_map or role_map.get(nm) == "tank":
+            continue  # only roster non-tank players (tanks/pets/NPCs excluded)
+        for tg in (t.get("targets") or []):
+            if tg.get("name") != boss_name:
+                continue  # scope to the actual boss, not its adds
+            for b in (tg.get("bands") or []):
+                dur = (int(b["endTime"]) - int(b["startTime"])) / 1000.0
+                rel = (int(b["startTime"]) - start) / 1000.0
+                if 0 <= dur <= max_band_sec and rel >= 0:
+                    pulls.append(round(rel))
+    pulls.sort()
+    return {"total": len(pulls), "opener": sum(1 for r in pulls if r <= opener_sec),
+            "earliestSec": pulls[0] if pulls else None}
 
 
 # --- Dive Deeper output-quality extractors (heavy tables) ---
@@ -737,11 +882,18 @@ def attempt_map(directory):
         enc = str(f.get("encounterID"))
         if not enc or enc == "0":
             continue
-        rec = out.setdefault(enc, {"kills": 0, "wipes": 0})
+        rec = out.setdefault(enc, {"kills": 0, "wipes": 0, "bestWipePct": None, "bestWipePhase": None})
         if f.get("kill"):
             rec["kills"] += 1
         else:
             rec["wipes"] += 1
+            # Wipe DEPTH: the closest attempt = the wipe with the LOWEST boss-HP% remaining
+            # (fightPercentage). Track it + the phase it died in, so a progression wall surfaces
+            # ("best Kael'thas attempt: 21.6%, P5"). fightPercentage may be absent on older data.
+            pct = f.get("fightPercentage")
+            if pct is not None and (rec["bestWipePct"] is None or float(pct) < rec["bestWipePct"]):
+                rec["bestWipePct"] = round(float(pct), 1)
+                rec["bestWipePhase"] = f.get("lastPhase")
     for rec in out.values():
         rec["attempts"] = rec["kills"] + rec["wipes"]
     return out
@@ -783,6 +935,139 @@ def tier_uptime_gap(acc):
         rows.append({"name": name, "kind": rec["kind"], "ours": o_avg, "theirs": t_avg,
                      "deficit": t_avg - o_avg})
     rows.sort(key=lambda r: -r["deficit"])
+    return rows
+
+
+# ---------- CASTS: cooldown/trinket usage + rotation (ability mix) ----------
+# Major on-demand DPS cooldowns, classified by NAME. **Sourced from BUFFS, not Casts:** verified live
+# in TBC, the marquee off-GCD cooldowns (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane
+# Power, Icy Veins, ...) generate NO cast events — they log only as buffs, where the table carries a
+# `totalUses` (= activation) count. Reading them from Casts silently missed hunters'/warriors' signature
+# CDs entirely; reading the per-player buff `uses` captures them. (Trinkets are the opposite — see below.)
+COOLDOWN_NAMES = {
+    "Death Wish", "Recklessness",                                                # Warrior
+    "Adrenaline Rush", "Blade Flurry",                                           # Rogue
+    "Arcane Power", "Icy Veins", "Combustion", "Presence of Mind", "Cold Snap",  # Mage
+    "Rapid Fire", "Bestial Wrath",                                               # Hunter
+    "Elemental Mastery",                                                         # Shaman (Elemental)
+    "Power Infusion",                                                            # Priest burst (often onto a DPS)
+    "Blood Fury", "Berserking",                                                  # Racials (Orc / Troll)
+}
+# On-use DPS trinkets, classified by NAME — sourced from CASTS, the mirror image of the cooldowns above:
+# a trinket's USE logs as a cast under its item name, but its resulting BUFF is renamed by WCL to the
+# effect ("Haste", etc.), so the buff table can't be matched by item name. Casts is the right source.
+# Disjoint from COOLDOWN_NAMES (CDs←buffs, trinkets←casts), so the two never double-count. Extensible.
+TRINKET_NAMES = {
+    "Abacus of Violent Odds", "Bloodlust Brooch", "Icon of the Silver Crescent", "Shard of Contempt",
+    "Berserker's Call", "Bladefist's Breadth", "Shifting Naaru Sliver", "Hourglass of the Unraveller",
+}
+
+
+def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights):
+    """Per (class, primary spec) DPS cooldown+trinket activations PER MINUTE, pooled across shared bosses.
+    Combines TWO sources per player so neither blind spot bites (and they can't double-count, being
+    disjoint): buff `uses` for the cooldowns (consumes-<enc>.json — the only place TBC records them) and
+    cast `total` for on-use trinkets (boss-<enc>.json Casts — where trinkets keep their item name).
+    Per-player so we can bucket by spec; normalized by fight length so a longer fight doesn't inflate it.
+    Graceful: a boss with no consumes file (older data / non-shared) is skipped."""
+    name_to_id = name_id_map(directory)
+    id_to_name = {v: k for k, v in name_to_id.items()}
+    pool = {}
+    for enc in enc_ids:
+        fi = fights.get(str(enc))
+        cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
+        if not fi or not os.path.isfile(cons_path):
+            continue
+        mins = max(int(fi["end"]) - int(fi["start"]), 1) / 60000.0
+        count_by_name = {}  # player name -> activations this boss
+        # 1) Cooldowns from per-player BUFF uses.
+        for pid, auras in (read_json(cons_path).get("perPlayer") or {}).items():
+            nm = id_to_name.get(int(pid)) if str(pid).isdigit() else None
+            if nm:
+                count_by_name[nm] = sum(int(a.get("uses", 0)) for a in (auras or [])
+                                        if a.get("name") in COOLDOWN_NAMES)
+        # 2) On-use trinkets from CASTS (the resulting buff is renamed, so casts is the only match).
+        boss_path = os.path.join(directory, "boss-{}.json".format(enc))
+        if os.path.isfile(boss_path):
+            rep = read_json(boss_path)["reportData"]["report"]
+            for e in _entries(rep, "casts"):
+                nm = e.get("name")
+                if nm:
+                    count_by_name[nm] = count_by_name.get(nm, 0) + sum(
+                        int(a.get("total", 0)) for a in (e.get("abilities") or [])
+                        if a.get("name") in TRINKET_NAMES)
+        for nm, count in count_by_name.items():
+            spec = spec_map.get(nm)
+            if not spec or role_map.get(nm) != "dps":
+                continue
+            cls = class_map.get(nm) or "Unknown"
+            b = pool.setdefault("{}|{}".format(cls, spec), {"class": cls, "spec": spec, "rates": []})
+            b["rates"].append(count / mins)
+    return pool
+
+
+def tier_cd_usage(o_pool, t_pool):
+    """Tier-wide cooldown-usage rollup: average each spec's per-minute CD activations across all shared
+    bosses, ours vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our
+    cooldowns). Only specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap."""
+    rows = []
+    for key in set(o_pool) | set(t_pool):
+        o, t = o_pool.get(key), t_pool.get(key)
+        ref = o or t
+        o_r = o["rates"] if o else []
+        t_r = t["rates"] if t else []
+        o_avg = round(sum(o_r) / len(o_r), 2) if o_r else 0
+        t_avg = round(sum(t_r) / len(t_r), 2) if t_r else 0
+        rows.append({"class": ref["class"], "spec": ref["spec"], "ours": o_avg, "theirs": t_avg,
+                     "deficit": round(t_avg - o_avg, 2), "both": bool(o_r) and bool(t_r)})
+    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
+    return rows
+
+
+def rotation_buckets(report, spec_map, role_map, class_map):
+    """Per (class, primary spec): a name->total-casts tally pooled over every DPS player of that spec.
+    Raw material for the rotation/ability-mix comparison (cast SHARE per ability vs benchmark)."""
+    out = {}
+    for e in _entries(report, "casts"):
+        nm = e.get("name")
+        spec = spec_map.get(nm)
+        if not spec or role_map.get(nm) != "dps":
+            continue
+        cls = class_map.get(nm) or e.get("type") or "Unknown"
+        b = out.setdefault("{}|{}".format(cls, spec), {"class": cls, "spec": spec, "abilities": {}})
+        for a in (e.get("abilities") or []):
+            an = a.get("name")
+            if an:
+                b["abilities"][an] = b["abilities"].get(an, 0) + int(a.get("total", 0))
+    return out
+
+
+def tier_rotation(o_pool, t_pool, top=6, min_share=3.0):
+    """Rotation/ability-mix comparison, per spec BOTH raids fielded: each ability's SHARE of the spec's
+    total casts, ours vs the benchmark, surfacing the abilities whose share differs most. Descriptive,
+    NOT scored good/bad — a different cast mix can be gear/talent/fight-driven, not strictly "worse", so
+    the soul's Dispels-view rule applies (neutral diff, let the leader read it). Stays at the SPEC grain
+    (no per-player breakdown). `min_share` drops trivial abilities so the backbone shows, not noise."""
+    rows = []
+    for key in set(o_pool) & set(t_pool):
+        o, t = o_pool[key], t_pool[key]
+        o_tot, t_tot = sum(o["abilities"].values()), sum(t["abilities"].values())
+        if o_tot <= 0 or t_tot <= 0:
+            continue
+        ab = []
+        for an in set(o["abilities"]) | set(t["abilities"]):
+            o_pct = 100.0 * o["abilities"].get(an, 0) / o_tot
+            t_pct = 100.0 * t["abilities"].get(an, 0) / t_tot
+            if max(o_pct, t_pct) < min_share:
+                continue  # ignore trivial fillers / incidental casts
+            ab.append({"name": an, "ours": round(o_pct, 1), "theirs": round(t_pct, 1),
+                       "diff": round(o_pct - t_pct, 1)})
+        ab.sort(key=lambda x: -abs(x["diff"]))
+        ab = ab[:top]
+        if ab:
+            rows.append({"class": o["class"], "spec": o["spec"],
+                         "maxDiff": max(abs(a["diff"]) for a in ab), "abilities": ab})
+    rows.sort(key=lambda r: -r["maxDiff"])
     return rows
 
 
@@ -865,10 +1150,11 @@ def death_list(report, fight_start):
     return out
 
 
-def death_timing(deaths, fight_info):
+def death_timing(deaths, fight_info, phase_names=None):
     """When OUR deaths cluster on a boss: the phase (or third of the fight) most deaths land in.
     A '1-level-deeper' read on the death list that pairs the *what* (killing blow, shown below) with
     the *when*. Returns "" unless there are >=3 deaths AND a clear concentration — silence over noise."""
+    phase_names = phase_names or {}
     deaths = [d for d in (deaths or []) if d.get("tSec") is not None]
     n = len(deaths)
     if n < 3:
@@ -892,7 +1178,8 @@ def death_timing(deaths, fight_info):
         if counts:
             top_id, top_n = max(counts.items(), key=lambda kv: kv[1])
             if len(counts) > 1 and top_n >= max(3, round(n * 0.4)):
-                return "{} of {} deaths struck in Phase {} — the phase to review.".format(top_n, n, top_id)
+                label = phase_names.get(top_id) or "Phase {}".format(top_id)
+                return "{} of {} deaths struck in {} — the phase to review.".format(top_n, n, label)
         return ""
     # No phase transitions exposed: split the fight into thirds.
     third = dur_s / 3.0
@@ -1062,7 +1349,8 @@ def phase_list(fight_info):
     return phases
 
 
-def phase_compare(o_info, t_info):
+def phase_compare(o_info, t_info, names=None):
+    names = names or {}
     op = phase_list(o_info)
     tp = phase_list(t_info)
     if not op and not tp:
@@ -1070,7 +1358,8 @@ def phase_compare(o_info, t_info):
     o_by_id = {str(p["id"]): p["durMs"] for p in op}
     t_by_id = {str(p["id"]): p["durMs"] for p in tp}
     ids = sorted(set(o_by_id) | set(t_by_id), key=lambda x: int(x))
-    return [{"id": int(i), "oursMs": int(o_by_id.get(i, 0)), "theirsMs": int(t_by_id.get(i, 0))} for i in ids]
+    return [{"id": int(i), "name": names.get(int(i)), "oursMs": int(o_by_id.get(i, 0)),
+             "theirsMs": int(t_by_id.get(i, 0))} for i in ids]
 
 
 # ---------- CLEAR EFFICIENCY (wall-clock vs in-combat) ----------
@@ -1123,7 +1412,7 @@ def _fmt_dur(ms):
 
 
 def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None,
-                 trash=None, death_causes=None, leaked=None, n=7):
+                 trash=None, death_causes=None, leaked=None, threat=None, n=7):
     """Score every tracked dimension by how far behind the benchmark we are, then surface the
     worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
     (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
@@ -1277,6 +1566,16 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
                 "on a cast you do kick. Assign a kick rotation.".format(
                     worst["oursLeaked"], worst["name"], "s" if worst["oursLeaked"] != 1 else "",
                     worst["theirsLeaked"]))
+
+    # Early aggro: a non-tank held a boss's aggro in the opener (first 30s) more than the benchmark.
+    # The cleanest threat signal (opener pulls are unambiguous, vs mechanic-driven mid-fight churn).
+    if threat:
+        do = (threat.get("oursOpener", 0) or 0) - (threat.get("theirsOpener", 0) or 0)
+        if do >= 1:
+            add(do / 3.0, "Pulling aggro in the opener",
+                "A non-tank held a boss's aggro in the first 30s {}× vs {}× for the benchmark — open "
+                "softer, or use Misdirection / Tricks of the Trade.".format(
+                    threat.get("oursOpener", 0), threat.get("theirsOpener", 0)))
 
     cand.sort(key=lambda c: -c["sev"])
     out = []
@@ -1848,7 +2147,15 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         ours_deaths_total = ssum([ours_idx[i]["deaths"] for i in common_ids])
         theirs_deaths_total = ssum([theirs_idx[i]["deaths"] for i in common_ids])
 
-    # Wipe/attempt counts per shared boss (graceful if attempts.json predates this feature).
+    # Named phases (report.phases). Same boss ⇒ same journal phase names regardless of guild, so ours
+    # is authoritative; fall back to theirs per-encounter if only one side carries them. Empty/graceful.
+    ours_phase_names = phase_name_map(ours_dir)
+    theirs_phase_names = phase_name_map(theirs_dir)
+    # Report-wide NPC names (for naming adds + excluding the boss by name in the Add Handling view).
+    ours_npc = npc_name_map(ours_dir)
+    theirs_npc = npc_name_map(theirs_dir)
+
+    # Wipe/attempt counts + WIPE DEPTH per shared boss (graceful if attempts.json predates this feature).
     ours_att = attempt_map(ours_dir)
     theirs_att = attempt_map(theirs_dir)
     for b in bosses:
@@ -1857,6 +2164,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         b["oursWipes"], b["theirsWipes"] = oa.get("wipes", 0), ta.get("wipes", 0)
         b["oursAttempts"], b["theirsAttempts"] = oa.get("attempts", 0), ta.get("attempts", 0)
         b["hasAttempts"] = bool(oa) or bool(ta)
+        # Wipe depth: how close the best attempt got (boss HP% remaining) + that attempt's phase name.
+        b["oursBestWipePct"], b["theirsBestWipePct"] = oa.get("bestWipePct"), ta.get("bestWipePct")
+        _bp = oa.get("bestWipePhase")
+        b["oursBestWipePhase"] = (ours_phase_names.get(enc) or {}).get(_bp) if _bp else None
     has_attempts = any(b["hasAttempts"] for b in bosses)
 
     summary = {
@@ -1934,6 +2245,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_o_spec, tier_t_spec = {}, {}
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
+    tier_o_rot, tier_t_rot = {}, {}  # per-spec ability-cast tallies, pooled across bosses (rotation)
     per_boss = []
     for b in bosses:
         enc = str(b["encounterID"])
@@ -1943,6 +2255,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             continue
         o_dur = ours_fights[enc]["end"] - ours_fights[enc]["start"]
         t_dur = theirs_fights[enc]["end"] - theirs_fights[enc]["start"]
+        pn = ours_phase_names.get(enc) or theirs_phase_names.get(enc) or {}  # phase id -> name
 
         # Pool leaked-interrupt counts tier-wide (proven-interruptible casts that went off).
         for _acc, _rep in ((o_leaked_acc, o_b), (t_leaked_acc, t_b)):
@@ -1988,6 +2301,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             for key, bucket in spec_dps_buckets(rep, sp, ro, cl, dur).items():
                 ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "dps": []})
                 ent["dps"].extend(p["dps"] for p in bucket["players"])
+        # Pool rotation (ability cast tallies) per spec across bosses. Cooldown usage is a separate
+        # buff-sourced pass after the loop (cd_usage_pool) — TBC logs most CDs only as buffs, not casts.
+        for rot_pool, rep, sp, ro, cl in ((tier_o_rot, o_b, ours_spec, ours_role, ours_cls),
+                                          (tier_t_rot, t_b, theirs_spec, theirs_role, theirs_cls)):
+            for key, bucket in rotation_buckets(rep, sp, ro, cl).items():
+                ent = rot_pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "abilities": {}})
+                for an, c in bucket["abilities"].items():
+                    ent["abilities"][an] = ent["abilities"].get(an, 0) + c
         # Sample buff/debuff uptimes for the tier-wide coverage rollup.
         for kind, rows_ in (("buff", buff_rows), ("debuff", debuff_rows)):
             for r in rows_:
@@ -2022,10 +2343,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "unkicked": unkicked_compare(o_b, t_b),
             "dispelsList": disp_compare(o_b, t_b),
             "deaths": {"ours": o_deaths, "theirs": t_deaths},
-            "deathTiming": death_timing(o_deaths, ours_fights[enc]),
+            "deathTiming": death_timing(o_deaths, ours_fights[enc], pn),
             "deathCascade": death_cascades(o_deaths),
             "openerGap": opener_gap(o_tl, t_tl),
-            "phases": phase_compare(ours_fights[enc], theirs_fights[enc]),
+            "phases": phase_compare(ours_fights[enc], theirs_fights[enc], pn),
+            "threat": {"ours": threat_pulls(o_b, ours_fights[enc], ours_role, b["name"]),
+                       "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
+            "focus": focus_view(o_tl, t_tl),
+            "targetEngagement": target_engagement(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
             "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
                                       o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
         })
@@ -2070,6 +2395,32 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_uptime = tier_uptime_gap(tier_upt)
     # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
     leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
+    # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced) + rotation/ability-mix
+    # (descriptive; cast-sourced). cd_usage_pool reads the per-player buff `uses` + trinket casts per side.
+    tier_cd = tier_cd_usage(
+        cd_usage_pool(ours_dir, ours_idx, common_ids, ours_spec, ours_role, ours_cls, ours_fights),
+        cd_usage_pool(theirs_dir, theirs_idx, common_ids, theirs_spec, theirs_role, theirs_cls, theirs_fights))
+    tier_rot = tier_rotation(tier_o_rot, tier_t_rot)
+    # Tier-wide early-aggro (threat pulls) + focus-fire concentration, rolled up from the per-boss data.
+    threat_rows = []
+    for p in per_boss:
+        o = (p.get("threat") or {}).get("ours") or {}
+        t = (p.get("threat") or {}).get("theirs") or {}
+        if (o.get("total") or 0) or (t.get("total") or 0):
+            threat_rows.append({"boss": p["name"], "oursTotal": o.get("total", 0), "oursOpener": o.get("opener", 0),
+                                "theirsTotal": t.get("total", 0), "theirsOpener": t.get("opener", 0),
+                                "oursEarliest": o.get("earliestSec")})
+    threat_summary = {"rows": threat_rows,
+                      "oursTotal": ssum([r["oursTotal"] for r in threat_rows]),
+                      "theirsTotal": ssum([r["theirsTotal"] for r in threat_rows]),
+                      "oursOpener": ssum([r["oursOpener"] for r in threat_rows]),
+                      "theirsOpener": ssum([r["theirsOpener"] for r in threat_rows])}
+    focus_rows = [{"boss": p["name"], "ours": p["focus"]["oursConc"], "theirs": p["focus"]["theirsConc"],
+                   "oursTargets": p["focus"].get("oursTargets"), "theirsTargets": p["focus"].get("theirsTargets")}
+                  for p in per_boss if p.get("focus")]
+    # Per-boss target engagement (boss + named adds: when each first appeared + how long it was engaged).
+    target_eng_rows = [{"boss": p["name"], "targets": p["targetEngagement"]}
+                       for p in per_boss if p.get("targetEngagement")]
 
     # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
     # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
@@ -2078,7 +2429,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
                                   tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash,
-                                  death_causes=death_causes_rows, leaked=leaked_rows)
+                                  death_causes=death_causes_rows, leaked=leaked_rows, threat=threat_summary)
     # "What You're Doing Well" — the same comparison, the other direction (where we lead the benchmark).
     did_well = strengths(summary, quality, consumables, audit, gaps,
                          tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash)
@@ -2091,7 +2442,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
-                 "leakedInterrupts": leaked_rows,
+                 "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
+                 "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
     }
     out_full = render_report(payload, out_file)

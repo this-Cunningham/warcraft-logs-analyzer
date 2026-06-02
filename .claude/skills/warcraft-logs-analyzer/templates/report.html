@@ -156,6 +156,9 @@
   .gapcard.med .gt .sev{background:rgba(251,189,35,.16);color:#ffe08a}
   .gapcard.low .gt .sev{background:rgba(138,150,170,.16);color:#c2cbdb}
   .gapcard .gd{color:var(--muted);font-size:12.5px;line-height:1.45}
+  /* "What You're Doing Well" — the positive mirror of the gaps, green-keyed and visually secondary. */
+  .gapcard.win{border-left-color:var(--good)}
+  .gapcard.win .gt .sev{background:rgba(74,222,128,.15);color:#9be7b4}
   /* Trash — same-pack kill-order comparison (your sequence vs benchmark, mobs first→last). */
   .tko{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin:2px 0 12px}
   .tkpack{font-size:12.5px;font-weight:600;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--line)}
@@ -203,14 +206,24 @@ let dmgMode="persec"; // "persec" | "total" — toggled in the Output Quality se
 const bossTab={};      // per-boss sub-tab state, keyed by encounterID -> "buffs" | "dmg" (survives re-render)
 let overviewTab=null;  // Overview boss sub-tab state (encounterID as string); null -> first boss
 
-function rosterTable(players){
+function rosterTable(players, metricLabel){
+  metricLabel=metricLabel||"DPS/HPS";
   const sorted=[...asArr(players)].sort((a,b)=>b.parse-a.parse);
   const rows=sorted.map(p=>`<tr>
     <td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
     <td class="role">${esc(p.role)}</td>
     <td><span class="parse" style="background:${parseColor(p.parse)}">${p.parse}</span></td>
     <td class="num">${p.amount?p.amount.toLocaleString():"—"}</td></tr>`).join("");
-  return `<table><thead><tr><th>Player</th><th>Role</th><th>Parse</th><th>DPS/HPS</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table><thead><tr><th>Player</th><th>Role</th><th>Parse</th><th>${esc(metricLabel)}</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+// One raid's roster for a boss: DPS/tanks first, then a SEPARATE Healers table — healer parses are HPS
+// (DPS-metric parses are meaningless for healers), so they get their own table with an HPS column.
+function sideRosters(players){
+  const arr=asArr(players);
+  const nonHeal=arr.filter(p=>p.role!=="healer");
+  const heal=arr.filter(p=>p.role==="healer");
+  const sub=`<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:14px 0 4px">Healers <span style="text-transform:none;letter-spacing:0;font-weight:400">· parse &amp; throughput by HPS</span></div>`;
+  return rosterTable(nonHeal,"DPS")+(heal.length?sub+rosterTable(heal,"HPS"):"");
 }
 function consumeMatrix(ppc){
   const bosses=rowsOf(ppc.bosses), players=rowsOf(ppc.players);
@@ -280,12 +293,23 @@ function gapsScorecard(d){
     <div class="gaps">${cards}</div>`;
 }
 
+/* ---------- WHAT YOU'RE DOING WELL (positive mirror of the gaps) ---------- */
+function didWellScorecard(d){
+  const wins=rowsOf(d.didWell);
+  if(!wins.length) return "";
+  const cards=wins.map(w=>`<div class="gapcard win">
+    <div class="gt">${esc(w.title)}<span class="sev">Strength</span></div>
+    <div class="gd">${esc(w.text)}</div></div>`).join("");
+  return `<h2 class="section">What You're Doing Well<span class="hint">Where you match or beat the benchmark, ranked by margin — the flip side of the gaps, from the same dimensions. Protect these; don't trade them away chasing a gap above.</span></h2>
+    <div class="gaps">${cards}</div>`;
+}
+
 /* ---------- OVERVIEW ---------- */
 function renderOverview(d){
   const s=d.summary, parseD=deltaHigh(s.oursAvgParse,s.theirsAvgParse),
     deathD=deltaLow(s.oursDeaths,s.theirsDeaths), timeD=deltaLow(Math.round(s.oursDurationMs/1000),Math.round(s.theirsDurationMs/1000));
   const wipeCard=s.hasAttempts?`<div class="card"><div class="label">Total Wipes</div><div class="vals"><span class="v ours">${s.oursWipes}</span><span class="v theirs">${s.theirsWipes}</span><span class="delta ${deltaLow(s.oursWipes,s.theirsWipes).cls}">${deltaLow(s.oursWipes,s.theirsWipes).txt}</span></div></div>`:"";
-  let h=gapsScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
+  let h=gapsScorecard(d)+didWellScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
@@ -308,8 +332,8 @@ function renderOverview(d){
       ${metricBars("Deaths",b.ours.deaths,b.theirs.deaths,x=>x,Math.max(b.ours.deaths,b.theirs.deaths,1),true)}
       ${wipes}
       <div class="rostergrid">
-        <div><h4 class="ours">${esc(d.ours.title)}</h4>${rosterTable(b.ours.players)}</div>
-        <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${rosterTable(b.theirs.players)}</div>
+        <div><h4 class="ours">${esc(d.ours.title)}</h4>${sideRosters(b.ours.players)}</div>
+        <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${sideRosters(b.theirs.players)}</div>
       </div></div></div>`;
   }
   return h;
@@ -453,6 +477,9 @@ function renderBosses(d){
   /* 3. Buff & debuff coverage gaps — uptime averaged across bosses, biggest deficit first. */
   h+=tierUptimeGapView(d);
 
+  /* 3b. Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
+  h+=leakedInterruptsView(d);
+
   /* 4. Output quality (activity / overheal / damage taken / raid output) */
   const q=dp.quality;
   if(q){
@@ -474,6 +501,7 @@ function renderBosses(d){
       <div class="card"><div class="label">Raid HPS</div><div class="vals"><span class="v ours">${fmtR(q.oursRaidHps||0)}</span><span class="v theirs">${fmtR(q.theirsRaidHps||0)}</span><span class="delta ${deltaRate(q.oursRaidHps||0,q.theirsRaidHps||0).cls}">${deltaRate(q.oursRaidHps||0,q.theirsRaidHps||0).txt}</span></div></div>
       <div class="card"><div class="label">Avg Healer Overheal</div><div class="vals"><span class="v ours">${q.oursOverheal}%</span><span class="v theirs">${q.theirsOverheal}%</span><span class="delta ${ohD.cls}">${ohD.txt}</span></div></div>
     </div>`;
+    if(q.dpsDiagnosis) h+=`<p class="srcs" style="margin:10px 0 0;line-height:1.5"><b>DPS gap diagnosis:</b> ${esc(q.dpsDiagnosis)} <span style="opacity:.8">(an estimate from the Raid DPS and Activity figures above — activity is the DPS core's, raid DPS is whole-raid.)</span></p>`;
   }
 
   /* 5. Clear efficiency — wall-clock vs in-combat (where time leaks between pulls). */
@@ -571,6 +599,8 @@ function interruptView(b){
 }
 function deathsView(b){
   const D=b.deaths||{};
+  const when=b.deathTiming?`<p class="srcs" style="margin:0 0 10px"><b>When you died:</b> ${esc(b.deathTiming)}</p>`:"";
+  const casc=b.deathCascade?`<p class="srcs" style="margin:0 0 10px;color:#ffb4b4"><b>Cascade:</b> ${esc(b.deathCascade)}</p>`:"";
   const col=(list,who,title)=>{
     list=rowsOf(list);
     if(!list.length) return `<div><h4 class="${who}">${esc(title)}</h4><p class="num" style="padding:6px 2px">No deaths — clean kill.</p></div>`;
@@ -583,7 +613,7 @@ function deathsView(b){
     }
     return h+`</tbody></table></div>`;
   };
-  return `<div class="twocol">${col(D.ours,'ours',DATA.ours.title)}${col(D.theirs,'theirs',DATA.theirs.title)}</div>`;
+  return when+casc+`<div class="twocol">${col(D.ours,'ours',DATA.ours.title)}${col(D.theirs,'theirs',DATA.theirs.title)}</div>`;
 }
 function dispelsView(b){
   const rows=rowsOf(b.dispelsList);
@@ -632,15 +662,15 @@ function deathCausesView(d){
   }
   return h+`</tbody></table>`;
 }
-// Tier-wide "lowest-hanging fruit": per-spec avg DPS pooled across all bosses, biggest deficit first.
+// DPS gaps by spec: per-spec avg DPS pooled across all bosses, biggest deficit first.
 function tierSpecGapView(d){
   const all=rowsOf(d.deep&&d.deep.tierSpecGap);
   const both=all.filter(r=>r.both), oneSide=all.filter(r=>!r.both);
   if(!both.length) return "";
   const max=Math.max(1,...both.map(r=>Math.max(r.oursAvg,r.theirsAvg)));
   const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">Lowest-Hanging DPS — Spec Gaps<span class="hint">Each DPS spec's average per-player DPS pooled across every shared boss, ours vs the benchmark's same spec. Specs where you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Per-player averages, so roster-count differences don't skew it.</span></h2>
-    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg DPS / player, by spec (tier-wide)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+  let h=`<h2 class="section">DPS Gaps — By Spec<span class="hint">Each DPS spec's average per-player DPS pooled across every shared boss, ours vs the benchmark's same spec. Specs where you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Per-player averages, so roster-count differences don't skew it.</span></h2>
+    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg DPS / player, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
   for(const r of both){
     const diff=r.deficit; // theirs − ours; >0 = we trail (bad)
     const dcls=diff>0?"bad":(diff<0?"good":"flat");
@@ -663,12 +693,12 @@ function tierSpecGapView(d){
   }
   return h;
 }
-// Tier-wide buff/debuff uptime gaps: where we most consistently trail on maintaining an aura.
+// Buff/debuff coverage gaps across all bosses: where we most consistently trail on maintaining an aura.
 function tierUptimeGapView(d){
   const rows=rowsOf(d.deep&&d.deep.tierUptimeGap);
   if(!rows.length) return "";
   const behind=rows.filter(r=>r.deficit>0);
-  let h=`<h2 class="section">Buff &amp; Debuff Coverage Gaps<span class="hint">Each raid buff and boss debuff's average uptime across the shared bosses, ours vs the benchmark. Auras you maintain less consistently than the benchmark are listed first — keeping persistent buffs/debuffs near 100% is free, repeatable throughput. (Short cooldowns like Bloodlust naturally read low on both sides.)</span></h2>`;
+  let h=`<h2 class="section">Buff &amp; Debuff Coverage Gaps<span class="hint">Each raid buff and boss debuff's average uptime across all bosses, ours vs the benchmark. Auras you maintain less consistently than the benchmark are listed first — keeping persistent buffs/debuffs near 100% is free, repeatable throughput. (Short cooldowns like Bloodlust naturally read low on both sides.)</span></h2>`;
   if(!behind.length) return h+`<p class="num" style="padding:6px 2px">You match or beat the benchmark on every tracked buff/debuff uptime — no coverage gap.</p>`;
   h+=`<table><thead><tr><th>Buff / Debuff</th><th>Type</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
   for(const r of behind){
@@ -677,6 +707,23 @@ function tierUptimeGapView(d){
       <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
       <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
       <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Leaked interrupts across all bosses: interruptible casts (proven by >=1 kick) that went off un-interrupted.
+function leakedInterruptsView(d){
+  const rows=rowsOf(d.deep&&d.deep.leakedInterrupts);
+  const hint=`<span class="hint">Interruptible enemy casts that went off un-interrupted, tallied across the shared bosses, ours vs the benchmark. An ability counts as interruptible only when your raid kicked it at least once — the API exposes no "interruptible" flag, so a single successful kick is the proof. Only enemy casts count (your own casts are excluded). <b>Caveat:</b> a cast your raid never attempted to kick can't appear here, so this under-counts, never over-counts. Lower is better.</span>`;
+  let h=`<h2 class="section">Interrupts Leaked${hint}</h2>`;
+  if(!rows.length) return h+`<p class="num" style="padding:6px 2px">No interruptible casts leaked on either side — nothing's getting through that you're set up to kick.</p>`;
+  h+=`<table><thead><tr><th>Ability</th><th>${esc(d.ours.title)} leaked</th><th>${esc(d.theirs.title)} leaked</th><th>Δ</th><th class="role">you kicked</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaLow(r.oursLeaked,r.theirsLeaked); // fewer leaks is better
+    h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.oursLeaked}</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirsLeaked}</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num role">${r.oursKicked}×</td></tr>`;
   }
   return h+`</tbody></table>`;
 }
@@ -749,8 +796,12 @@ function timelineChart(b){
     <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>&#8230; phase (your fight)</span></div>`;
   const dps=tlChart(tl.ours.dps,tl.theirs.dps,tl.ours,tl.theirs);
   const hps=tlChart(tl.ours.hps,tl.theirs.hps,tl.ours,tl.theirs);
+  const op=b.openerGap;
+  const opLine=op?(()=>{const pct=op.theirsDps>0?Math.round(op.oursDps/op.theirsDps*100):100;const behind=op.oursDps<op.theirsDps*0.95;
+    return `<p class="srcs" style="margin:2px 0 12px${behind?';color:#ffb4b4':''}"><b>Opening ${op.secs}s:</b> ${fmtR(op.oursDps)} vs ${fmtR(op.theirsDps)} raid DPS (${pct}% of benchmark)${behind?' — a slow start. Check prepot, precast, and pull timing.':' — a strong start.'}</p>`;})():"";
   return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Two fights of different length share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line simply <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are exact (event-binned into ${tl.n} slices), not WCL's smoothed graph, so they agree with the Raid DPS shown elsewhere. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.</p>
     ${legend}
+    ${opLine}
     <h4 style="margin:8px 0 2px">Raid DPS over time</h4>${dps}
     <h4 style="margin:16px 0 2px">Raid HPS over time</h4>${hps}`;
 }

@@ -191,11 +191,20 @@ the static template, with no model in the path.
      most over the benchmark, naming the specific mechanic the count-only deaths card just sums). Each
      candidate gets a hand-tuned severity in [0,1] and an actionable sentence;
      only dimensions where we trail are kept, top 7 render as severity-colored cards (high/med/low).
+     Directly beneath it, **"What You're Doing Well"** (`strengths()` → `didWellScorecard()`) is the
+     positive mirror of the same engine: the identical dimensions, sign flipped, surfacing where we
+     **match or beat** the benchmark, ranked by margin (top 5, green "Strength" cards). It only lists
+     real leads — trail everywhere and it stays empty, so it never manufactures praise. (The tier-wide
+     buff/debuff "well-maintained" strength requires the benchmark's uptime > 0, so it's a genuine
+     "we maintain it better" lead, not a "they don't run it" case the providers card already covers.)
      Then the Raid Summary cards (incl. **Total Wipes** when attempt data is present), then a
      **Boss-by-Boss** section with one **sub-tab per boss** (`mountOverview()` wires the
      `.btab[data-otab]` / `.bsub[data-otab]` toggle) — each boss panel shows kill time, **Raid DPS** /
      **Raid HPS** comparison bars (per-boss total dmg/heal ÷ duration), avg parse, deaths, **wipes
-     before the kill** (shown only when either raid wiped), and both rosters side by side.
+     before the kill** (shown only when either raid wiped), and both rosters side by side. Each side's
+     roster renders as a **DPS/tanks table + a SEPARATE Healers table** (`sideRosters` → `rosterTable`):
+     healer parses are HPS-based (see the parse-metric caveat below), so they get their own table with an
+     **HPS** column rather than being mixed into a DPS-labeled one.
    - **Composition**: Raid Composition & buff-provider gap analysis (class/spec → raid buff
      it brings; provider table is `PROVIDER_CHECKS` in build_deepdive.py). Each player's
      spec is their **primary (most-frequent) spec across the shared bosses** (`primary_spec_map`),
@@ -277,11 +286,26 @@ the static template, with no model in the path.
      - **Buff & Debuff Coverage Gaps** (`tier_uptime_gap` → `tierUptimeGapView`) — each aura's average
        uptime across the shared bosses, ours vs benchmark, listing only where we trail (biggest deficit
        first). The tier-wide companion to the per-boss Buff Uptime sub-tab.
+     - **Interrupts Leaked** (`leaked_casts`/`leaked_interrupts_gap` → `leakedInterruptsView`) — interruptible
+       enemy casts that went off un-interrupted, tallied tier-wide, ours vs benchmark, worst leak first.
+       **Soundness (important):** the public API has NO "interruptible" flag, and the `Interrupts` table only
+       lists abilities the raid kicked ≥1 time — so `spellsInterrupted >= 1` is our PROOF an ability is
+       interruptible (we never assume). A leak = a **hostile** (NPC/Boss) cast in `missedCasts` (friendly
+       casts, e.g. a raider's own Regrowth that took an incidental kick, are excluded). We deliberately do
+       NOT fall back to `spellsCompleted` (no caster-type proof). **Known blind spot, stated in the UI hint:**
+       an interruptible ability the raid NEVER attempted to kick is absent from the table entirely, so this
+       **under-counts, never over-counts**. The worst improvable leak (delta ≥ 2) also feeds the Overview
+       Biggest Gaps scorecard via the `leaked=` arg.
      - **Output Quality** — time-weighted **Raid DPS / Raid HPS**, avg DPS activity (`dd.activeTime`/
        duration), damage taken ex-tanks (`dt`, with an in-report **Per second / Overall** toggle that
        also switches the per-boss damage breakdowns), healer overheal (`heal.overheal`). (The old raw
        "Dispels / Interrupts" count card was dropped — raw counts aren't a clean better/worse signal;
-       the meaningful interrupt data lives in the per-boss kicked-vs-leaked view.)
+       the meaningful interrupt data lives in the per-boss kicked-vs-leaked view.) Below the cards, a
+       **DPS gap diagnosis** (`dps_diagnosis()` → `quality.dpsDiagnosis`) decomposes the raid-DPS
+       deficit into an **activity (uptime/movement)** component vs a **throughput (gear/rotation/buffs)**
+       component — so a leader knows *what kind* of fix it needs (drill movement vs. coach gear). It's
+       framed as an **estimate** (DPS-activity is the DPS core's, raid DPS is whole-raid) and stays
+       silent unless we trail on raid DPS.
      - **Clear Efficiency** — first-pull-to-last-kill wall-clock vs in-combat time (downtime = trash/wipes).
      - **Per-Boss Execution** — each boss is a card with an output strip (Raid DPS, activity, overheal,
        dmg taken/s) plus eight sub-tabs (**Timeline** is the default when present):
@@ -293,7 +317,9 @@ the static template, with no model in the path.
        at its own duration). Annotated with death ticks (▲, per side), Bloodlust verticals
        (⚡, per side), and phase dividers (your fight) — all at absolute seconds. Rendered as a
        hand-rolled inline SVG line chart (no libs). **Curves are computed from events, not `graph()`**
-       — see the data note below.
+       — see the data note below. A one-line **opener caption** (`opener_gap()` → `b.openerGap`) compares
+       the first ~30s of raid DPS ours vs benchmark (averaging the buckets that cover the first 30s of real
+       time on each side) — a weak opener flags prepot/precast/pull-timing; reddened only when we trail.
      - **Buff Uptime** — boss debuffs + raid buffs, laid out value←bar—name—bar→value with a
        delta, sorted by delta (most-improvable / biggest deficit first).
      - **DPS by Spec** (`spec_gap` → `specDpsView`) — the DamageDone table bucketed by (class,
@@ -303,7 +329,14 @@ the static template, with no model in the path.
        drill-down (the report stays raid/spec-level by design; no per-player breakdowns).
      - **Damage Taken** — top damage-taken sources (honors the per-sec/overall toggle).
      - **Deaths** — who died, their spec (parsed from the death `icon`, e.g. `Hunter-Survival`),
-       the killing blow, and when (sec into fight). "Clean kill" when nobody died.
+       the killing blow, and when (sec into fight). "Clean kill" when nobody died. A one-line
+       **"When you died"** header (`death_timing()` → `deathTiming`) reports where OUR deaths cluster —
+       the phase (multi-phase fights) or the third of the fight (single-phase) most deaths land in,
+       pairing the *what* (killing blow) with the *when*. Stays silent unless there are ≥3 deaths AND a
+       real concentration (≥40% in one phase / ≥45% in one third) — silence over noise. A second line,
+       **"Cascade"** (`death_cascades()` → `deathCascade`), flags a near-wipe burst — ≥4 deaths inside a
+       15s window (two-pointer over sorted death times) — distinguishing a single mechanic failure from
+       scattered attrition; silent otherwise.
      - **Interrupts** — abilities interrupted + interrupters by spec, plus a **Casts That Went
        Off Un-kicked** section (kicked / went-off per ability). Un-kicked = `intr` entries'
        `missedCasts[]` filtered to hostile casters (`type` NPC/Boss) so friendly-ability noise
@@ -412,6 +445,14 @@ the static template, with no model in the path.
    the Trash tab (no `trash.json`) just renders a "no trash data" note and the rest of the report builds.
 
 **TBC Classic data caveats (verified):**
+- **`rankings(compare:Parses)` defaults to the DPS metric for EVERY role** (verified: unset == `default`
+  == `dps` all return identical values). So a healer's `rankPercent`/`amount` come back as a DPS parse of
+  their ~0 incidental damage — a meaningless number (e.g. a Holy Priest reading "69" off 6 DPS) that also
+  pollutes the Avg Raid Parse. **Fix:** `compare_raids.py` fetches a second `rankings(compare:Parses,
+  playerMetric:hps)` and `merge_healer_hps()` overwrites each healer's parse+amount with the HPS values
+  (matched by encounter id + name). dps/tanks stay on the DPS metric (correct for them). The merged
+  parses file is what `build_deepdive` reads, so the Avg Raid Parse and the (separate) Healers roster
+  table are both HPS-correct. If you ever fetch parses by hand, pass `playerMetric:hps` for healers.
 - `playerDetails.combatantInfo.potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't use
   that field. BUT consumables (flasks, food, elixirs, drums, **and combat potions**) DO appear as
   **auras in the `Buffs` table** with a `totalUses` count, which is how the Consumables Coverage

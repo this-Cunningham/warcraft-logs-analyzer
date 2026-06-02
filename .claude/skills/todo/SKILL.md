@@ -7,8 +7,9 @@ allowed-tools: Read, Edit
 
 # todo
 
-Add the user's idea (passed as the argument after `/todo`) to the repo-root
-`TODO.md`, framed against the product's guiding principles.
+Add this idea to `TODO.md`, framed against the product's guiding principles.
+
+> $ARGUMENTS
 
 ## Steps
 

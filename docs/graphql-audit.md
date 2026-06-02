@@ -36,6 +36,79 @@ extension of the wipe view we already render.
 
 ---
 
+## Round 2 — follow-up (Summary/Casts deep-dive + 3 more candidates)
+
+### Direct answer: do the **Summary** and **Casts** tables add benchmark value?
+
+**Summary → no new gap (confirmed).** Every component — `composition` (name/type/specs/role),
+`damageDone`/`healingDone`/`damageTaken` (only `name`+`total`), `deathEvents` (`deathTime` + killing
+`ability`), `playerDetails` (healer/dps/tank buckets) — is data we **already fetch via dedicated
+tables/parses, usually in *more* detail** (our `DamageDone` table carries per-ability breakdown +
+`activeTime`; Summary's carries a bare total). Its only merit is *one call instead of ~five* — an
+engineering consolidation the soul explicitly rules out of the product. **Skip as an insight.** (E11)
+
+**Casts → yes, two levers beyond cooldowns, and one trap to cut:**
+
+| Casts lever | Verdict | Note |
+|---|---|---|
+| Cooldown / trinket usage (= #2) | **SPIKE** | cleanest sub-signal: on-use trinket activations/min vs benchmark; needs curated CD ids |
+| **Ability mix / rotation** vs benchmark same-spec | **SPIKE (new)** | genuinely new modality + actionable rotation coaching, but must pool **by spec** (no per-player dump) and flag only *meaningful* deltas → needs TBC rotation priors to separate "different" from "worse" |
+| Action rate (casts/min) | **CUT — not clean** | ~entirely spec-determined (BM Hunter **68**/min vs Combat Rogue **26**/min) and within-spec it duplicates the DPS-activity% we already show (everyone here 90–99% active) |
+
+The ability-mix lever is the one genuinely new thing in `Casts`: pooling each spec's cast composition
+and diffing vs the benchmark's same spec ("your fire mages cast 18% Scorch vs benchmark 4%") is
+real rotation coaching — but a spike, because staying clean (and not becoming a data dump) needs
+per-spec priors and strict spec-level aggregation. (E11)
+
+### Three more candidates surfaced
+
+**A. Named phases — `report.phases` → BUILD (pairs with #4).** *Corrects a stale caveat:* SKILL.md
+says "TBC has no phase names." True for `phaseTransitions` (id+time only) — but the **report-level
+`report.phases`** field returns `PhaseMetadata{id,name,isIntermission}` and **is populated in TBC**.
+Cheap (one field). Upgrades the **wipe-depth (#4)**, the **Phases** sub-tab, and **death-timing** from
+"P4" → "P4: Kael'thas Engaged." Only multi-phase journal bosses return it — graceful per-boss. (E8)
+
+**B. Raid incoming-damage timeline — `graph(DamageTaken)` / event-binned → SPIKE.** Overlay *when*
+raid-wide avoidable damage spikes onto the existing per-boss Timeline ("a damage-taken spike at 2:30
+the benchmark doesn't have"). `graph(DamageTaken)` is populated + cheap but **coarse** (fixed
+server grid); matching our DPS-timeline resolution means event-binning DamageTaken like we bin
+DamageDone (a few more points/boss). Honesty caveat: present as a *relative* spike-shape, not absolute
+numbers (graph rates run hot, per the existing SKILL note). (E9)
+
+**C. Global fight leaderboard — `worldData.encounter.fightRankings(metric:speed|execution)` →
+SPIKE / low.** Populated for TBC: the world's fastest Solarian kill is **50.7s, 0 deaths**, and each
+entry carries the **comp** (tanks/healers/melee/ranged) + ilvl bracket. An *absolute* kill-time /
+execution target + meta comp — but partly **redundant** with the benchmark kill-time delta we already
+show. Worth it mainly to anchor "world's best" or inform a composition discussion. (E10)
+
+### Evidence (round 2)
+
+<a name="e8"></a>**E8** — `report.phases` (named phases populated in TBC):
+```
+enc 100733 (Kael'thas): separatesWipes=true
+  P1: The Advisors | P2: The Weapons | P3: The Advisors Return | P4: Kael'thas Engaged | P5: Gravity Lapse
+(Al'ar / Void Reaver / Solarian returned no named phases — graceful per-boss.)
+```
+<a name="e9"></a>**E9** — `graph(DamageTaken, hostilityType:Friendlies, fightIDs:[25])`: 26 player series
+returned, but server-downsampled to a coarse fixed grid → too blunt for spike-pinpointing without
+event-binning.
+
+<a name="e10"></a>**E10** — `worldData.encounter(id:100732).fightRankings(metric:speed)`:
+```
+#1  guild "BLEACH"  duration 50761ms  deaths 0  comp{tanks 1, healers 2, melee 11, ranged 11}  ilvl 117.6
+#2  guild "DREAM"   duration 52325ms  deaths 0  comp{tanks 1, healers 3, melee 9,  ranged 12}  ilvl 117.3
+```
+<a name="e11"></a>**E11** — Summary vs Casts deep-dive (Solarian kill):
+```
+SUMMARY.deathEvents[]: {name, deathTime, ability{name,guid}}  <- timing+killing blow, but we already have it (Deaths table)
+SUMMARY.damageDone[]:  {name,id,guid,type,total}              <- bare total; our DamageDone table has per-ability + activeTime
+SUMMARY.composition[]: {name,type,specs[{spec,role}]}         <- specs; we already get these from parses
+CASTS action-rate: BMHunter 67.7/min(99% active) ... CombatRogue 25.9/min  <- spec-determined, dup of activity% -> CUT
+CASTS ability-mix: Rogue-Combat[SinisterStrike 42, SnD 4, Eviscerate 3]; Mage-Arcane[ArcaneBlast 64, Frostbolt 6]  <- rotation, spike
+```
+
+---
+
 ## What we query today (the baseline)
 
 Diffed from `fetch_report.py`, `compare_raids.py`, `build_deepdive.py`, and `queries/`:

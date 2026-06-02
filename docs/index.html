@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raid Reports</title>
+<style>
+  body { background: #0e1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 700px; margin: 60px auto; padding: 0 24px; }
+  h1 { font-size: 1.4rem; font-weight: 600; color: #e6edf3; margin-bottom: 8px; }
+  p { color: #8b949e; font-size: 0.9rem; margin-bottom: 32px; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { border: 1px solid #21262d; border-radius: 8px; margin-bottom: 10px; }
+  li a { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; text-decoration: none; color: #58a6ff; font-size: 0.95rem; border-radius: 8px; transition: background 0.15s; }
+  li a:hover { background: #161b22; }
+  li a .meta { font-size: 0.8rem; color: #8b949e; }
+  .empty { color: #8b949e; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<h1>Raid Reports</h1>
+<p>Self-contained HTML reports — click to open in browser.</p>
+<ul id="list"></ul>
+<script>
+const reports = /*__REPORTS__*/[];
+const list = document.getElementById('list');
+if (!reports.length) {
+  list.innerHTML = '<li class="empty" style="border:none;padding:0">No reports yet.</li>';
+} else {
+  reports.forEach(r => {
+    const li = document.createElement('li');
+    li.innerHTML = `<a href="${r.file}"><span>${r.title}</span><span class="meta">${r.date}</span></a>`;
+    list.appendChild(li);
+  });
+}
+</script>
+</body>
+</html>

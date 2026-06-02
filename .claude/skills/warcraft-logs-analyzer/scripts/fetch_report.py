@@ -142,12 +142,16 @@ def _binned_curves(code, fid, start, end, n=40):
         n_sig = sum(1 for v in tgt_total.values() if v / grand >= 0.05)  # enemies taking >=5% of damage
         focus = {"conc": conc, "topShareOverall": round(100 * top_overall), "distinctTargets": n_sig,
                  "multiTarget": top_overall < 0.80 and n_sig >= 2}
-        # Per-target damage spans → add lifespans (first-hit to last-hit per instance). The build side
-        # drops the dominant target (the boss) and reads the short-lived rest as adds, for add-kill speed.
+        # Per-target damage spans → add lifespans (first-hit to last-hit per instance) + the add's
+        # first-appearance time (earliest first-hit, relative to pull) for "when did it spawn/engage".
+        # The build side names each target via masterData, drops the boss by name, and keeps the rest.
         spans = {}
         for (tid, _inst), (f, l) in tgt_inst.items():
-            s = spans.setdefault(str(tid), {"dmg": int(tgt_total.get(tid, 0)), "lifespans": []})
+            s = spans.setdefault(str(tid), {"dmg": int(tgt_total.get(tid, 0)), "lifespans": [], "firstSec": None})
             s["lifespans"].append(round((l - f) / 1000.0, 1))
+            fsec = round((f - int(start)) / 1000.0, 1)
+            if s["firstSec"] is None or fsec < s["firstSec"]:
+                s["firstSec"] = fsec
         focus["targetSpans"] = spans
         return rates, focus
 
@@ -254,7 +258,8 @@ def fetch(code, out_dir, full_encounters=None):
         "query K($code:String!){reportData{report(code:$code){title "
         "fights(killType:Kills){id name encounterID difficulty startTime endTime "
         "size averageItemLevel phaseTransitions{id startTime}} "
-        "phases{encounterID separatesWipes phases{id name isIntermission}}}}}"
+        "phases{encounterID separatesWipes phases{id name isIntermission}} "
+        "masterData{npcs: actors(type:\"NPC\"){id gameID name}}}}}"
     )
     kills = lib.invoke_query(kills_q, {"code": code})
     _save(kills, os.path.join(out_dir, "fights.json"))

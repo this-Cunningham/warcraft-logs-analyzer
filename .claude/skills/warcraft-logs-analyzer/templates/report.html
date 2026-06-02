@@ -490,9 +490,10 @@ function renderBosses(d){
   h+=cdUsageView(d);
   h+=rotationView(d);
 
-  /* 3d. Early aggro (threat pulls, table(Threat)) + focus-fire concentration (targetID) — new modalities. */
+  /* 3d. Early aggro (threat pulls), focus concentration, and per-add handling — new modalities. */
   h+=threatPullsView(d);
   h+=focusFireView(d);
+  h+=addHandlingView(d);
 
   /* 4. Output quality (activity / overheal / damage taken / raid output) */
   const q=dp.quality;
@@ -801,31 +802,46 @@ function threatPullsView(d){
   }
   return h+`</tbody></table>`;
 }
-// Focus-fire + add handling — multi-target fights: damage concentration on the top enemy, and how long
-// adds survive once engaged. Both ours vs benchmark, from the damage timeline (no extra fetch).
+// Focus-fire — on multi-target fights, avg share of raid damage on the most-focused enemy, ours vs benchmark.
 function focusFireView(d){
   const rows=rowsOf(d.deep&&d.deep.focusFire);
   if(!rows.length) return "";
-  const hasConc=rows.some(r=>r.ours!=null), hasAdd=rows.some(r=>r.oursAddSurvival!=null);
-  if(!hasConc&&!hasAdd) return "";
-  const blank=`<td class="num">—</td><td class="num">—</td><td class="num">—</td>`;
-  let h=`<h2 class="section">Target Focus &amp; Add Handling — Multi-Target Fights<span class="hint"><b>Focus</b> = average share of raid damage on the single most-focused enemy per slice (higher = concentrated fire, lower = damage split — shown only when damage is genuinely spread). <b>Adds survived</b> = median time the short-lived adds lived once engaged (first hit → last, lower = you kill priority adds faster — shown whenever there are adds, even on a boss-focused fight). Both ours vs the benchmark, computed from the damage timeline — no extra fetch. Spawn-to-engage latency isn't shown: boss-add spawns aren't exposed by the API (the summon events are player totems), so this measures survival once engaged. Descriptive of focus &amp; kill-speed.</span></h2>
-    <table><thead><tr><th>Boss</th>${hasConc?`<th>Focus · ${esc(d.ours.title)}</th><th>Focus · ${esc(d.theirs.title)}</th><th>Δ</th>`:""}${hasAdd?`<th>Adds survived · you</th><th>· bench</th><th>Δ</th>`:""}</tr></thead><tbody>`;
+  let h=`<h2 class="section">Target Focus — Multi-Target Fights<span class="hint">On fights where damage is genuinely split across enemies, the average share of raid damage on the single most-focused enemy per slice, ours vs the benchmark (computed from the damage timeline — no extra fetch). Higher = the raid concentrates fire; lower = damage spread. The benchmark sets the bar. Only multi-target fights appear. Descriptive of focus-vs-spread.</span></h2>
+    <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th class="role">enemies hit</th></tr></thead><tbody>`;
   for(const r of rows){
-    let cells="";
-    if(hasConc){
-      if(r.ours!=null){const fl=deltaHigh(r.ours,r.theirs);
-        cells+=`<td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td><td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td><td class="delta ${fl.cls}">${fl.txt}</td>`;
-      } else cells+=blank;
-    }
-    if(hasAdd){
-      if(r.oursAddSurvival!=null){const al=deltaLow(r.oursAddSurvival,r.theirsAddSurvival); // fewer seconds alive = better
-        cells+=`<td class="num" style="color:var(--ours);font-weight:600">${r.oursAddSurvival}s</td><td class="num" style="color:var(--theirs);font-weight:600">${r.theirsAddSurvival}s</td><td class="delta ${al.cls}">${al.txt}s</td>`;
-      } else cells+=blank;
-    }
-    h+=`<tr><td style="font-weight:600">${esc(r.boss)} <span class="role">${r.oursTargets} vs ${r.theirsTargets} enemies hit</span></td>${cells}</tr>`;
+    const dl=deltaHigh(r.ours,r.theirs);
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
+      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
+      <td class="delta ${dl.cls}">${dl.txt}</td>
+      <td class="num role">${r.oursTargets} vs ${r.theirsTargets}</td></tr>`;
   }
   return h+`</tbody></table>`;
+}
+// Add handling — per boss, each named add: when it first appeared (first hit ≈ spawn) and how long it
+// survived (median, first hit→last), ours vs benchmark. DESCRIPTIVE (a long-lived add can be intentional
+// — e.g. ignoring Al'ar's embers until called), so the Δ is neutral, like Dispels. Surfaces things like
+// "when the Kael'thas weapons spawn" and how each raid cleared them.
+function addHandlingView(d){
+  const bosses=rowsOf(d.deep&&d.deep.addHandling).filter(b=>rowsOf(b.adds).length);
+  if(!bosses.length) return "";
+  let h=`<h2 class="section">Add Handling<span class="hint">For each boss with adds, every add type by name: <b>first seen</b> (time of first damage — a proxy for spawn, since true spawn times aren't exposed) and how long it <b>survived</b> (median, first hit → last), ours vs the benchmark, with the count of that add. <b>Descriptive, not scored</b> — a longer-lived add is sometimes intentional (e.g. holding adds until called), so read it against your plan rather than as better/worse. Sorted by when each add first appears.</span></h2>`;
+  for(const b of bosses){
+    h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>
+      <table><thead><tr><th>Add</th><th>First seen</th><th>Survived · ${esc(d.ours.title)}</th><th>· ${esc(d.theirs.title)}</th><th>Δ</th><th class="role">count (you vs bench)</th></tr></thead><tbody>`;
+    for(const a of rowsOf(b.adds)){
+      const both=a.oursLife!=null&&a.theirsLife!=null;
+      const dtxt=both?((a.oursLife-a.theirsLife>0?"+":(a.oursLife-a.theirsLife<0?"−":""))+Math.abs(Math.round((a.oursLife-a.theirsLife)*10)/10)+"s"):"—";
+      h+=`<tr><td style="font-weight:600">${esc(a.name)}</td>
+        <td class="num">${a.firstSec!=null?fmtTime(a.firstSec*1000):"—"}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${a.oursLife!=null?a.oursLife+"s":"—"}</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${a.theirsLife!=null?a.theirsLife+"s":"—"}</td>
+        <td class="num">${dtxt}</td>
+        <td class="num role">${a.oursCount} vs ${a.theirsCount}</td></tr>`;
+    }
+    h+=`</tbody></table></div>`;
+  }
+  return h;
 }
 // Per-boss DPS-by-spec gap: mirrored bars (ours ← spec → theirs), ranked by per-player deficit so
 // the area we can most improve sits at the top. Only specs BOTH raids fielded — "who's missing a

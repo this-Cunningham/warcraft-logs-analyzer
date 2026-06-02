@@ -9,11 +9,16 @@
   **player totems/pets** (sourceID = players, e.g. Windfury Totem), not boss adds, and scripted spawns carry
   no clean marker. DamageDone events only reveal when an add was first *hit* (already engaged), so spawn→engage
   latency can't be computed honestly — same class of limitation as per-actor positioning.
-- **Add handling (the buildable cousin, TODO #6) — BUILT instead.** Median add **lifespan** (first hit →
-  last hit, i.e. survival once engaged), ours vs benchmark, from the per-instance damage spans the same event
-  pull already yields. Strict add detection (damage share <15% to drop boss/phase-bosses; ≤30s & <40%-of-fight
-  to drop slow mini-boss sequences) keeps it clean — it fires on genuine quick-add fights (Solarian) and stays
-  silent where the "adds" are really phase-bosses (Al'ar) or killed in sequence (Kael).
+- **Add handling (the buildable cousin, TODO #6) — BUILT instead.** Per boss, **every add by name**
+  (`masterData`): when it **first appeared** (first-damage time, a spawn proxy) and how long it **survived**
+  (median first-hit→last), ours vs benchmark, sorted chronologically — so it reads as the add timeline
+  (Kael'thas: advisors → all 7 weapons at ~2:20 → Phoenix; Al'ar's embers). From the per-instance damage
+  spans the same event pull already yields (no extra fetch). **The boss is excluded by NAME** (the one thing
+  we must not mislabel); **every real add is kept, long-lived included** — a raid may ignore an add by design
+  (Al'ar embers held until called survived 132s vs the benchmark's 48s, a real strategy signal). **Descriptive,
+  not scored** (neutral Δ, the Dispels-view rule) — a longer-lived add isn't automatically worse.
+  *(An earlier cut wrongly filtered out long-lived/sequenced adds as "noise"; corrected per product-owner
+  feedback — that data is exactly the insight wanted, e.g. weapon spawn timing.)*
 
 Candidate **#3** from the [GraphQL audit](graphql-audit.md). The design notes below are kept for reference;
 the spawn-latency portions are moot given the dead-end above.

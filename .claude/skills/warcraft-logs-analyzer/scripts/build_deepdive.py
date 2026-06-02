@@ -537,6 +537,18 @@ def phase_name_map(directory):
     return out
 
 
+def npc_name_map(directory):
+    """report actor id -> name, from the report-wide masterData NPCs on fights.json. Lets the
+    add-handling view name each enemy (Ember of Al'ar, Phaseshift Bulwark, …) and identify the BOSS
+    by name so it's never mistaken for an add. Graceful {} on data folders predating the masterData fetch."""
+    try:
+        rep = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]
+    except (OSError, KeyError, ValueError):
+        return {}
+    return {int(a["id"]): a.get("name") for a in (((rep.get("masterData") or {}).get("npcs")) or [])
+            if a.get("id") is not None}
+
+
 KEY_BUFFS =["Bloodlust", "Heroism", "Battle Shout", "Blessing of Kings", "Gift of the Wild",
              "Ferocious Inspiration", "Leader of the Pack", "Drums of Battle", "Arcane Brilliance", "Windfury"]
 KEY_DEBUFFS = ["Sunder Armor", "Expose Armor", "Curse of the Elements", "Faerie Fire", "Misery",
@@ -618,55 +630,69 @@ def focus_view(o_tl, t_tl):
     single-target fight is ~100% by definition and carries no signal, so there's nothing to compare."""
     of = (o_tl or {}).get("focus") or {}
     tf = (t_tl or {}).get("focus") or {}
+    if not of.get("multiTarget") or not tf.get("multiTarget"):
+        return None
 
     def avg_conc(f):
         vals = [c for c in (f.get("conc") or []) if c is not None]
         return round(sum(vals) / len(vals)) if vals else None
 
-    # Add-handling speed: median lifespan (first-hit → last-hit) of the SHORT-LIVED enemy targets — i.e.
-    # the adds, dropping the single dominant target (the boss). "Spawn-to-engage latency" isn't reachable
-    # (boss-add spawns aren't exposed — Summons events are player totems), so this measures how long adds
-    # SURVIVED once engaged — the actionable cousin (focus/burst priority adds faster). Shown whenever both
-    # sides field enough adds, INDEPENDENT of the concentration gate (a boss-focused fight like Solarian
-    # still has quick adds worth comparing even though damage isn't "split").
-    def add_survival(tl):
-        spans = ((tl or {}).get("focus") or {}).get("targetSpans") or {}
-        if not spans:
-            return None
-        dur_s = (tl.get("durMs") or 0) / 1000.0
-        total = sum(s.get("dmg", 0) for s in spans.values()) or 1
-        lifes = []
-        for s in spans.values():
-            # Exclude the boss / phase-bosses (a big share of fight damage — e.g. Al'ar's two phases both
-            # read as long-lived targets), keeping only genuine adds (a small damage share).
-            if s.get("dmg", 0) / total >= 0.15:
-                continue
-            for lf in (s.get("lifespans") or []):
-                # A focus-killed add dies fast; the <=30s cap drops slow mini-boss SEQUENCES (Kael's
-                # advisors/weapons live ~46s and are killed one-by-one, not a focus-switch test) so the
-                # metric only fires where it's clean — silence over noise.
-                if lf <= 30 and (dur_s <= 0 or lf < dur_s * 0.4):
-                    lifes.append(lf)
-        if len(lifes) < 3:
-            return None
-        lifes.sort()
-        return round(lifes[len(lifes) // 2], 1)  # median add lifespan (sec)
-
-    out = {}
-    # Concentration — only when BOTH sides are genuinely multi-target (damage actually split).
-    if of.get("multiTarget") and tf.get("multiTarget"):
-        oc, tc = avg_conc(of), avg_conc(tf)
-        if oc is not None and tc is not None:
-            out["oursConc"], out["theirsConc"] = oc, tc
-    # Add survival — independent gate (enough short-lived adds on both sides).
-    oa, ta = add_survival(o_tl), add_survival(t_tl)
-    if oa is not None and ta is not None:
-        out["oursAddSurvival"], out["theirsAddSurvival"] = oa, ta
-    if not out:
+    oc, tc = avg_conc(of), avg_conc(tf)
+    if oc is None or tc is None:
         return None
-    out["oursTargets"] = of.get("distinctTargets")
-    out["theirsTargets"] = tf.get("distinctTargets")
-    return out
+    return {"oursConc": oc, "theirsConc": tc,
+            "oursTargets": of.get("distinctTargets"), "theirsTargets": tf.get("distinctTargets")}
+
+
+def _adds_by_name(tl, npc_map, boss_name):
+    """Per add NAME on one side: {count, medLifeSec, firstSec}. Excludes the BOSS by name (so a boss
+    phase is never read as an add); if no target matches the boss name, the single highest-damage target
+    is dropped as a safety fallback. Keeps every real add — long-lived ones included (a raid may ignore
+    an add by design), which is legitimate, descriptive data, not noise."""
+    spans = ((tl or {}).get("focus") or {}).get("targetSpans") or {}
+    if not spans:
+        return {}
+    boss_ids = {tid for tid, s in spans.items() if (npc_map.get(int(tid)) or "") == boss_name}
+    if not boss_ids:  # fallback: drop the dominant-damage target so the boss never shows as an add
+        boss_ids = {max(spans, key=lambda k: spans[k].get("dmg", 0))}
+    out = {}
+    for tid, s in spans.items():
+        if tid in boss_ids:
+            continue
+        nm = npc_map.get(int(tid))
+        lifes = sorted(s.get("lifespans") or [])
+        if not nm or not lifes:
+            continue
+        rec = out.setdefault(nm, {"count": 0, "lifes": [], "firstSec": None})
+        rec["count"] += len(lifes)
+        rec["lifes"].extend(lifes)
+        fs = s.get("firstSec")
+        if fs is not None and (rec["firstSec"] is None or fs < rec["firstSec"]):
+            rec["firstSec"] = fs
+    return {nm: {"count": r["count"], "firstSec": r["firstSec"],
+                 "medLife": round(sorted(r["lifes"])[len(r["lifes"]) // 2], 1)}
+            for nm, r in out.items() if r["lifes"]}
+
+
+def add_handling(o_tl, t_tl, o_npc, t_npc, boss_name):
+    """Per add TYPE (by name), how each raid handled it: when it first appeared (first damage, a spawn
+    proxy — true spawn times aren't exposed) and how long it survived (median lifespan), ours vs benchmark.
+    DESCRIPTIVE, not scored — a longer-lived add can be intentional (e.g. ignoring Al'ar's embers until
+    called), so the leader reads it, like the Dispels view. Adds present on only one side are still shown.
+    Sorted by first-appearance (chronological — surfaces 'when the weapons spawn' on Kael'thas)."""
+    oa = _adds_by_name(o_tl, o_npc, boss_name)
+    ta = _adds_by_name(t_tl, t_npc, boss_name)
+    rows = []
+    for nm in set(oa) | set(ta):
+        o, t = oa.get(nm), ta.get(nm)
+        first = (o or {}).get("firstSec")
+        if first is None:
+            first = (t or {}).get("firstSec")
+        rows.append({"name": nm, "firstSec": first,
+                     "oursLife": o["medLife"] if o else None, "theirsLife": t["medLife"] if t else None,
+                     "oursCount": o["count"] if o else 0, "theirsCount": t["count"] if t else 0})
+    rows.sort(key=lambda r: (r["firstSec"] if r["firstSec"] is not None else 1e9))
+    return rows
 
 
 def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_band_sec=15):
@@ -2112,6 +2138,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # is authoritative; fall back to theirs per-encounter if only one side carries them. Empty/graceful.
     ours_phase_names = phase_name_map(ours_dir)
     theirs_phase_names = phase_name_map(theirs_dir)
+    # Report-wide NPC names (for naming adds + excluding the boss by name in the Add Handling view).
+    ours_npc = npc_name_map(ours_dir)
+    theirs_npc = npc_name_map(theirs_dir)
 
     # Wipe/attempt counts + WIPE DEPTH per shared boss (graceful if attempts.json predates this feature).
     ours_att = attempt_map(ours_dir)
@@ -2308,6 +2337,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "threat": {"ours": threat_pulls(o_b, ours_fights[enc], ours_role, b["name"]),
                        "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
             "focus": focus_view(o_tl, t_tl),
+            "addHandling": add_handling(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
             "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
                                       o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
         })
@@ -2372,11 +2402,12 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                       "theirsTotal": ssum([r["theirsTotal"] for r in threat_rows]),
                       "oursOpener": ssum([r["oursOpener"] for r in threat_rows]),
                       "theirsOpener": ssum([r["theirsOpener"] for r in threat_rows])}
-    focus_rows = [{"boss": p["name"], "ours": p["focus"].get("oursConc"), "theirs": p["focus"].get("theirsConc"),
-                   "oursTargets": p["focus"].get("oursTargets"), "theirsTargets": p["focus"].get("theirsTargets"),
-                   "oursAddSurvival": p["focus"].get("oursAddSurvival"),
-                   "theirsAddSurvival": p["focus"].get("theirsAddSurvival")}
+    focus_rows = [{"boss": p["name"], "ours": p["focus"]["oursConc"], "theirs": p["focus"]["theirsConc"],
+                   "oursTargets": p["focus"].get("oursTargets"), "theirsTargets": p["focus"].get("theirsTargets")}
                   for p in per_boss if p.get("focus")]
+    # Per-boss add handling (named adds: when each first appeared + how long it survived, ours vs benchmark).
+    add_handling_rows = [{"boss": p["name"], "adds": p["addHandling"]}
+                         for p in per_boss if p.get("addHandling")]
 
     # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
     # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
@@ -2399,7 +2430,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
-                 "threatPulls": threat_summary, "focusFire": focus_rows,
+                 "threatPulls": threat_summary, "focusFire": focus_rows, "addHandling": add_handling_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
     }
     out_full = render_report(payload, out_file)

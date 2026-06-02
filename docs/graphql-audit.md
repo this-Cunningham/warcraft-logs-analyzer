@@ -29,11 +29,13 @@ generates, the data flows, the JS validates):
   non-tank holding the **named boss's** aggro, ours vs benchmark, opener-weighted; feeds the Overview
   scorecard ("Pulling aggro in the opener"). Built the **scoped** version and **cut the naive
   aggro-uptime %** exactly as the audit warned (it reads 131%/62% on multi-tank/phase fights).
-- ✅ **#3 Focus-fire** (`events.targetID`) — "Target Focus & Add Handling": **focus concentration** (share
-  of raid damage on the most-focused enemy) **+ add-handling** (median add lifespan once engaged), ours vs
-  benchmark. Built for **zero extra API cost** by binning the Timeline's existing DamageDone pull by
-  `targetID`. A spike confirmed **switch-latency (spawn→engage) is a dead-end** — boss-add spawns aren't
-  exposed (`summon` events are player totems) — so add *survival* is the buildable cousin (TODO #6).
+- ✅ **#3 Focus-fire** (`events.targetID`) — two views, both for **zero extra API cost** (binning the
+  Timeline's existing DamageDone pull by `targetID`): **Target Focus** (share of raid damage on the
+  most-focused enemy, concentrated-vs-split) and **Add Handling** (per boss, every add *by name* via
+  masterData: when it first appeared + how long it survived, ours vs benchmark, chronological — surfaces
+  Kael's weapon-spawn timing, Al'ar's ignored embers). A spike confirmed **switch-latency (spawn→engage) is
+  a dead-end** — boss-add spawns aren't exposed (`summon` events are player totems) — so add survival is the
+  buildable cousin (TODO #6). Add Handling is descriptive (boss excluded by name; every real add kept).
 
 **Verified dead-end (don't retry):** focus-fire **switch-latency** — add spawn times aren't reachable. 
 **Lower-priority leftovers:** cross-guild leaderboard (redundant with parses), raid incoming-damage

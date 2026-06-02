@@ -31,3 +31,38 @@ carried zero `x`/`y`. Confirmed dead-end on the current auth path (2026-06-01).
 **One unopened door:** the user-OAuth flow (authorization-code, needs a one-time browser login) *might*
 expose the stream. Spike only if positioning becomes a real priority — don't re-investigate the
 client-credentials path.
+
+---
+
+## BACKLOG: Layout audit — Overview tab
+
+> Go through the Overview tab and audit layout/organization. Does it make sense? Should things be moved
+> around? Should explanations be simplified or trimmed? Are there things that aren't clear enough?
+
+---
+
+## BACKLOG: Layout audit — Composition tab
+
+> Go through the Composition tab and audit layout/organization. Does it make sense? Should things be
+> moved around? Should explanations be simplified or trimmed? Are there things that aren't clear enough?
+
+---
+
+## BACKLOG: Layout audit — Prep tab
+
+> Go through the Prep tab and audit layout/organization. Does it make sense? Should things be moved
+> around? Should explanations be simplified or trimmed? Are there things that aren't clear enough?
+
+---
+
+## BACKLOG: Layout audit — Execution tab
+
+> Go through the Execution tab and audit layout/organization. Does it make sense? Should things be
+> moved around? Should explanations be simplified or trimmed? Are there things that aren't clear enough?
+
+---
+
+## BACKLOG: Layout audit — Trash tab
+
+> Go through the Trash tab and audit layout/organization. Does it make sense? Should things be moved
+> around? Should explanations be simplified or trimmed? Are there things that aren't clear enough?

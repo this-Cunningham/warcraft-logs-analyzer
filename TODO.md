@@ -1,6 +1,6 @@
-# TODO / Backlog
+# TODO
 
-Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of each section.
+Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLOG.md`](BACKLOG.md). Newest ideas at the bottom of each section.
 
 > Before adding or building anything here, route it through the product
 > principles in [`PRODUCT_MANAGER_SOUL.md`](PRODUCT_MANAGER_SOUL.md) — does it
@@ -29,31 +29,6 @@ Data already fetched: Interrupts table `details[]` has per-player kick counts pe
 The underlying data (per-enemy first-appearance time, survival duration, ours vs benchmark) may have
 something in it — but the current view doesn't surface it. What meaningful gap can actually be read from
 enemy engagement timelines that a raid leader would act on?
-
----
-
-## TODO: Trash tab — next-pass ideas
-
-> Pending ideas surfaced while building the (shipped) Trash tab.
-
-- **Lust/cooldowns on trash** as a *descriptive* (not "waste") comparison — the benchmark sets the bar.
-  Needs a new Casts-on-trash fetch + view; research-flavored, deferred.
-- **Time-gap clustering** of consecutive pulls into player-perceived "packs," if WCL's per-pull
-  segmentation ever proves too granular for a given tier. Conditional, not needed yet.
-
----
-
-## TODO: per-actor positioning (dead-end until OAuth)
-
-> Spread-vs-stack, boss-facing, "where does the melee stand" — the classic positioning gap.
-
-WCL records per-actor coordinates (the website replay works; `boundingBox` is populated per fight), but
-the **public client-credentials API withholds the per-actor stream** — all 17k events on a Hydross kill
-carried zero `x`/`y`. Confirmed dead-end on the current auth path (2026-06-01).
-
-**One unopened door:** the user-OAuth flow (authorization-code, needs a one-time browser login) *might*
-expose the stream. Spike only if positioning becomes a real priority — don't re-investigate the
-client-credentials path.
 
 ---
 

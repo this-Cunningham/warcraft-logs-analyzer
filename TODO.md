@@ -154,3 +154,17 @@ flask OR a battle+guardian pair as "prepared"). The Coverage card at the top of 
 only, so a player on a full elixir pair reads as un-flasked there — understating true coverage and
 contradicting the matrix below it. Fix: apply the same "flask OR elixir pair" logic to the coverage
 denominator/count that the per-player matrix already uses.
+
+---
+
+## TODO: Cloud startup script — pre-generate report from two pinned raid IDs
+
+> Add a startup command we can run in a Claude Code cloud container environment so when we start a new
+> session in cloud, we generate a report with two known raid URLs with IDs so you have something to work off of.
+
+A cloud session starts cold — no local cached data, no report artifact. A startup script that fires the
+skill with two pinned report codes (our raid + a top-world benchmark) immediately produces a fresh HTML
+report and populates the local cache, so the developer can inspect, tweak, and verify changes against
+real data without a manual fetch step every time. Engineering/pipeline layer only (soul: "runs with zero
+friction") — nothing in the report changes. Needs two known report codes pinned in the script; should
+ideally skip the API fetch and reuse cached data if it already exists, so re-runs are instant.

@@ -122,16 +122,3 @@ Open questions across the track: which bosses have enough multi-target structure
 it (single-target fights → skip); where these live in the report (a per-boss **Timeline** sub-tab under
 Execution feels right); and how much extra fetch/points the event pulls add over today's table-only
 budget (spike #2 first — cheapest, highest-value, and proves the timeline plumbing for the rest).
-
----
-
-## TODO: Per-Player Consumables — column-letter legend + yellow headers
-
-> Add a "legend key" for the column letters in the Per-Player Consumables table (above the table), and
-> make the column header letters yellow.
-
-A legibility fix, not a new metric: the matrix's per-boss sub-columns (F · B · G · Fd · P = Flask /
-Battle Elixir / Guardian Elixir / Food / Combat Potion) are unlabeled, so a reader has to guess what
-each letter means. A small key above the table, plus yellow column-header letters to tie the key to the
-columns, makes the data already on the page readable at a glance — serves the soul's "self-explanatory"
-bar without adding any noise.

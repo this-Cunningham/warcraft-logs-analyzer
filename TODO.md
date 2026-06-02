@@ -8,13 +8,27 @@ Living backlog for the Warcraft Logs analyzer. Newest ideas at the bottom of eac
 
 ---
 
-## TODO: more / better insights — what other data can we leverage?
+## TODO: Interrupts — refactor to ability-first with specs nested
 
-> What else can we do to give better insights and ability to improve our raid? What other
-> data is available? What little nooks and crannies of data can we leverage to find
-> gaps / areas for improvement?
+> In the Abilities Interrupted section, nest the kicking specs under each ability, ours vs benchmark —
+> "benchmark used Fire Mages to kick X, we used Ele Shaman."
 
-_(to be replaced)_
+Under each interrupted ability in the Abilities Interrupted list, show which specs handled it and how
+many kicks (counts preserved), ours vs benchmark side by side. Descriptive (like
+Dispels — a different spec assignment isn't inherently better/worse, but reveals strategy differences).
+Data already fetched: Interrupts table `details[]` has per-player kick counts per ability; join with
+`primary_spec_map` to bucket by spec. No new fetch needed.
+
+---
+
+## TODO: Enemy Targets — Engagement & Survival — find better insights or cut
+
+> The current insights from this data are not useful or interesting. Find more useful insights to derive
+> from this data, or remove the section.
+
+The underlying data (per-enemy first-appearance time, survival duration, ours vs benchmark) may have
+something in it — but the current view doesn't surface it. What meaningful gap can actually be read from
+enemy engagement timelines that a raid leader would act on?
 
 ---
 
@@ -29,96 +43,96 @@ _(to be replaced)_
 
 ---
 
-## TODO: time-resolved insights — mine the event stream & timelines (one level deeper than aggregates)
+## TODO: per-actor positioning (dead-end until OAuth)
 
-> Everything today is a fight-total aggregate ("Raid DPS on Hydross: X vs Y"). The richest coaching
-> lives in *when* and *at what*: where in the fight did we fall behind, what was each role doing at
-> that moment, what were the melee/ranged actually targeting, when did cooldowns fire, when did the
-> deaths cascade? Derive second-order insights from the per-event timeline and compare the *shape* of
-> our fight against the benchmark's, not just the totals. The thing we want to be able to say:
-> *"your melee spent the first 30s on the wrong target."*
+> Spread-vs-stack, boss-facing, "where does the melee stand" — the classic positioning gap.
 
-This is a research-and-build track, not one feature. Below is what the WCL v2 data actually supports
-(verified live against a real SSC/TK report on 2026-06-01 — the current pipeline only ever calls
-`table`/`playerDetails`, so `events`/`graph` are untapped), the cost levers, and the candidate
-insights ranked by soul-fit. **Read "what's available vs not" first — it kills the literal
-positioning ask, and we don't want to re-spend API points re-discovering that.**
+WCL records per-actor coordinates (the website replay works; `boundingBox` is populated per fight), but
+the **public client-credentials API withholds the per-actor stream** — all 17k events on a Hydross kill
+carried zero `x`/`y`. Confirmed dead-end on the current auth path (2026-06-01).
 
-### What's available vs not (verified — don't re-investigate)
+**One unopened door:** the user-OAuth flow (authorization-code, needs a one-time browser login) *might*
+expose the stream. Spike only if positioning becomes a real priority — don't re-investigate the
+client-credentials path.
 
-- **Not reachable via our API — per-actor positioning.** WCL *does* have position data for these
-  reports — the website "replay" works, and `ReportFight.boundingBox{minX,maxX,minY,maxY}` comes back
-  **populated** with real coordinate spans per boss (Hydross 5337×6062 units; SSC fights on map 332,
-  TK on map 334). But the **per-actor coordinate stream is not exposed through the public
-  client-credentials API we use**: across a full Hydross kill, all **17,062 events carried zero
-  `x`/`y`** — the keys aren't even present in the JSON, despite the populated bounding box. So "where
-  does tank 1 / a healer / the melee stand", spread-vs-stack, and boss-facing **cannot be built** from
-  the data our pipeline can reach. The only positional field the public API exposes is the whole-fight
-  `boundingBox` — one rectangle, not time-resolved and not per-role, so not actionable on its own.
-  **Caveat / one unopened door:** the per-actor stream *might* be reachable via the user-OAuth API
-  (authorization-code flow, not yet built — needs a one-time browser login) or a website-internal
-  endpoint; unconfirmed, don't rely on it, but it's the spike to run if positioning becomes a
-  priority. (Verified 2026-06-01 on report 1GHrpaNc2YM4hKTJ — note the earlier "TBC doesn't record
-  positions" framing was wrong: WCL records them, the public client API just withholds the per-actor
-  stream.)
-- **Available — targeting.** Every `cast` and `damage` event carries `targetID` (+ `targetInstance`
-  to tell apart multiple copies of the same add). `masterData.actors(type:"")` maps every id →
-  name/type for players AND all NPCs/adds in the fight (244 actors on the test pull). So we can
-  reconstruct *who each player was hitting, moment by moment.* (Note: stale `zzOLD…` totem actors
-  appear in the actor list — filter them.)
-- **Available and cheap — time-series curves.** `graph(dataType:…, viewBy:Source)` returns one
-  **pre-downsampled** series per player — ~38 points for a 98s fight (≈ one sample every 2.5s). This
-  *is* the "sample every 2s instead of every ms" idea, and WCL does it server-side for free, with no
-  raw-event pull, for DamageDone / Healing / Threat / etc.
-- **Available — threat over time.** `graph(dataType:Threat)` (~20 pts/fight) → aggro / threat-lead
-  insights ("a DPS overtook the tank on threat at 0:45"). Verify per-enemy bucketing before building.
-- **Unreliable in TBC — mana/resources.** `graph(dataType:Resources)` returned **0 series** on the
-  test fight and `hitPoints` on events was null — TBC logs are sparse here. Verify before promising
-  any OOM / mana-management insight; treat as not-available until proven otherwise.
+---
 
-### Making it cheap (the cost question, answered)
+## TODO: Rotation — Ability Mix: DPS / Healer tab + all overlapping specs + collapse-on-match
 
-The granular stream is large, but volume is controllable:
+> Split Rotation — Ability Mix into a DPS tab and a Healer tab; show every spec both raids fielded;
+> collapse specs where the cast mix barely differs and show a green success label instead.
 
-1. **Prefer `graph` over `events`** for anything that's a curve (DPS/HPS/threat over time). It's
-   already bucketed to ~2-3s server-side — one cheap call per fight, no pagination.
-2. **`filterExpression`** (verified, applied server-side on `events`/`graph`/`table`) — fetch only
-   the events you need (`type="cast"`, a target id, a source role) so volume is cut before it leaves
-   WCL. This is the lever that makes the targeting reconstruction affordable.
-3. **Reconstruct target-over-time from cast/damage events you'd pull anyway** — players act every GCD
-   (~1.5s), so target resolution is naturally ~1-2s with no extra sampling cost.
-4. **Only the shared bosses, only the kill** (one clean pull per boss, not every wipe), and **cache
-   to disk** — a finished fight's events never change. Extends the existing `data/<code>` pattern.
+Same data source (Casts table) and same descriptive framing — cast share per ability, ours vs benchmark,
+biggest divergence first. Healer spell priority is a real coaching lever (e.g. Holy Priest over-relying
+on Flash Heal vs Greater Heal). Tab toggle keeps the view lean (same pattern as Kill Order / Crowd
+Control in the Trash tab). `rotation_buckets` already pulls the full Casts table — needs healer-role
+filter unlocked and a second spec-bucketing pass.
 
-### Candidate insights (ranked by soul-fit)
+For specs where `maxDiff` is below a threshold (TBD — maybe ≤5pp), collapse the panel and render a green
+chip ("Rotation matches benchmark") so a leader can see at a glance which specs are fine and focus on the
+ones that aren't. Expanded panels stay as-is for specs with real divergence.
 
-1. **Focus-fire / target-switching timeline** — *the flagship; reveals a real, actionable gap.* On
-   multi-target fights, at each ~2s tick compute the share of raid DPS hitting the single
-   most-damaged enemy (focus concentration), and per role the latency to switch onto a newly-spawned
-   priority add. Benchmark the *shape*: "melee took 24s to switch to the Tainted Elemental; benchmark
-   switched in 6s" / "raid DPS was split 60/40 across two adds for the first 30s." **Honesty guard:**
-   prefer measurable focus *concentration* and *switch latency* (boss-agnostic, no hardcoded "correct
-   target"); only where we encode TBC add priorities, label them explicitly as our assumption.
-   Data: `events(Casts/DamageDone)` + `targetID` + `Summons` for spawns.
-2. **Per-boss timeline vs benchmark** — already shipped (per-boss **Timeline** sub-tab; event-binned
-   DPS/HPS curves on an absolute-seconds axis, `tlChart` in report.html). Established the timeline
-   plumbing the remaining candidates (#1 targeting, #3 cooldowns, #4 threat, #5 cascades) can reuse.
-3. **Cooldown-timing timeline.** When the big raid/personal CDs actually fired vs the optimal window —
-   Bloodlust, Power Infusion, trinkets, Combustion/Recklessness/Death Wish. "You lusted at 0:45 (P1)
-   vs benchmark at 2:30 (execute)." Data: `events(Casts)` filtered to a CD ability-id set. (Already
-   noted in SKILL "next-pass ideas"; the timeline framing makes it land.)
-4. **Threat / early-aggro check.** Did a DPS pull aggro off the tank, and when — and what was the
-   threat-lead margin at pull? "A mage overtook the tank on threat at 0:12 on three pulls." Action:
-   open softer / misdirect. Data: `graph(Threat)`. Cheap; honest; verify per-enemy bucketing first.
-5. **Death-cascade detection.** We already list deaths; the *timeline* reveals whether they cluster
-   (a cascade = one trigger — e.g. a healer death — not N independent mistakes). "3 of 4 deaths fell
-   within 8s at 2:10 — fix the trigger, not four players." Data: death timestamps (already fetched) —
-   near-free, just a clustering pass over data we have.
-6. **Add-handling speed.** Time from a priority add's spawn (`Summons` / first appearance) to its
-   death, ours vs benchmark. "The Tainted Elemental lived 14s longer for you." Pairs with #1.
-   Data: `Summons` events + enemy `death` events + `targetID`.
+---
 
-Open questions across the track: which bosses have enough multi-target structure to make #1/#6 worth
-it (single-target fights → skip); where these live in the report (a per-boss **Timeline** sub-tab under
-Execution feels right); and how much extra fetch/points the event pulls add over today's table-only
-budget (spike #2 first — cheapest, highest-value, and proves the timeline plumbing for the rest).
+## TODO: in-combat consumables matrix (second matrix, below the existing prep one)
+
+> Add a second per-player matrix underneath the existing prep matrix — same shape, focused on in-combat
+> consumables: combat potion, health potion, mana potion, healthstone. Don't touch the existing matrix.
+
+Same structure as the existing prep matrix (rows = players sorted worst-first, columns = bosses, sub-columns
+per consumable type, ✓/✗ cells). The "P" combat potion sub-column should move out of the existing matrix
+into this new one (so the prep matrix becomes F · B · G · Fd only). Sub-columns in the new matrix:
+**P** (combat potion) · **HP** (health potion) · **MP** (mana potion) · **HS** (healthstone).
+
+Data source is the same Buffs aura table scoped by `sourceID` (`consumes-<enc>.json`) — health/mana pots
+and healthstones should appear as buff auras with `totalUses`; spell IDs need confirming from live data.
+Healthstone availability is warlock-dependent — flag "no warlock in raid" rather than marking every player
+red when none were present.
+
+---
+
+## TODO: throughput consumable choices — potion count gap + type breakdown by spec
+
+> More comprehensive breakdown on throughput potions — "you popped 17 less potions on boss fights";
+> per-spec breakdown ("rogues used 21 more potions than your rogues"); surface which types top guilds use.
+
+Two angles:
+
+1. **Potion count gap (ours vs benchmark, per spec):** total combat potion activations across shared
+   bosses, bucketed by spec, ours vs benchmark. "Rogues: 21 more pots" is a concrete, actionable gap at
+   the spec grain — raid-level coaching, not per-player. The benchmark is the discovery mechanism for
+   which throughput potions matter (no hardcoded assumptions) — mine spell IDs from the benchmark's buff
+   auras, the same way `FLASK_IDS` etc. were built. Data already fetched (`consumes-<enc>.json` per-player
+   buff auras + the Casts table for in-fight pot casts).
+
+2. **Which throughput potions (flask + battle elixir choices):** surface WHICH specific buff players are
+   using, so a leader can see DPS on survival flasks vs throughput ones. The existing matrix classifies by
+   category; this extends to the specific buff name within each category. Benchmark-first: the top guild's
+   buff auras reveal the meta choices without us having to hardcode them.
+
+---
+
+## BUG: Clear Efficiency — wall-clock not scoped to shared zone
+
+> Clear Efficiency is not comparing apples to apples — the benchmark may have run 3 raids in the time
+> we ran one; wall-clock and out-of-boss time need to be scoped to the shared encounters only.
+
+Currently uses the full report wall-clock (first pull to last kill across the entire night). If the
+benchmark guild's report covers SSC + TK + Gruul but ours covers only TK, the comparison is meaningless.
+Fix: scope wall-clock and derived values (out-of-boss time, clear efficiency) to the time window
+spanning only the shared bosses — from the first pull of a shared encounter to the last kill of a shared
+encounter, on each side independently. Audit all other night-total or report-wide metrics nearby for the
+same issue — any value computed from the full report window rather than the shared-boss window is suspect
+when the two reports cover different raid zones.
+
+---
+
+## BUG: Consumables Coverage — elixir pair not counted as "flasked"
+
+> The Flask coverage card doesn't count a battle + guardian elixir combo as equivalent to a flask.
+
+The per-player matrix already handles this correctly (`_elixir_type` + route-aware cell rendering treats a
+flask OR a battle+guardian pair as "prepared"). The Coverage card at the top of Prep counts flask auras
+only, so a player on a full elixir pair reads as un-flasked there — understating true coverage and
+contradicting the matrix below it. Fix: apply the same "flask OR elixir pair" logic to the coverage
+denominator/count that the per-player matrix already uses.

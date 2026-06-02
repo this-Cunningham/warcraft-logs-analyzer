@@ -100,6 +100,7 @@ def _binned_curves(code, fid, start, end, n=40):
         buckets = [0.0] * n
         tgt_bucket = [dict() for _ in range(n)] if with_focus else None  # bucket -> {targetID: dmg}
         tgt_total = {} if with_focus else None                          # targetID -> total dmg (whole fight)
+        tgt_inst = {} if with_focus else None  # (targetID,targetInstance) -> [firstTs, lastTs] for add lifespans
         cur = int(start)
         while cur is not None and cur < int(end):
             q = ("query Q($c:String!,$f:[Int]!,$st:Float!,$et:Float!){reportData{report(code:$c){"
@@ -115,6 +116,14 @@ def _binned_curves(code, fid, start, end, n=40):
                     if tid is not None:
                         tgt_bucket[bi][tid] = tgt_bucket[bi].get(tid, 0) + amt
                         tgt_total[tid] = tgt_total.get(tid, 0) + amt
+                        ts = e["timestamp"]
+                        sp = tgt_inst.get((tid, e.get("targetInstance")))
+                        if sp is None:
+                            tgt_inst[(tid, e.get("targetInstance"))] = [ts, ts]
+                        elif ts < sp[0]:
+                            sp[0] = ts
+                        elif ts > sp[1]:
+                            sp[1] = ts
             nxt = ev.get("nextPageTimestamp")
             if not nxt or nxt <= cur:
                 break
@@ -133,6 +142,13 @@ def _binned_curves(code, fid, start, end, n=40):
         n_sig = sum(1 for v in tgt_total.values() if v / grand >= 0.05)  # enemies taking >=5% of damage
         focus = {"conc": conc, "topShareOverall": round(100 * top_overall), "distinctTargets": n_sig,
                  "multiTarget": top_overall < 0.80 and n_sig >= 2}
+        # Per-target damage spans → add lifespans (first-hit to last-hit per instance). The build side
+        # drops the dominant target (the boss) and reads the short-lived rest as adds, for add-kill speed.
+        spans = {}
+        for (tid, _inst), (f, l) in tgt_inst.items():
+            s = spans.setdefault(str(tid), {"dmg": int(tgt_total.get(tid, 0)), "lifespans": []})
+            s["lifespans"].append(round((l - f) / 1000.0, 1))
+        focus["targetSpans"] = spans
         return rates, focus
 
     dps, focus = curve("DamageDone", with_focus=True)

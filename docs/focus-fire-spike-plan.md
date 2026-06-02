@@ -1,10 +1,22 @@
 # Focus-fire / target-switch latency — spike plan
 
-**Status (updated 2026-06-02):** **M1 (focus concentration) is BUILT** — shipped as the "Target Focus —
-Multi-Target Fights" view (`focus_view` → `focusFireView`), computed for *zero extra API cost* by binning
-the Timeline's existing DamageDone pull by `targetID` (see `_binned_curves`). **M2 (switch-latency to a new
-add) and named-add labels remain unbuilt** — the rest of this doc is the design for those. This is
-candidate **#3** from the [GraphQL audit](graphql-audit.md) (the flagship time-resolved idea, also TODO #1).
+**Status (updated 2026-06-02):**
+- **M1 (focus concentration) — BUILT.** Shipped in the "Target Focus & Add Handling" view (`focus_view` →
+  `focusFireView`), computed for *zero extra API cost* by binning the Timeline's existing DamageDone pull by
+  `targetID` (see `_binned_curves`).
+- **M2 (switch-latency, spawn→engage) — NOT buildable (verified dead-end).** Measuring it needs boss-add
+  **spawn** times, and a live spike showed those aren't exposed: `events(dataType:Summons)` is dominated by
+  **player totems/pets** (sourceID = players, e.g. Windfury Totem), not boss adds, and scripted spawns carry
+  no clean marker. DamageDone events only reveal when an add was first *hit* (already engaged), so spawn→engage
+  latency can't be computed honestly — same class of limitation as per-actor positioning.
+- **Add handling (the buildable cousin, TODO #6) — BUILT instead.** Median add **lifespan** (first hit →
+  last hit, i.e. survival once engaged), ours vs benchmark, from the per-instance damage spans the same event
+  pull already yields. Strict add detection (damage share <15% to drop boss/phase-bosses; ≤30s & <40%-of-fight
+  to drop slow mini-boss sequences) keeps it clean — it fires on genuine quick-add fights (Solarian) and stays
+  silent where the "adds" are really phase-bosses (Al'ar) or killed in sequence (Kael).
+
+Candidate **#3** from the [GraphQL audit](graphql-audit.md). The design notes below are kept for reference;
+the spawn-latency portions are moot given the dead-end above.
 
 ## The gap it reveals
 

@@ -332,15 +332,23 @@ the static template, with no model in the path.
        **under-counts, never over-counts** (a long pull, or a parse-mis-roled feral off-tank, is dropped,
        never falsely flagged). The **opener** count (cleanest — opener pulls are unambiguous, vs
        mechanic-driven mid-fight threat churn) feeds the Biggest Gaps scorecard via `threat=`.
-     - **Target Focus — Multi-Target Fights** (`focus_view` → `focusFireView`) — focus-fire concentration:
-       on fights with multiple damage targets, the average share of raid damage on the single most-focused
-       enemy per time slice, ours vs benchmark (higher = concentrated fire, lower = split). **Computed off
-       the SAME DamageDone event pull the Timeline already does** (`_binned_curves` also bins `amount` by
-       `targetID`), so it adds **no API cost**. Only **multi-target** fights appear: `multiTarget` =
-       top-enemy share <80% of fight damage AND ≥2 enemies taking ≥5% each (single-target is ~100% by
-       definition — no signal). Descriptive of focus-vs-spread, benchmark as the bar. (The companion
-       **switch-latency-to-a-new-add** metric — M2 in `docs/focus-fire-spike-plan.md` — is not yet built;
-       concentration is M1.)
+     - **Target Focus & Add Handling — Multi-Target Fights** (`focus_view` → `focusFireView`) — two
+       independent signals, **both computed off the SAME DamageDone event pull the Timeline already does**
+       (`_binned_curves` also bins `amount` by `targetID` and tracks per-instance damage spans), so they add
+       **no API cost**:
+       - **Focus concentration** — avg share of raid damage on the single most-focused enemy per slice,
+         ours vs benchmark (higher = concentrated fire, lower = split). Shown only when **both** sides are
+         genuinely multi-target: `multiTarget` = top-enemy share <80% of fight damage AND ≥2 enemies ≥5%
+         each (a single-target burn is ~100% — no signal).
+       - **Add handling** — median lifespan (first hit → last) of the genuine **adds**, ours vs benchmark
+         (lower = you focus-kill priority adds faster). Independent gate (a boss-focused fight like Solarian
+         still has quick adds worth comparing). **`switch-latency` (spawn→engage) is NOT built — it's a
+         verified dead-end:** boss-add SPAWN times aren't exposed (the `summon` events are player totems),
+         so we can only measure survival once engaged. Add detection is deliberately strict to stay clean:
+         a target is an add only if its damage share <15% (drops the boss / phase-bosses — e.g. Al'ar's two
+         phases) AND each instance lived ≤30s and <40% of the fight (drops slow mini-boss *sequences* like
+         Kael's advisors/weapons, which are killed one-by-one, not a focus-switch test). So it fires only
+         where it's clean (Solarian quick adds), silent elsewhere — and will light up on add-heavy tiers.
      - **Output Quality** — time-weighted **Raid DPS / Raid HPS**, avg DPS activity (`dd.activeTime`/
        duration), damage taken ex-tanks (`dt`, with an in-report **Per second / Overall** toggle that
        also switches the per-boss damage breakdowns), healer overheal (`heal.overheal`). (The old raw

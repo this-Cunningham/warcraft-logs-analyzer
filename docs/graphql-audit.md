@@ -29,13 +29,15 @@ generates, the data flows, the JS validates):
   non-tank holding the **named boss's** aggro, ours vs benchmark, opener-weighted; feeds the Overview
   scorecard ("Pulling aggro in the opener"). Built the **scoped** version and **cut the naive
   aggro-uptime %** exactly as the audit warned (it reads 131%/62% on multi-tank/phase fights).
-- ✅ **#3 Focus-fire — concentration (M1)** (`events.targetID`) — "Target Focus — Multi-Target Fights":
-  avg share of raid damage on the most-focused enemy, ours vs benchmark. Built it for **zero extra API
-  cost** by binning the Timeline's existing DamageDone pull by `targetID`. Only multi-target fights show.
+- ✅ **#3 Focus-fire** (`events.targetID`) — "Target Focus & Add Handling": **focus concentration** (share
+  of raid damage on the most-focused enemy) **+ add-handling** (median add lifespan once engaged), ours vs
+  benchmark. Built for **zero extra API cost** by binning the Timeline's existing DamageDone pull by
+  `targetID`. A spike confirmed **switch-latency (spawn→engage) is a dead-end** — boss-add spawns aren't
+  exposed (`summon` events are player totems) — so add *survival* is the buildable cousin (TODO #6).
 
-**Still a spike (not built):** **#3 Focus-fire — switch-latency (M2)** + named-add labels — plan in
-[`focus-fire-spike-plan.md`](focus-fire-spike-plan.md). Lower-priority leftovers: cross-guild leaderboard
-(redundant with parses), raid incoming-damage timeline (candidate B).
+**Verified dead-end (don't retry):** focus-fire **switch-latency** — add spawn times aren't reachable. 
+**Lower-priority leftovers:** cross-guild leaderboard (redundant with parses), raid incoming-damage
+timeline (candidate B).
 
 ---
 

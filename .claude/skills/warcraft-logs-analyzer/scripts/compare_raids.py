@@ -26,11 +26,38 @@ import fetch_report
 
 META_Q = "query M($code:String!){reportData{report(code:$code){title zone{name} fights(killType:Kills){encounterID}}}}"
 PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}"
+# rankings(compare:Parses) defaults to the DPS metric for EVERY role — so a healer's rankPercent/amount
+# come back as a meaningless DPS parse (their incidental damage), NOT their HPS parse. We fetch HPS
+# parses separately and merge them over the healers so each healer carries their real (HPS) parse.
+HPS_PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses, playerMetric:hps)}}}"
 
 
 def get_code(u):
     m = re.search(r"reports/([^/?#\s]+)", u)
     return m.group(1) if m else u.strip()
+
+
+def _rank_fights(obj):
+    return ((((obj or {}).get("reportData") or {}).get("report") or {}).get("rankings") or {}).get("data") or []
+
+
+def merge_healer_hps(default_obj, hps_obj):
+    """Overwrite each healer's `rankPercent` + `amount` in the DPS-metric parses with the HPS-metric
+    values (matched by encounter id + name within the healers bucket). Without this, healer parses are a
+    DPS percentile of their ~0 incidental damage — wrong number, and it pollutes the Avg Raid Parse.
+    Mutates and returns default_obj. dps/tanks are left on the DPS metric (their correct parse)."""
+    hmap = {}  # (encId, name) -> (rankPercent, amount)
+    for f in _rank_fights(hps_obj):
+        enc = (f.get("encounter") or {}).get("id")
+        for c in (((f.get("roles") or {}).get("healers") or {}).get("characters") or []):
+            hmap[(enc, c.get("name"))] = (c.get("rankPercent"), c.get("amount"))
+    for f in _rank_fights(default_obj):
+        enc = (f.get("encounter") or {}).get("id")
+        for c in (((f.get("roles") or {}).get("healers") or {}).get("characters") or []):
+            hit = hmap.get((enc, c.get("name")))
+            if hit is not None:
+                c["rankPercent"], c["amount"] = hit
+    return default_obj
 
 
 def guild_name(parses_obj):
@@ -110,6 +137,8 @@ def main(argv=None):
     parse_obj = {}
     for code, path in ((ours_code, ours_parses), (theirs_code, theirs_parses)):
         parse_obj[code] = lib.invoke_query(PARSE_Q, {"code": code})
+        # Healers' parses default to DPS; overwrite them with the real HPS-metric parse.
+        merge_healer_hps(parse_obj[code], lib.invoke_query(HPS_PARSE_Q, {"code": code}))
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(parse_obj[code], fh, indent=2, ensure_ascii=False)
 

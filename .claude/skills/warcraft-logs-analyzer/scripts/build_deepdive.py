@@ -236,7 +236,11 @@ def audit_report(directory, allow_names, spec_map=None, windfury_names=None):
             missing = []
             weapon_oil = False
             for slot in sorted(ENCH_SLOTS):
-                item = next((g for g in gear if g.get("slot") == slot), None)
+                # WCL can emit an id:0 placeholder ahead of the real item for the same slot (e.g. a
+                # two-hand weapon in slot 15 with an empty off-hand placeholder also in slot 15).
+                # Skip id:0 entries so the real item wins — without this, next() picks the placeholder
+                # and the id!=0 guard short-circuits out, silently dropping any temporaryEnchant.
+                item = next((g for g in gear if g.get("slot") == slot and g.get("id", 0) != 0), None)
                 if item and item.get("id", 0) != 0:
                     if not item.get("permanentEnchant") or int(item.get("permanentEnchant", 0)) == 0:
                         missing.append(ENCH_SLOTS[slot])
@@ -861,6 +865,94 @@ def death_list(report, fight_start):
     return out
 
 
+def death_timing(deaths, fight_info):
+    """When OUR deaths cluster on a boss: the phase (or third of the fight) most deaths land in.
+    A '1-level-deeper' read on the death list that pairs the *what* (killing blow, shown below) with
+    the *when*. Returns "" unless there are >=3 deaths AND a clear concentration — silence over noise."""
+    deaths = [d for d in (deaths or []) if d.get("tSec") is not None]
+    n = len(deaths)
+    if n < 3:
+        return ""
+    start, end = int(fight_info["start"]), int(fight_info["end"])
+    dur_s = max(1, end - start) / 1000.0
+    pts = sorted(fight_info.get("phases") or [], key=lambda p: p["startTime"])
+    if len(pts) >= 2:
+        bounds = []  # (phaseId, startSec, endSec)
+        for i, p in enumerate(pts):
+            ps = (int(p["startTime"]) - start) / 1000.0
+            pe = (int(pts[i + 1]["startTime"]) - start) / 1000.0 if i + 1 < len(pts) else dur_s
+            bounds.append((int(p["id"]), ps, pe))
+        counts = {}
+        for d in deaths:
+            t = d["tSec"]
+            for j, (pid, ps, pe) in enumerate(bounds):
+                if t >= ps and (t < pe or j == len(bounds) - 1):
+                    counts[pid] = counts.get(pid, 0) + 1
+                    break
+        if counts:
+            top_id, top_n = max(counts.items(), key=lambda kv: kv[1])
+            if len(counts) > 1 and top_n >= max(3, round(n * 0.4)):
+                return "{} of {} deaths struck in Phase {} — the phase to review.".format(top_n, n, top_id)
+        return ""
+    # No phase transitions exposed: split the fight into thirds.
+    third = dur_s / 3.0
+    counts = [0, 0, 0]
+    for d in deaths:
+        counts[min(2, int(d["tSec"] // third)) if third > 0 else 0] += 1
+    labels = ["the opening third", "the middle third", "the final third"]
+    top = max(range(3), key=lambda i: counts[i])
+    if counts[top] >= max(3, round(n * 0.45)):
+        return "{} of {} deaths struck in {} of the fight.".format(counts[top], n, labels[top])
+    return ""
+
+
+def death_cascades(deaths, window=15, min_cluster=4):
+    """Detect a death CASCADE — a burst of deaths inside a short window, i.e. a near-wipe / single
+    mechanic failure (vs. scattered attrition). From OUR death timestamps. Two-pointer over the sorted
+    times finds the densest `window`-second span. Returns "" unless >= `min_cluster` deaths fall in it."""
+    ds = sorted(int(d["tSec"]) for d in (deaths or []) if d.get("tSec") is not None)
+    n = len(ds)
+    if n < min_cluster:
+        return ""
+    best_count, best_start, best_end = 0, 0, 0
+    j = 0
+    for i in range(n):
+        if j < i:
+            j = i
+        while j < n and ds[j] - ds[i] <= window:
+            j += 1
+        if j - i > best_count:
+            best_count, best_start, best_end = j - i, ds[i], ds[j - 1]
+    if best_count < min_cluster:
+        return ""
+    span = max(1, best_end - best_start)
+    mm, ss = divmod(int(best_start), 60)
+    return ("{} deaths within {}s starting {}:{:02d} — a cascade (one mechanic/moment), not scattered "
+            "attrition. Find what went out there.".format(best_count, span, mm, ss))
+
+
+def opener_gap(o_tl, t_tl, secs=30):
+    """Compare the first `secs` of raid DPS, ours vs benchmark, from the binned timeline curves — a
+    weak opener means no prepot/precast or a slow pull. Each curve is binned across its OWN fight
+    duration, so we average the buckets covering the first `secs` of real time on each side. Returns
+    {oursDps, theirsDps, secs} or None when timeline data is absent (graceful)."""
+    def first_dps(tl):
+        if not tl or not tl.get("dps") or not tl.get("durMs"):
+            return None
+        dps = tl["dps"]
+        n = len(dps)
+        if n == 0:
+            return None
+        bin_ms = tl["durMs"] / n
+        k = max(1, min(n, int(round(secs * 1000.0 / bin_ms))))
+        return round(sum(dps[:k]) / k)
+    o = first_dps(o_tl)
+    t = first_dps(t_tl)
+    if o is None or t is None:
+        return None
+    return {"oursDps": o, "theirsDps": t, "secs": secs}
+
+
 def disp_list(report):
     """Dispels: which enemy auras the raid dispelled, with counts."""
     m = {}
@@ -916,6 +1008,43 @@ def unkicked_compare(o_report, t_report):
             "theirsKicked": int(tt["kicked"]) if tt else 0, "theirsWentOff": int(tt["wentOff"]) if tt else 0,
         })
     rows.sort(key=lambda r: max(r["oursWentOff"], r["theirsWentOff"]), reverse=True)
+    return rows
+
+
+def leaked_casts(report):
+    """Per ability: (kicked, leaked) for the tier-wide leaked-interrupts view.
+
+    The WCL public API exposes NO 'is interruptible' flag, and the Interrupts table only ever lists
+    abilities the raid interrupted at least once — so `spellsInterrupted >= 1` is our PROOF the ability
+    is interruptible (we never assume). `leaked` counts only HOSTILE (NPC/Boss) casts that went off
+    un-interrupted (`missedCasts`); friendly casts (e.g. a raider's own Regrowth that took an incidental
+    interrupt) are excluded. Known blind spot: an interruptible ability the raid NEVER kicked is absent
+    from the table entirely, so a total interrupt failure is invisible — this UNDER-counts, never over-
+    counts. We deliberately do NOT fall back to `spellsCompleted` (it carries no caster-type proof)."""
+    out = {}
+    for a in _inner_entries(report, "intr"):
+        if not a or not a.get("name"):
+            continue
+        kicked = int(a.get("spellsInterrupted", 0))
+        if kicked <= 0:
+            continue  # not proven interruptible — never assume
+        leaked = sum(1 for m in (a.get("missedCasts") or []) if m.get("type") in ("NPC", "Boss"))
+        out[str(a["name"])] = {"kicked": kicked, "leaked": leaked}
+    return out
+
+
+def leaked_interrupts_gap(o_acc, t_acc):
+    """Tier-wide leaked-interrupt rows, ours vs benchmark, ranked by our leaks then by improvable delta.
+    Only abilities where at least one side LEAKED are returned (a 0/0-leak ability implies no action)."""
+    rows = []
+    for n in set(o_acc) | set(t_acc):
+        o = o_acc.get(n, {"kicked": 0, "leaked": 0})
+        t = t_acc.get(n, {"kicked": 0, "leaked": 0})
+        if o["leaked"] <= 0 and t["leaked"] <= 0:
+            continue
+        rows.append({"name": n, "oursKicked": o["kicked"], "oursLeaked": o["leaked"],
+                     "theirsKicked": t["kicked"], "theirsLeaked": t["leaked"]})
+    rows.sort(key=lambda r: (-r["oursLeaked"], -(r["oursLeaked"] - r["theirsLeaked"]), r["name"]))
     return rows
 
 
@@ -994,7 +1123,7 @@ def _fmt_dur(ms):
 
 
 def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None,
-                 trash=None, death_causes=None, n=7):
+                 trash=None, death_causes=None, leaked=None, n=7):
     """Score every tracked dimension by how far behind the benchmark we are, then surface the
     worst few as plain-language coaching cards. Each candidate yields a severity in [0,1]
     (0 = at/ahead of benchmark, 1 = badly behind) and an actionable sentence; only dimensions
@@ -1105,8 +1234,8 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
     if tier_spec:
         worst = next((r for r in tier_spec if r["both"] and r["deficit"] > 0), None)
         if worst:
-            add(worst["deficit"] / 800.0, "A spec is underperforming tier-wide",
-                "{} {} average {}/s vs {}/s across the tier — your biggest per-spec DPS gap. Coach rotation/gear."
+            add(worst["deficit"] / 800.0, "A spec is underperforming across all bosses",
+                "{} {} average {}/s vs {}/s across all bosses — your biggest per-spec DPS gap. Coach rotation/gear."
                 .format(worst["spec"], worst["class"], _fmt_k(worst["oursAvg"]), _fmt_k(worst["theirsAvg"])))
 
     # Biggest buff/debuff uptime deficit tier-wide.
@@ -1114,7 +1243,7 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
         worst = next((r for r in tier_uptime if r["deficit"] >= 3), None)
         if worst:
             add(worst["deficit"] / 40.0, "A raid buff/debuff is under-maintained",
-                "{} {} uptime averages {}% vs {}% tier-wide. Keeping it up is free throughput."
+                "{} {} uptime averages {}% vs {}% across all bosses. Keeping it up is free throughput."
                 .format(worst["name"], worst["kind"], worst["ours"], worst["theirs"]))
 
     # Trash deaths (lower better). A high-leverage gap that otherwise only lives in the Trash tab —
@@ -1138,12 +1267,191 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
                 "largely avoid. Interrupt, CC, or position around it."
                 .format(worst["cause"], worst["ours"], worst["theirs"]))
 
+    # Worst leaked interrupt: an interruptible cast (proven by >=1 kick) you let through more than the
+    # benchmark. High-leverage — assigning a kick is a cheap, repeatable fix.
+    if leaked:
+        worst = max(leaked, key=lambda r: r["oursLeaked"] - r["theirsLeaked"], default=None)
+        if worst and (worst["oursLeaked"] - worst["theirsLeaked"]) >= 2:
+            add((worst["oursLeaked"] - worst["theirsLeaked"]) / 8.0, "Interruptible casts are leaking",
+                "You let {} {} cast{} through un-interrupted vs {} for the benchmark — your worst leak "
+                "on a cast you do kick. Assign a kick rotation.".format(
+                    worst["oursLeaked"], worst["name"], "s" if worst["oursLeaked"] != 1 else "",
+                    worst["theirsLeaked"]))
+
     cand.sort(key=lambda c: -c["sev"])
     out = []
-    for c in cand[:n]:
-        c["level"] = "high" if c["sev"] >= 0.5 else ("med" if c["sev"] >= 0.25 else "low")
+    for c in cand:
+        # Drop "Minor" (low-severity) cards entirely — user directive: only surface gaps worth acting on.
+        if c["sev"] < 0.25:
+            continue
+        c["level"] = "high" if c["sev"] >= 0.5 else "med"
         out.append(c)
+        if len(out) >= n:
+            break
     return out
+
+
+def strengths(summary, quality, consumables, audit, comp_gaps, tier_spec=None, tier_uptime=None,
+              trash=None, n=5):
+    """The honest positive half of the Biggest Gaps engine: the dimensions where the raid MATCHES or
+    BEATS the benchmark, ranked by margin. Same inputs, sign flipped — facts where you lead, not
+    cheerleading. Only dimensions where we're actually ahead make the list; trail everywhere and it
+    stays empty (so it never manufactures praise)."""
+    co, ct = consumables["ours"], consumables["theirs"]
+    ao, at = audit["ours"], audit["theirs"]
+    bosses = max(summary["bossCount"], 1)
+    cand = []
+
+    def add(margin, title, text):
+        if margin > 0:
+            cand.append({"m": margin, "title": title, "text": text})
+
+    # Raid parse (higher better).
+    dp = summary["oursAvgParse"] - summary["theirsAvgParse"]
+    add(dp / 50.0, "Raid parses beat the benchmark",
+        "Raid parses average {} vs {} — a {}-point lead. A strength to protect."
+        .format(summary["oursAvgParse"], summary["theirsAvgParse"], round(dp, 1)))
+
+    # Kill time (lower better) — we're faster.
+    od, td = summary["oursDurationMs"], summary["theirsDurationMs"]
+    if od > 0 and od < td:
+        add((td / od - 1), "Kills are faster",
+            "Total kill time {} vs {} — {}% faster than the benchmark."
+            .format(_fmt_dur(od), _fmt_dur(td), round((1 - od / td) * 100)))
+
+    # Raid DPS (higher better).
+    od2, td2 = quality["oursRaidDps"], quality["theirsRaidDps"]
+    if td2 > 0 and od2 > td2:
+        add((od2 - td2) / td2, "Raid DPS is higher",
+            "Raid DPS averages {} vs {} — the engine behind the faster kills."
+            .format(_fmt_k(od2), _fmt_k(td2)))
+
+    # Deaths (lower better).
+    ddh = summary["theirsDeaths"] - summary["oursDeaths"]
+    if ddh > 0:
+        scope = "across the full clear (trash + all pulls)" if summary.get("nightWideDeaths") \
+            else "across {} bosses".format(bosses)
+        add(ddh / (bosses * 2.0), "Staying alive",
+            "{} deaths vs {} {} — fewer deaths means more uptime and less wipe risk."
+            .format(summary["oursDeaths"], summary["theirsDeaths"], scope))
+
+    # Healer overheal (lower better).
+    oh = quality["theirsOverheal"] - quality["oursOverheal"]
+    if oh > 0:
+        add(oh / 40.0, "Tight healing",
+            "Healers overheal {}% vs {}% — less throughput wasted than the benchmark."
+            .format(quality["oursOverheal"], quality["theirsOverheal"]))
+
+    # DPS activity (higher better).
+    ac = quality["oursActivity"] - quality["theirsActivity"]
+    if ac > 0:
+        add(ac / 30.0, "High DPS activity",
+            "DPS spend {}% of the fight active vs {}% — few wasted GCDs."
+            .format(quality["oursActivity"], quality["theirsActivity"]))
+
+    # Avoidable damage taken / sec (lower better).
+    dtk_o, dtk_t = quality["oursDtps"], quality["theirsDtps"]
+    if dtk_o > 0 and dtk_o < dtk_t:
+        add((dtk_t / dtk_o - 1), "Avoiding damage",
+            "Raid takes {}/s (ex-tanks) vs {}/s — cleaner on avoidable damage."
+            .format(_fmt_k(dtk_o), _fmt_k(dtk_t)))
+
+    # Flask coverage.
+    o_fl = co["flask"] / max(co["rosterSize"], 1)
+    t_fl = ct["flask"] / max(ct["rosterSize"], 1)
+    if o_fl - t_fl > 0:
+        add(o_fl - t_fl, "Well flasked",
+            "~{}/{} raiders flasked vs ~{}/{} for the benchmark."
+            .format(co["flask"], co["rosterSize"], ct["flask"], ct["rosterSize"]))
+
+    # Food coverage.
+    o_fd = co["food"] / max(co["rosterSize"], 1)
+    t_fd = ct["food"] / max(ct["rosterSize"], 1)
+    if o_fd - t_fd > 0:
+        add(o_fd - t_fd, "Well fed",
+            "~{}/{} raiders ate food vs ~{}/{} for the benchmark."
+            .format(co["food"], co["rosterSize"], ct["food"], ct["rosterSize"]))
+
+    # Enchants (fewer missing better).
+    o_me = ao["totalMissingEnchants"] / max(ao["playerCount"], 1)
+    t_me = at["totalMissingEnchants"] / max(at["playerCount"], 1)
+    if t_me - o_me > 0:
+        add((t_me - o_me) / 3.0, "Gear is enchanted",
+            "{} missing enchants across the raid vs {} for the benchmark."
+            .format(ao["totalMissingEnchants"], at["totalMissingEnchants"]))
+
+    # Wipes (fewer better).
+    if summary.get("hasAttempts"):
+        ow, tw = summary["oursWipes"], summary["theirsWipes"]
+        if tw > ow:
+            add((tw - ow) / (bosses * 3.0), "Clean progression",
+                "{} wipes across the shared bosses vs {} for the benchmark."
+                .format(ow, tw))
+
+    # A spec that out-performs the benchmark tier-wide (deficit < 0 = we lead).
+    if tier_spec:
+        best = min((r for r in tier_spec if r["both"]), key=lambda r: r["deficit"], default=None)
+        if best and best["deficit"] < 0:
+            add(-best["deficit"] / 800.0, "A spec out-DPSes the benchmark",
+                "{} {} average {}/s vs {}/s across all bosses — ahead of the benchmark's same spec."
+                .format(best["spec"], best["class"], _fmt_k(best["oursAvg"]), _fmt_k(best["theirsAvg"])))
+
+    # A raid buff/debuff kept up better than the benchmark. Require theirs > 0 so this is a genuine
+    # "we maintain it better" comparison — a benchmark 0% means they don't run that provider, which the
+    # "Buffs the benchmark lacks" card already covers (and "84% vs 0%" reads like a typo, not a strength).
+    if tier_uptime:
+        best = min((r for r in tier_uptime if r["theirs"] > 0), key=lambda r: r["deficit"], default=None)
+        if best and best["deficit"] <= -3:
+            add(-best["deficit"] / 40.0, "A raid buff/debuff is well-maintained",
+                "{} {} uptime averages {}% vs {}% across all bosses — kept up better than the benchmark."
+                .format(best["name"], best["kind"], best["ours"], best["theirs"]))
+
+    # Raid buff/debuff providers WE bring that the benchmark doesn't.
+    extra = [g["buff"] for g in comp_gaps if g["ours"] and not g["theirs"]]
+    if extra:
+        eg = extra[0] + (", " + extra[1] if len(extra) > 1 else "")
+        add(len(extra) / 5.0, "Buffs the benchmark lacks",
+            "You bring {} raid-wide buff/debuff{} the benchmark doesn't (e.g. {})."
+            .format(len(extra), "s" if len(extra) > 1 else "", eg))
+
+    # Trash deaths (fewer better).
+    if trash and trash.get("present"):
+        o_td = (trash["glance"]["ours"] or {}).get("deaths", 0)
+        t_td = (trash["glance"]["theirs"] or {}).get("deaths", 0)
+        if t_td - o_td > 0:
+            add((t_td - o_td) / 30.0, "Clean on trash",
+                "{} trash deaths vs {} for the benchmark.".format(o_td, t_td))
+
+    cand.sort(key=lambda c: -c["m"])
+    return [{"title": c["title"], "text": c["text"]} for c in cand[:n]]
+
+
+def dps_diagnosis(quality):
+    """Decompose the raid-DPS gap into an activity (uptime/movement) component vs a throughput
+    (gear/rotation/buffs) component, from the Raid DPS + DPS-activity numbers already shown above.
+    Tells a leader *what kind* of fix the gap calls for. Approximate by design — DPS-activity is the
+    DPS core's while Raid DPS is whole-raid — so it's framed as an estimate, not a precise figure.
+    Returns "" unless we trail on raid DPS with usable activity numbers."""
+    o_dps, t_dps = quality.get("oursRaidDps"), quality.get("theirsRaidDps")
+    o_act, t_act = quality.get("oursActivity"), quality.get("theirsActivity")
+    if not (o_dps and t_dps and o_dps < t_dps and o_act and t_act):
+        return ""
+    gap = t_dps - o_dps
+    # Matching their activity scales our DPS by t_act/o_act (same damage per active second).
+    closed = max(0.0, min(o_dps * (t_act / o_act) - o_dps, gap))
+    share = closed / gap if gap > 0 else 0
+    act_behind = t_act - o_act
+    if act_behind >= 1 and share >= 0.5:
+        return ("Most of your ~{}/s raid-DPS gap looks like an activity gap — DPS are active {}% of the "
+                "fight vs {}%. Matching that uptime alone would recover roughly {}/s; drill movement and "
+                "positioning before chasing gear.".format(_fmt_k(gap), o_act, t_act, _fmt_k(round(closed))))
+    if act_behind >= 1 and share > 0.15:
+        return ("Your ~{}/s raid-DPS gap is part uptime, part throughput — closing the activity gap "
+                "({}% vs {}%) recovers about {}/s; the rest is damage-while-active: gear, rotations, and "
+                "raid buffs.".format(_fmt_k(gap), o_act, t_act, _fmt_k(round(closed))))
+    return ("Your ~{}/s raid-DPS gap is mostly throughput, not uptime — activity is close ({}% vs {}%), so "
+            "the deficit is damage-while-active: gear, rotations, and raid buffs."
+            .format(_fmt_k(gap), o_act, t_act))
 
 
 # ---------- TRASH ANALYSIS (the Trash tab) ----------
@@ -1625,6 +1933,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
     tier_o_spec, tier_t_spec = {}, {}
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
+    o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
     per_boss = []
     for b in bosses:
         enc = str(b["encounterID"])
@@ -1634,6 +1943,13 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             continue
         o_dur = ours_fights[enc]["end"] - ours_fights[enc]["start"]
         t_dur = theirs_fights[enc]["end"] - theirs_fights[enc]["start"]
+
+        # Pool leaked-interrupt counts tier-wide (proven-interruptible casts that went off).
+        for _acc, _rep in ((o_leaked_acc, o_b), (t_leaked_acc, t_b)):
+            for _nm, _v in leaked_casts(_rep).items():
+                _e = _acc.setdefault(_nm, {"kicked": 0, "leaked": 0})
+                _e["kicked"] += _v["kicked"]
+                _e["leaked"] += _v["leaked"]
 
         buff_rows = []
         for name in KEY_BUFFS:
@@ -1706,6 +2022,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "unkicked": unkicked_compare(o_b, t_b),
             "dispelsList": disp_compare(o_b, t_b),
             "deaths": {"ours": o_deaths, "theirs": t_deaths},
+            "deathTiming": death_timing(o_deaths, ours_fights[enc]),
+            "deathCascade": death_cascades(o_deaths),
+            "openerGap": opener_gap(o_tl, t_tl),
             "phases": phase_compare(ours_fights[enc], theirs_fights[enc]),
             "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
                                       o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
@@ -1728,6 +2047,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "oursRaidDps": rate(o_raid_dmg_sum, o_dur_sum), "theirsRaidDps": rate(t_raid_dmg_sum, t_dur_sum),
         "oursRaidHps": rate(o_raid_heal_sum, o_dur_sum), "theirsRaidHps": rate(t_raid_heal_sum, t_dur_sum),
     }
+    # Derived read: is the raid-DPS gap an uptime/movement problem or a throughput one?
+    quality["dpsDiagnosis"] = dps_diagnosis(quality)
 
     # Surface per-boss raid DPS/HPS on the Overview boss cards (keyed by encounter).
     raid_out = {p["encounterID"]: p for p in per_boss}
@@ -1747,6 +2068,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
     tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
     tier_uptime = tier_uptime_gap(tier_upt)
+    # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
+    leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
 
     # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
     # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
@@ -1755,16 +2078,20 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
                                   tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash,
-                                  death_causes=death_causes_rows)
+                                  death_causes=death_causes_rows, leaked=leaked_rows)
+    # "What You're Doing Well" — the same comparison, the other direction (where we lead the benchmark).
+    did_well = strengths(summary, quality, consumables, audit, gaps,
+                         tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash)
 
     eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
 
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
-        "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard,
+        "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
+                 "leakedInterrupts": leaked_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
     }
     out_full = render_report(payload, out_file)

@@ -107,6 +107,20 @@ clear time should be labeled or treated as rough proxies if the scoping can't be
 
 ---
 
+## TODO: What's Killing Us on Trash — mob name on ability + melee sub-breakdown
+
+> Show the mob name in parens next to each killing ability ("Grievous Bite (Greyheart Spellbinder)");
+> for "Melee" deaths, show a sub-section listing which mobs' melee are doing the killing.
+
+"Melee" as a killing blow is opaque — knowing which mob killed people points directly at a CC, kiting,
+or tank-positioning fix. Named abilities benefit too ("Arcane Bolt" is more actionable as "Arcane Bolt
+(Greyheart Spellbinder)"). The death entries already carry a `fight` id and killing-blow name; the
+source mob actor should be available from the death event's source field joined against `masterData`
+actors. Melee sub-breakdown groups "Melee" deaths by source mob name, ours vs benchmark, biggest delta
+first — same ranked-by-payoff pattern as the main table.
+
+---
+
 ## TODO: Trash — merged pull detection
 
 > Is it possible to detect how many trash packs were combined on pulls — "they merged 3 trash packs

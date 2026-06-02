@@ -107,6 +107,20 @@ clear time should be labeled or treated as rough proxies if the scoping can't be
 
 ---
 
+## TODO: Trash — merged pull detection
+
+> Is it possible to detect how many trash packs were combined on pulls — "they merged 3 trash packs
+> where you merged none" — with a list of mobs in each merged pack?
+
+A real efficiency gap: chain-pulling is a meaningful throughput lever. Feasibility question first —
+WCL doesn't expose pack boundaries, only the mob roster of each fight segment. A "merged" pull could
+be inferred when a segment's mob roster is notably larger or more diverse than a typical single-pack
+baseline, but defining that baseline requires knowing what a single pack looks like for each zone.
+The existing `trash.json` `enemyNPCs` (mob types + counts per segment) is the right starting point;
+spike against a real report to see if merged pulls are detectable before building the view.
+
+---
+
 ## BUG: Consumables Coverage — elixir pair not counted as "flasked"
 
 > The Flask coverage card doesn't count a battle + guardian elixir combo as equivalent to a flask.

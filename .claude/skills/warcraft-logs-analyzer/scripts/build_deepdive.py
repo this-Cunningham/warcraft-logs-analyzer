@@ -644,51 +644,64 @@ def focus_view(o_tl, t_tl):
             "oursTargets": of.get("distinctTargets"), "theirsTargets": tf.get("distinctTargets")}
 
 
-def _adds_by_name(tl, npc_map, boss_name):
-    """Per add NAME on one side: {count, medLifeSec, firstSec}. Excludes the BOSS by name (so a boss
-    phase is never read as an add); if no target matches the boss name, the single highest-damage target
-    is dropped as a safety fallback. Keeps every real add — long-lived ones included (a raid may ignore
-    an add by design), which is legitimate, descriptive data, not noise."""
+def _targets_by_name(tl, npc_map, boss_name):
+    """Per enemy NAME on one side: {count, medLifeSec, firstSec, isBoss}. Includes the BOSS (flagged
+    `isBoss`) so it anchors the timeline and council / multi-boss fights surface every member. The boss is
+    the target whose name == the encounter (fallback: the single highest-damage target — never hardcoded).
+    Non-boss targets below 1% of fight damage are dropped as stray-cleave noise. Every real add is kept,
+    long-lived ones included (a raid may hold an add by design). Lifespans are per-instance first-hit→last."""
     spans = ((tl or {}).get("focus") or {}).get("targetSpans") or {}
     if not spans:
         return {}
-    boss_ids = {tid for tid, s in spans.items() if (npc_map.get(int(tid)) or "") == boss_name}
-    if not boss_ids:  # fallback: drop the dominant-damage target so the boss never shows as an add
-        boss_ids = {max(spans, key=lambda k: spans[k].get("dmg", 0))}
-    out = {}
+    total = sum(s.get("dmg", 0) for s in spans.values()) or 1
+    name_match = {tid for tid, s in spans.items() if (npc_map.get(int(tid)) or "") == boss_name}
+    boss_ids = name_match or {max(spans, key=lambda k: spans[k].get("dmg", 0))}
+    agg = {}
     for tid, s in spans.items():
-        if tid in boss_ids:
-            continue
         nm = npc_map.get(int(tid))
-        lifes = sorted(s.get("lifespans") or [])
+        lifes = s.get("lifespans") or []
         if not nm or not lifes:
             continue
-        rec = out.setdefault(nm, {"count": 0, "lifes": [], "firstSec": None})
+        rec = agg.setdefault(nm, {"count": 0, "lifes": [], "firstSec": None, "dmg": 0, "isBoss": False})
         rec["count"] += len(lifes)
         rec["lifes"].extend(lifes)
+        rec["dmg"] += s.get("dmg", 0)
+        if tid in boss_ids:
+            rec["isBoss"] = True
         fs = s.get("firstSec")
         if fs is not None and (rec["firstSec"] is None or fs < rec["firstSec"]):
             rec["firstSec"] = fs
-    return {nm: {"count": r["count"], "firstSec": r["firstSec"],
-                 "medLife": round(sorted(r["lifes"])[len(r["lifes"]) // 2], 1)}
-            for nm, r in out.items() if r["lifes"]}
+    out = {}
+    for nm, r in agg.items():
+        if not r["isBoss"] and r["dmg"] / total < 0.01:  # stray-cleave noise (non-boss, <1% of fight damage)
+            continue
+        out[nm] = {"count": r["count"], "firstSec": r["firstSec"], "isBoss": r["isBoss"],
+                   "medLife": round(sorted(r["lifes"])[len(r["lifes"]) // 2], 1)}
+    return out
 
 
-def add_handling(o_tl, t_tl, o_npc, t_npc, boss_name):
-    """Per add TYPE (by name), how each raid handled it: when it first appeared (first damage, a spawn
-    proxy — true spawn times aren't exposed) and how long it survived (median lifespan), ours vs benchmark.
-    DESCRIPTIVE, not scored — a longer-lived add can be intentional (e.g. ignoring Al'ar's embers until
-    called), so the leader reads it, like the Dispels view. Adds present on only one side are still shown.
-    Sorted by first-appearance (chronological — surfaces 'when the weapons spawn' on Kael'thas)."""
-    oa = _adds_by_name(o_tl, o_npc, boss_name)
-    ta = _adds_by_name(t_tl, t_npc, boss_name)
+def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
+    """Per enemy TYPE (by name) — the boss AND its adds: when each first appeared (first-damage time, a
+    spawn proxy — true spawn times aren't exposed) and how long it was engaged / survived (median
+    first-hit→last), ours vs benchmark, with counts + an `isBoss` flag. DESCRIPTIVE, not scored — a
+    longer-lived add can be intentional (e.g. holding Al'ar's embers until called), so the leader reads it
+    against their plan, like the Dispels view. Sorted by first-appearance, so it reads as the fight's
+    target timeline (e.g. Kael'thas: advisors → all 7 weapons at ~2:20 → Phoenix). Returns [] for a
+    lone-boss (single-target) fight — there the boss's engaged span just restates the kill time shown
+    elsewhere, so there's nothing extra to say."""
+    oa = _targets_by_name(o_tl, o_npc, boss_name)
+    ta = _targets_by_name(t_tl, t_npc, boss_name)
+    names = set(oa) | set(ta)
+    if len(names) < 2:  # lone boss → nothing beyond kill time
+        return []
     rows = []
-    for nm in set(oa) | set(ta):
+    for nm in names:
         o, t = oa.get(nm), ta.get(nm)
         first = (o or {}).get("firstSec")
         if first is None:
             first = (t or {}).get("firstSec")
-        rows.append({"name": nm, "firstSec": first,
+        rows.append({"name": nm, "isBoss": bool((o or {}).get("isBoss") or (t or {}).get("isBoss")),
+                     "firstSec": first,
                      "oursLife": o["medLife"] if o else None, "theirsLife": t["medLife"] if t else None,
                      "oursCount": o["count"] if o else 0, "theirsCount": t["count"] if t else 0})
     rows.sort(key=lambda r: (r["firstSec"] if r["firstSec"] is not None else 1e9))
@@ -2337,7 +2350,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "threat": {"ours": threat_pulls(o_b, ours_fights[enc], ours_role, b["name"]),
                        "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
             "focus": focus_view(o_tl, t_tl),
-            "addHandling": add_handling(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
+            "targetEngagement": target_engagement(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
             "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
                                       o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
         })
@@ -2405,9 +2418,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     focus_rows = [{"boss": p["name"], "ours": p["focus"]["oursConc"], "theirs": p["focus"]["theirsConc"],
                    "oursTargets": p["focus"].get("oursTargets"), "theirsTargets": p["focus"].get("theirsTargets")}
                   for p in per_boss if p.get("focus")]
-    # Per-boss add handling (named adds: when each first appeared + how long it survived, ours vs benchmark).
-    add_handling_rows = [{"boss": p["name"], "adds": p["addHandling"]}
-                         for p in per_boss if p.get("addHandling")]
+    # Per-boss target engagement (boss + named adds: when each first appeared + how long it was engaged).
+    target_eng_rows = [{"boss": p["name"], "targets": p["targetEngagement"]}
+                       for p in per_boss if p.get("targetEngagement")]
 
     # Trash analysis (on by default; graceful {present:false} on older data folders without trash files).
     # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
@@ -2430,7 +2443,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
-                 "threatPulls": threat_summary, "focusFire": focus_rows, "addHandling": add_handling_rows,
+                 "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
     }
     out_full = render_report(payload, out_file)

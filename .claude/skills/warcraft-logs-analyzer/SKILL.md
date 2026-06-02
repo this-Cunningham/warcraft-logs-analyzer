@@ -338,19 +338,22 @@ the static template, with no model in the path.
        also bins `amount` by `targetID`), so **no API cost**. Shown only when **both** sides are genuinely
        multi-target: `multiTarget` = top-enemy share <80% of fight damage AND ≥2 enemies ≥5% (a single-target
        burn is ~100% — no signal). Descriptive of focus-vs-spread.
-     - **Add Handling** (`add_handling`/`_adds_by_name` → `addHandlingView`) — per boss, **every add by
-       name** (from `masterData` NPCs): when it **first appeared** (first-damage time — a spawn proxy, since
-       true spawn times aren't exposed; the `summon` events are player totems) and how long it **survived**
-       (median first-hit→last), ours vs benchmark, with the add count. Rows are sorted chronologically by
-       first-appearance, so it reads as the fight's add timeline (e.g. Kael'thas: advisors, then all 7
-       weapons at ~2:20, then Phoenix). **The BOSS is excluded by NAME** (the target whose name == the
-       encounter boss, with a highest-damage-target fallback) — that's the only thing we must not call an
-       "add"; **every real add is kept, long-lived ones included**, because a raid may hold/ignore an add by
-       design (e.g. Al'ar's embers until called). **Descriptive, NOT scored** — a longer-lived add isn't
-       automatically worse, so the Δ is neutral (the soul's Dispels-view rule); the leader reads it against
-       their plan. (Tracks per-(targetID,targetInstance) damage spans in `_binned_curves` — still no extra
-       fetch. The earlier literal "switch-latency / spawn→engage" idea is a verified dead-end: spawn times
-       aren't exposed, so survival-once-engaged is the buildable cousin.)
+     - **Enemy Targets — Engagement & Survival** (`target_engagement`/`_targets_by_name` →
+       `targetEngagementView`) — per boss with >1 target, **every enemy by name** (from `masterData` NPCs)
+       — the **boss itself** (tagged `isBoss`) **and** its adds: when each **first appeared** (first-damage
+       time — a spawn proxy, since true spawn times aren't exposed; the `summon` events are player totems)
+       and how long it was **engaged / survived** (median first-hit→last), ours vs benchmark, with counts.
+       Sorted chronologically, so it reads as the fight's target timeline (Kael'thas: advisors → all 7
+       weapons at ~2:20 → Phoenix; Al'ar's embers; Kael himself first-seen 5:29, engaged 217s of a 546s
+       fight — i.e. untargetable in P1–3, which kill time alone can't show). **Including the boss is the
+       point on multi-phase and COUNCIL fights** (Illidari Council / High King Maulgar — every member shows,
+       the name-matched one tagged boss). Boss = target whose name == the encounter (fallback: top-damage
+       target — never hardcoded). Non-boss targets <1% of fight damage are dropped (stray cleave); a
+       lone-boss single-target fight returns nothing (its span just restates kill time). **Descriptive, NOT
+       scored** — a longer-lived add can be intentional (holding it until called), so the Δ is neutral (the
+       soul's Dispels-view rule); the leader reads it against their plan. (Tracks per-(targetID,instance)
+       damage spans in `_binned_curves` — no extra fetch. The literal "switch-latency / spawn→engage" idea
+       is a verified dead-end: spawn times aren't exposed, so engagement/survival is the buildable cousin.)
      - **Output Quality** — time-weighted **Raid DPS / Raid HPS**, avg DPS activity (`dd.activeTime`/
        duration), damage taken ex-tanks (`dt`, with an in-report **Per second / Overall** toggle that
        also switches the per-boss damage breakdowns), healer overheal (`heal.overheal`). (The old raw

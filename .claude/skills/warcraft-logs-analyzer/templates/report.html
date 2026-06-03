@@ -864,7 +864,8 @@ function rotationView(d){
     const diverge=rr.filter(r=>!r.matches), match=rr.filter(r=>r.matches);
     let body="";
     if(match.length){
-      body+=`<div class="complist" style="margin:0 0 14px">`+match.map(r=>`<span class="chip" style="border-color:var(--good)"><span style="color:${cc(r.class)};font-weight:600">${esc(r.spec)} ${esc(r.class)}</span> <span style="color:#9be7b4">· rotation matches benchmark ✓</span></span>`).join("")+`</div>`;
+      body+=`<p class="srcs" style="margin:0 0 8px"><b>Rotation matches benchmark</b> means every tracked ability for this spec is within <b>5 percentage points</b> of the benchmark's cast share — the cast distribution is effectively the same, so there's no rotational gap to coach and the spec collapses to a chip. The specs broken out in full below diverge by more than that; look there first.</p>
+      <div class="complist" style="margin:0 0 14px">`+match.map(r=>`<span class="chip" style="border-color:var(--good)"><span style="color:${cc(r.class)};font-weight:600">${esc(r.spec)} ${esc(r.class)}</span> <span style="color:#9be7b4">· rotation matches benchmark ✓</span></span>`).join("")+`</div>`;
     }
     for(const r of diverge){
       body+=`<div style="margin:0 0 16px"><h4 style="color:${cc(r.class)};margin:0 0 6px">${esc(r.spec)} ${esc(r.class)}</h4>

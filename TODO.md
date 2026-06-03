@@ -63,7 +63,7 @@ Layout robustness. Long guild names break column widths and delta labels, making
 
 ---
 
-## TODO: Write a clear, concise description for the "Rotation Matches Benchmark" metric
+## ✅ DONE: Write a clear, concise description for the "Rotation Matches Benchmark" metric
 
 > Clear concise description for "rotation matches benchmark."
 

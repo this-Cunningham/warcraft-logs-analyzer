@@ -36,3 +36,11 @@ The Flasked / Elixir Pair columns in the Per-Player Consumables — Prep section
 > Throughput Potions — By Spec — does this compare against specs that were not overlapping in our raids? If so we can't be doing this.
 
 Data-integrity issue. If the By Spec view compares potion usage rates for specs that appear in the benchmark but not in our raid (or vice versa), the delta is meaningless — apples to oranges. The comparison must be gated to specs present in *both* raids. Any spec unique to one side should be omitted from the comparison entirely rather than shown as a misleading gap. Audit whether the current implementation already enforces this; if not, it's a silent integrity violation the soul explicitly prohibits.
+
+---
+
+## TODO: Remove or replace "Throughput Consumable Choices" section
+
+> This section is useless — Throughput Consumable Choices.
+
+If it doesn't reveal an actionable gap it fails the soul's first test. Evaluate whether the section is a scoreboard (counts without a lever) or a data dump that WCL already shows better. If no clean gap-revealing reformulation exists, remove it. If there's a salvageable insight — e.g. wrong potion choice by spec vs. benchmark — define that narrowly and rebuild; otherwise cut.

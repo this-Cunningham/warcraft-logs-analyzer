@@ -332,20 +332,8 @@ function throughputView(d){
     }
     h+=`</tbody></table>`;
   }
-  const tc=rowsOf(dp.throughputChoices);
-  if(tc.length){
-    h+=`<h2 class="section">Throughput Consumable Choices<span class="hint">Which specific flasks and battle elixirs each raid runs, and how many raiders used each — ours vs the benchmark. The benchmark (a top guild) reveals the meta without us hardcoding it: a spell-damage flask vs a survival one, or the battle elixir the best guilds favor. <b>Descriptive</b> — a roster story, not a pass/fail.</span></h2>
-      <table><thead><tr><th>Category</th><th>Consumable</th><th>${esc(d.ours.title)} <span class="role">raiders</span></th><th>${esc(d.theirs.title)} <span class="role">raiders</span></th></tr></thead><tbody>`;
-    let prev=null;
-    for(const r of tc){
-      const catCell = r.cat!==prev ? `<td class="pname">${esc(r.cat)}</td>` : `<td></td>`;
-      prev=r.cat;
-      h+=`<tr>${catCell}<td>${esc(r.name)}</td>
-        <td class="num" style="color:var(--ours);font-weight:600">${r.ours||"—"}</td>
-        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs||"—"}</td></tr>`;
-    }
-    h+=`</tbody></table>`;
-  }
+  // (The "Throughput Consumable Choices" flask/battle-elixir meta table was removed — it was
+  // descriptive only and revealed no actionable gap; the combat-potion gap above carries the signal.)
   return h;
 }
 function metricBars(label,o,t,fmt,maxVal,lowerBetter){

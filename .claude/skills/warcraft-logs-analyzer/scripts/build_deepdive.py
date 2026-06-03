@@ -679,39 +679,9 @@ def potion_gap(o_pool, t_pool):
     return rows
 
 
-def throughput_choices(o_dir, t_dir, o_idx, t_idx, enc_ids):
-    """Which specific throughput consumables each raid runs — the meta, discovered from the benchmark
-    (a top guild) rather than hardcoded. Per category (Flask / Battle Elixir), the specific buff names
-    and how many distinct raiders used each, ours vs benchmark. Surfaces e.g. casters on a survival flask
-    vs a spell-damage one, or which battle elixir the top guild favors. Descriptive (a roster story)."""
-    def collect(directory, idx):
-        name_to_id = name_id_map(directory)
-        agg = {}  # (cat, name) -> set(players)
-        for enc in enc_ids:
-            path = os.path.join(directory, "consumes-{}.json".format(enc))
-            present = (idx.get(enc) or {}).get("players") or []
-            if not (os.path.isfile(path) and present):
-                continue
-            per_player = read_json(path).get("perPlayer") or {}
-            for pl in present:
-                pid = name_to_id.get(pl["name"])
-                for a in (per_player.get(str(pid)) or []):
-                    nm, guid = a.get("name"), a.get("guid")
-                    cat = _consumable_cat(nm, guid)
-                    if cat == "flask":
-                        label = "Flask"
-                    elif cat == "elixir" and _elixir_type(nm, guid) == "battle":
-                        label = "Battle Elixir"
-                    else:
-                        continue
-                    agg.setdefault((label, nm or "?"), set()).add(pl["name"])
-        return {k: len(v) for k, v in agg.items()}
-    o_counts, t_counts = collect(o_dir, o_idx), collect(t_dir, t_idx)
-    rows = [{"cat": cat, "name": nm, "ours": o_counts.get((cat, nm), 0), "theirs": t_counts.get((cat, nm), 0)}
-            for (cat, nm) in set(o_counts) | set(t_counts)]
-    # Group by category (Flask first), then most-used within it.
-    rows.sort(key=lambda r: (r["cat"] != "Flask", r["cat"], -max(r["ours"], r["theirs"]), r["name"]))
-    return rows
+# (throughput_choices was removed — the "Throughput Consumable Choices" flask/battle-elixir meta table
+# it fed was descriptive-only and revealed no actionable gap. The per-spec combat-potion gap, which IS
+# a clean throughput lever, stays in potion_gap above.)
 
 
 # ---------- PER-BOSS BUFF/DEBUFF UPTIME + LUST TIMING ----------
@@ -2521,7 +2491,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     potion_spec_gap = potion_gap(
         potion_usage_by_spec(ours_dir, ours_idx, common_ids, ours_spec, ours_role, ours_cls),
         potion_usage_by_spec(theirs_dir, theirs_idx, common_ids, theirs_spec, theirs_role, theirs_cls))
-    throughput_picks = throughput_choices(ours_dir, theirs_dir, ours_idx, theirs_idx, common_ids)
 
     # Per-boss
     ours_fights = fight_map(ours_dir)
@@ -2730,7 +2699,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
-                 "potionGap": potion_spec_gap, "throughputChoices": throughput_picks,
+                 "potionGap": potion_spec_gap,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,

@@ -39,7 +39,7 @@ Data-integrity issue. If the By Spec view compares potion usage rates for specs 
 
 ---
 
-## TODO: Remove or replace "Throughput Consumable Choices" section
+## ✅ DONE: Remove or replace "Throughput Consumable Choices" section
 
 > This section is useless — Throughput Consumable Choices.
 

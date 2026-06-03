@@ -139,3 +139,11 @@ Polish item — a boss portrait anchors the panel visually and makes the report 
 > The stats at the top of each boss panel (Raid DPS, DPS activity, Healer overheal, Dmg taken/s ex-tanks) should be spaced evenly across the full width of the panel rather than left-aligned or bunched.
 
 Layout fix. These headline stats are the first thing a leader sees on each boss — they should use the full width so each stat gets equal visual weight and the row scans cleanly left-to-right. Currently the stats cluster rather than distribute, which wastes space and makes the row harder to parse at a glance.
+
+---
+
+## TODO: Promote "Per-Boss Execution" to a top-level tab next to "Trash"
+
+> Per-Boss Execution — move this to a new top-level tab next to "Trash."
+
+Navigation architecture change. Per-boss execution is high-signal, boss-specific analysis — it deserves top-level real estate alongside the other main tabs rather than being buried inside another tab. Elevating it to the nav bar makes it immediately accessible and signals to a leader that per-boss breakdown is a first-class lens, not a drill-down afterthought.

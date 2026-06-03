@@ -146,7 +146,7 @@
   /* Mirrored-bar grid WITH a right-hand context column (combine: class="ugrid ugridc"). Same five
      mirror columns, plus a 6th self-describing column held all the way on the right (buff Type,
      earliest pull, add count) — additive context, never part of the comparison. */
-  .ugridc{grid-template-columns:46px 1fr 150px 1fr 46px minmax(58px,auto)}
+  .ugridc{grid-template-columns:46px 1fr 150px 1fr 46px minmax(58px,140px)}
   .ugridc .dctx{font-size:11px;color:var(--muted);text-align:right;line-height:1.2;font-variant-numeric:tabular-nums}
   .dbarL,.dbarR{position:relative;height:14px;background:var(--panel2);border-radius:5px;overflow:hidden}
   .dbarL .f,.dbarR .f{position:absolute;top:0;bottom:0}
@@ -208,7 +208,7 @@
   .tkarrow{color:var(--muted);margin:0 3px}
   .ladder{border:1px solid var(--line);border-radius:12px;padding:12px 8px;margin:2px 0 14px;overflow-x:auto;background:var(--panel)}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
-  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px;column-gap:5px}.ugridc{grid-template-columns:38px 1fr 90px 1fr 38px minmax(48px,auto);column-gap:5px}}
+  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px;column-gap:5px}.ugridc{grid-template-columns:38px 1fr 90px 1fr 38px minmax(48px,120px);column-gap:5px}}
   /* Phone layout: tighten outer padding and let the primary tab bar scroll sideways instead of
      overflowing off-screen (so the last tabs — Bosses/Trash — stay reachable). */
   @media(max-width:640px){
@@ -795,17 +795,20 @@ function phasesView(b){
 function deathCausesView(d){
   const rows=rowsOf(d.deep&&d.deep.deathCauses).slice(0,15);
   if(!rows.length) return "";
-  let h=`<h2 class="section">What's Killing Us<span class="hint">Killing blows tallied across every shared boss. A recurring cause is a mechanic the raid keeps failing; the benchmark column shows how avoidable it is (their 0 = they don't die to it). "Melee" on a non-tank usually means a death while already in trouble. Lower is better.</span></h2>
-    <table><thead><tr><th>Killing blow</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th>Bosses</th></tr></thead><tbody>`;
+  let h=`<h2 class="section">What's Killing Us<span class="hint">Killing blows tallied across every shared boss. A recurring cause is a mechanic the raid keeps failing; the benchmark column shows how avoidable it is (their 0 = they don't die to it). "Melee" on a non-tank usually means a death while already in trouble. Lower is better.</span></h2>`;
+  const max=Math.max(1,...rows.map(r=>Math.max(r.ours,r.theirs)));
+  const w=v=>Math.max(2,Math.round(v/max*100));
+  h+=`<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Killing blows (all shared bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
   for(const r of rows){
     const dl=deltaLow(r.ours,r.theirs);
-    h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
-      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
-      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
-      <td class="delta ${dl.cls}">${dl.txt}</td>
-      <td class="num" style="font-size:11.5px">${asArr(r.bosses).map(esc).join(", ")}</td></tr>`;
+    h+=`<div class="dval lo">${r.ours}</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
+      <div class="dmid">${esc(r.cause)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
+      <div class="dval ro">${r.theirs}</div>
+      <div class="dctx">${asArr(r.bosses).map(esc).join(", ")}</div>`;
   }
-  return h+`</tbody></table>`;
+  return h+`</div></div>`;
 }
 // DPS gaps by spec: per-spec avg DPS pooled across all bosses, biggest deficit first.
 function tierSpecGapView(d){

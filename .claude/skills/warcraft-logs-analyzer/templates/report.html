@@ -190,6 +190,17 @@
   .ladder{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 8px;margin:2px 0 14px;overflow-x:auto}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px;column-gap:5px}}
+  /* Phone layout: tighten outer padding and let the primary tab bar scroll sideways instead of
+     overflowing off-screen (so the last tabs — Bosses/Trash — stay reachable). */
+  @media(max-width:640px){
+    body{padding:24px 14px 64px}
+    h1{font-size:24px}
+    .matchup{gap:8px}
+    .team{font-size:16px;padding:6px 12px}
+    .tabs{flex-wrap:nowrap;overflow-x:auto;gap:2px;margin:18px 0 22px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .tabs::-webkit-scrollbar{display:none}
+    .tab{flex:0 0 auto;padding:10px 14px;white-space:nowrap}
+  }
 </style>
 </head>
 <body>

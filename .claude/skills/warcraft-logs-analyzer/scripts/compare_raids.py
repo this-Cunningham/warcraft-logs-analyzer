@@ -94,6 +94,24 @@ def trunc_name(s, limit=13):
     return s if len(s) <= limit else s[:limit].rstrip() + "…"
 
 
+def cached_for(code, data_root, shared):
+    """True if this report's data on disk can be reused as-is: its parses + deep-data dir exist AND were
+    fetched for the SAME shared-boss set. The deep fetch is scoped to `shared`, which depends on BOTH
+    report codes — so cached data is only valid for the identical pairing, not just a matching code. We
+    record the shared set in a `.shared.json` marker at fetch time and compare against it here. Pinned
+    reports are immutable, so a match means the bytes are guaranteed current — no API call needed."""
+    parses = os.path.join(data_root, "{}-parses.json".format(code))
+    directory = os.path.join(data_root, code)
+    marker = os.path.join(directory, ".shared.json")
+    if not (os.path.isfile(parses) and os.path.isdir(directory) and os.path.isfile(marker)):
+        return False
+    try:
+        with open(marker, encoding="utf-8") as fh:
+            return sorted(json.load(fh)) == sorted(shared)
+    except (OSError, ValueError):
+        return False
+
+
 def get_meta(code):
     r = lib.invoke_query(META_Q, {"code": code})["reportData"]["report"]
     if not r:
@@ -120,6 +138,8 @@ def main(argv=None):
     p.add_argument("--theirs-name")
     p.add_argument("--out-file")
     p.add_argument("--no-open", action="store_true")
+    p.add_argument("--refresh", action="store_true",
+                   help="re-fetch from the API even if cached data for these report codes exists")
     args = p.parse_args(argv)
 
     ours_code = get_code(args.ours_url)
@@ -147,10 +167,20 @@ def main(argv=None):
     ours_parses = os.path.join(data_root, "{}-parses.json".format(ours_code))
     theirs_parses = os.path.join(data_root, "{}-parses.json".format(theirs_code))
 
+    # Cache reuse: when both report codes + their shared-boss set match a prior run, the data on disk is
+    # identical (pinned reports never change), so we skip the API entirely and read parses from disk.
+    cached = {code: (cached_for(code, data_root, shared) and not args.refresh)
+              for code in (ours_code, theirs_code)}
+
     # Parses (per-player percentile rankings) — fetched first so we can name each side by its GUILD.
-    print("Fetching parses...")
     parse_obj = {}
     for code, path in ((ours_code, ours_parses), (theirs_code, theirs_parses)):
+        if cached[code]:
+            print("Using cached parses for {}.".format(code))
+            with open(path, encoding="utf-8") as fh:
+                parse_obj[code] = json.load(fh)
+            continue
+        print("Fetching parses for {}...".format(code))
         parse_obj[code] = lib.invoke_query(PARSE_Q, {"code": code})
         # Healers' parses default to DPS; overwrite them with the real HPS-metric parse.
         merge_healer_hps(parse_obj[code], lib.invoke_query(HPS_PARSE_Q, {"code": code}))
@@ -174,11 +204,16 @@ def main(argv=None):
     out_file = args.out_file or os.path.join(
         root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))
 
-    # Deep data (heavy output tables only for the shared bosses).
-    print("Fetching deep data (ours)...")
-    fetch_report.fetch(ours_code, ours_dir, shared)
-    print("Fetching deep data (theirs)...")
-    fetch_report.fetch(theirs_code, theirs_dir, shared)
+    # Deep data (heavy output tables only for the shared bosses) — the bulk of the API cost. Reuse the
+    # cached dir when valid; otherwise fetch and stamp the shared set so the next run can reuse it.
+    for code, directory in ((ours_code, ours_dir), (theirs_code, theirs_dir)):
+        if cached[code]:
+            print("Using cached deep data for {}.".format(code))
+            continue
+        print("Fetching deep data for {}...".format(code))
+        fetch_report.fetch(code, directory, shared)
+        with open(os.path.join(directory, ".shared.json"), "w", encoding="utf-8") as fh:
+            json.dump(sorted(shared), fh)
 
     # Build the report (pure Python + static template - deterministic).
     print("Building report...")

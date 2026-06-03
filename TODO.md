@@ -15,7 +15,7 @@ gap, the Clear Efficiency shared-zone scoping fix, trash killing-blow mob names 
 melee breakdown, the chain-pull view, the Crowd Control summary-table cut, the
 flask/elixir-pair coverage fix, and the cloud startup script._
 
-## TODO: In-Combat consumables matrix — gray "✕" for empty slots
+## ✅ DONE: In-Combat consumables matrix — gray "✕" for empty slots
 
 > In Per-Player Consumables — In Combat, in that matrix — any slot that's not filled with a number, can we fill with a gray "✕" like in the matrix above?
 

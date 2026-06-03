@@ -296,9 +296,12 @@ function inCombatMatrix(ic){
       row+=keys.map((k,i)=>{
         const unavail=(k==="HS"&&!hasWarlock);
         const v=c[k]||0;
-        // Green NUMBER when used (the count itself signals "good" — no separate ✓), faint dash when not.
+        // Green NUMBER when used (the count itself signals "good" — no separate ✓). When the raider
+        // attended but didn't press it, a faint gray ✗ marks the empty slot explicitly — matching the
+        // visual language of the Prep matrix above (so a blank never reads as ambiguous). HS with no
+        // warlock stays a dash (the consumable doesn't exist for this raid, not "had it and skipped").
         const cls=unavail?"cna":(v>0?"cyes":"cna");
-        const glyph=unavail?"–":(v>0?String(v):"·");
+        const glyph=unavail?"–":(v>0?String(v):"✗");
         return `<td class="cc${i===0?' cbsep':''}"><span class="${cls}">${glyph}</span></td>`;
       }).join("");
     }
@@ -518,7 +521,7 @@ function renderEnchants(d){
   /* In-combat consumables matrix — the consumables you press DURING the fight. */
   const ic=dp.perPlayerInCombat;
   if(ic&&rowsOf(ic.players).length){
-    h+=`<h2 class="section">Per-Player Consumables — In Combat<span class="hint">The consumables pressed <b>during</b> the fight: <b>P</b> combat throughput potion · <b>HP</b> health potion · <b>MP</b> mana potion · <b>HS</b> healthstone. A <span style="color:var(--good)">✓</span> (with a count when &gt;1) means used on that boss; a faint dash means it wasn't. This is a <b>usage</b> view, not a pass/fail — a mana pot or healthstone is situational, so a non-use isn't flagged red. P comes from buff auras; HP/MP/HS from the casts log (instant items leave no buff). Sorted by least combat-potion use first. Source: per-player buff &amp; cast tables for the shared bosses.</span></h2>
+    h+=`<h2 class="section">Per-Player Consumables — In Combat<span class="hint">The consumables pressed <b>during</b> the fight: <b>P</b> combat throughput potion · <b>HP</b> health potion · <b>MP</b> mana potion · <b>HS</b> healthstone. A <span style="color:var(--good)">green count</span> means used on that boss; a <span style="opacity:.6">faint ✗</span> marks a slot the raider had but didn't press. This is a <b>usage</b> view, not a pass/fail — a mana pot or healthstone is situational, so a non-use isn't flagged red. P comes from buff auras; HP/MP/HS from the casts log (instant items leave no buff). Sorted by least combat-potion use first. Source: per-player buff &amp; cast tables for the shared bosses.</span></h2>
     ${inCombatMatrix(ic)}`;
   }
 

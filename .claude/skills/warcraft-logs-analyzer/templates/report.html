@@ -14,7 +14,7 @@
   body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#16203a 0%,var(--bg) 55%);
     color:var(--txt);font:15px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;padding:32px 20px 80px}
-  .wrap{max-width:1080px;margin:0 auto}
+  .wrap{max-width:1080px;margin:0 auto;overflow-x:clip}
   header.hero{margin-bottom:20px}
   .kicker{letter-spacing:.18em;text-transform:uppercase;font-size:12px;color:var(--muted)}
   h1{font-size:30px;margin:6px 0 4px;font-weight:700}
@@ -148,15 +148,22 @@
   .dbarL .f.ours{right:0;background:var(--ours);border-radius:5px 0 0 5px}
   .dbarR .f.theirs{left:0;background:var(--theirs);border-radius:0 5px 5px 0}
   /* Per-player consumables matrix (bosses across the top, F/B/G/Fd/P sub-columns). */
-  /* Horizontal scroll hint: a right/left edge shadow that only shows while there's off-screen content
+  /* Every wide data table (.tscroll, applied at render) and the consumables matrix (.cmwrap) scroll
+     inside their own box, so a table wider than the screen scrolls sideways internally instead of
+     widening the whole page (which on mobile leaks into a sideways scroll of the entire page).
+     Horizontal scroll hint: a right/left edge shadow that only shows while there's off-screen content
      and fades out at each end (cover layers = bg colour, attachment:local; shadow layers = attachment:scroll).
      Self-hiding, so it stays invisible when the table fits (e.g. on desktop). */
-  .cmwrap{overflow-x:auto;margin-top:12px;
+  .cmwrap,.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;
     background:
       linear-gradient(to right, var(--bg), rgba(11,14,20,0)) 0 0/22px 100% no-repeat local,
       linear-gradient(to left, var(--bg), rgba(11,14,20,0)) 100% 0/22px 100% no-repeat local,
       radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.45), rgba(0,0,0,0)) 0 0/13px 100% no-repeat,
       radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.45), rgba(0,0,0,0)) 100% 0/13px 100% no-repeat}
+  .cmwrap{margin-top:12px}
+  /* .tscroll carries the table's top margin so the table itself sits flush inside the scroll box. */
+  .tscroll{margin-top:14px}
+  .tscroll>table{margin-top:0}
   table.cmatrix{width:auto;min-width:100%;border-collapse:collapse;font-size:12px}
   table.cmatrix th,table.cmatrix td{padding:4px 0;text-align:center;border-bottom:1px solid rgba(38,47,64,.5)}
   table.cmatrix th.cbgrp{font-size:11px;color:var(--txt);text-transform:none;letter-spacing:0;font-weight:700;
@@ -1149,8 +1156,18 @@ function uptimeCompare(rows,label){
 
 // The damage-taken toggle lives on Execution (Output Quality) but also drives the per-boss damage
 // breakdowns on the Bosses tab, so flipping it re-renders BOTH panels.
-function renderExecPanel(){ document.getElementById("p-execution").innerHTML=renderExecution(DATA); }
-function renderBossesPanel(){ document.getElementById("p-bosses").innerHTML=renderBossPanels(DATA); }
+// Wrap every data table in a horizontal scroll box so a table wider than the screen scrolls inside
+// itself instead of widening the whole page — on mobile a page-wide table leaks into a sideways scroll
+// of the entire page (nav bar included). Idempotent: skips tables already inside a scroll wrapper.
+function wrapTables(root){
+  (root||document).querySelectorAll("table").forEach(t=>{
+    if(t.closest(".cmwrap,.ladder,.tscroll")) return;
+    const w=document.createElement("div"); w.className="tscroll";
+    t.parentNode.insertBefore(w,t); w.appendChild(t);
+  });
+}
+function renderExecPanel(){ const el=document.getElementById("p-execution"); el.innerHTML=renderExecution(DATA); wrapTables(el); }
+function renderBossesPanel(){ const el=document.getElementById("p-bosses"); el.innerHTML=renderBossPanels(DATA); wrapTables(el); }
 function mountExecution(){ renderExecPanel(); wireExecution(); }
 function mountBosses(){ renderBossesPanel(); wireBosses(); }
 function wireExecution(){
@@ -1392,6 +1409,7 @@ function render(){
   mountExecution();
   mountBosses();
   mountTrash();
+  wrapTables(); // wrap tables in the statically-rendered panels (Overview, Composition, Prep, Trash)
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
     document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
     document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));

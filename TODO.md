@@ -52,3 +52,11 @@ If it doesn't reveal an actionable gap it fails the soul's first test. Evaluate 
 > In the Raid Composition & Buff Coverage table, put "Provided by" as the first column.
 
 A scan-order fix. Leaders read left-to-right; the provider (which class/spec covers the buff) is the actionable lever — knowing *who* provides the buff is the thing a leader acts on when a coverage gap exists. Moving it first keeps the highest-value identifier at the anchor position before the coverage columns.
+
+---
+
+## TODO: Truncate guild names past 13 characters with "…" everywhere in the report
+
+> Any references to the guild names across the report should truncate the guild name past 13 chars with ...
+
+Layout robustness. Long guild names break column widths and delta labels, making the report harder to scan. A consistent 13-char truncation with an ellipsis keeps the layout stable for any guild pairing without losing recognizability. Apply uniformly — headers, table column labels, inline references — so no part of the report wraps or overflows unexpectedly.

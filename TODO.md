@@ -157,6 +157,20 @@ denominator/count that the per-player matrix already uses.
 
 ---
 
+## TODO: Per-Player Consumables In Combat — sort worst-first + green numbers
+
+> Within "Per-Player Consumables — In Combat": sort table rows so players with the highest potion counts
+> are at the bottom (worst potion users float to the top). Also remove the green checkmark — just use
+> green numbers instead.
+
+Worst-first sorting matches the prep matrix pattern and puts the gap front-and-center — the leader's eye
+lands immediately on the players using the fewest in-combat consumables. Green numbers over a ✓ keeps the
+count visible in the cell while still signalling "good" — more informative than a binary pass/fail icon
+and consistent with showing honest data (soul: never falsely precise; silence over noise). No new data
+needed; purely a rendering and sort-order change on the existing in-combat matrix.
+
+---
+
 ## TODO: Cloud startup script — pre-generate report from two pinned raid IDs
 
 > Add a startup command we can run in a Claude Code cloud container environment so when we start a new

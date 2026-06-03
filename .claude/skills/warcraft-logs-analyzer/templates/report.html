@@ -166,7 +166,12 @@
   table.cmatrix{width:auto;min-width:100%;border-collapse:collapse;font-size:12px}
   table.cmatrix th,table.cmatrix td{padding:4px 0;text-align:center;border-bottom:1px solid rgba(38,47,64,.5)}
   table.cmatrix th.cbgrp{font-size:11px;color:var(--txt);text-transform:none;letter-spacing:0;font-weight:700;
-    padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+    padding:6px 0;border-bottom:1px solid var(--line)}
+  /* Boss-name header sits in a FIXED-width box (≈ a 4-sub-col group, sized to fit "Void Reaver") and
+     truncates with "…" — so every boss column is identical width regardless of name length. A short name
+     ("Al'ar") no longer squeezes its sub-cols, and a long one ("High Astromancer Solarian") no longer
+     stretches them; the full name stays in the th's title for hover/tap. */
+  table.cmatrix .cbname{display:block;width:96px;margin:0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   table.cmatrix th.csub2{font-size:10px;color:var(--warn);font-weight:700;width:24px;padding:3px 0;text-transform:none;letter-spacing:0}
   /* Legend key tying the yellow F/B/G/Fd/P column letters to their meaning. */
   .clegend{display:flex;flex-wrap:wrap;gap:14px;margin:6px 0 0;font-size:12px;color:var(--muted)}
@@ -278,7 +283,7 @@ function consumeMatrix(ppc){
   let h1=`<tr><th class="cmname" rowspan="2">Player</th><th class="csum" rowspan="2" title="Bosses where prepared (flask or battle+guardian) / bosses played">Prep</th>`;
   let h2=`<tr>`;
   for(const b of bosses){
-    h1+=`<th class="cbgrp" colspan="${SUB.length}">${esc(b.name)}</th>`;
+    h1+=`<th class="cbgrp" colspan="${SUB.length}" title="${esc(b.name)}"><span class="cbname">${esc(b.name)}</span></th>`;
     h2+=SUB.map(([s,full],i)=>`<th class="csub2${i===0?' cbsep':''}" title="${full}">${s}</th>`).join("");
   }
   h1+=`</tr>`; h2+=`</tr>`;
@@ -323,7 +328,7 @@ function inCombatMatrix(ic){
   const na='<span class="cna">·</span>';
   let h1=`<tr><th class="cmname" rowspan="2">Player</th>`, h2=`<tr>`;
   for(const b of bosses){
-    h1+=`<th class="cbgrp" colspan="${SUB.length}">${esc(b.name)}</th>`;
+    h1+=`<th class="cbgrp" colspan="${SUB.length}" title="${esc(b.name)}"><span class="cbname">${esc(b.name)}</span></th>`;
     h2+=SUB.map(([s,full],i)=>`<th class="csub2${i===0?' cbsep':''}" title="${full}">${s}</th>`).join("");
   }
   h1+=`</tr>`; h2+=`</tr>`;

@@ -131,3 +131,11 @@ Data integrity: only generate spec tabs for class/spec combos present in *both* 
 > Look into whether there are boss portrait assets available from the WCL or Blizzard API that we can use for each boss panel. Should appear to the left of the boss name.
 
 Polish item — a boss portrait anchors the panel visually and makes the report feel native to the game. Research needed: does the WCL GraphQL API expose a `gameData` or `encounter` icon/image URL? Alternatively, Blizzard's Game Data API (creature media endpoint) may provide NPC portraits by creature/display ID. If a clean asset URL is available, this is low-effort polish; if it requires a separate authenticated Blizzard API call, weigh the complexity.
+
+---
+
+## TODO: Boss panel summary stats — spread evenly across full width
+
+> The stats at the top of each boss panel (Raid DPS, DPS activity, Healer overheal, Dmg taken/s ex-tanks) should be spaced evenly across the full width of the panel rather than left-aligned or bunched.
+
+Layout fix. These headline stats are the first thing a leader sees on each boss — they should use the full width so each stat gets equal visual weight and the row scans cleanly left-to-right. Currently the stats cluster rather than distribute, which wastes space and makes the row harder to parse at a glance.

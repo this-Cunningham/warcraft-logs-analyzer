@@ -82,3 +82,29 @@ insight. The question worth flagging: is there a *capability ceiling* the curren
 actually can't clear — something a leader needs that pure HTML+JS can't deliver? If not, portability
 wins. The right moment to revisit is when a specific planned feature genuinely can't be built cleanly
 in the current format — not before.
+
+---
+
+## BACKLOG: Rotations tab — per-spec ability mix vs. world-best player for that spec
+
+> Is it possible to pull the best class/spec combo (#1 for each, but if top 1 isn't available go
+> down the list to get 1 of top 10) for all class/specs in our raid — and show in a new main tab
+> "Rotations" this exact type of breakdown we already have ("Rotation — Ability Mix") but instead
+> of our raid against the benchmark raid, it would be our class/specs against the top players in
+> the world for that spec.
+
+This is a high-signal idea: it swaps the benchmark frame from "a better guild's raid" to "the ceiling
+player for your exact spec." The gap revealed is spec-specific rotation quality — not just "did your
+Fire Mage use Combustion," but "here's how a world-top Fire Mage distributes casts vs. yours." Every
+player's rotation inefficiency becomes visible against the hardest possible honest baseline.
+
+**Open questions / research needed:**
+- WCL rankings API: does it expose top-N logs for a given spec+encounter combination? Need to confirm
+  whether the same `reportCode` + actor data is reachable from a rankings query, or whether this
+  requires a new fetch path.
+- One benchmark log per spec means N separate API fetches (one per spec in our raid) — API budget
+  impact to scope out.
+- The existing Rotation tab is built around a single benchmark report; this would require per-spec
+  benchmark switching. Assess whether that's a tab-level change or a deeper refactor.
+- Data integrity: the world-#1 log for a spec might be a farm kill on a much weaker gear tier — need
+  to confirm the comparison is meaningful (same boss, same phase of the tier).

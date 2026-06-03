@@ -52,6 +52,36 @@ Two things hold this together:
 2. **Actionable.** Every surfaced insight should translate to something the raid
    can *do differently next week*. Facts that don't imply an action are noise.
 
+## Go one level deeper than the count
+
+A raw aggregate answers *"how many,"* and "how many" is rarely a lever. The
+number a leader can act on is almost always one decomposition down — not *that* a
+thing happened, but **who** did it (class/spec), **what** caused it (mechanic,
+mob, ability), or **when** it happened (phase). "23 interrupts" is a scoreboard;
+*"your kicks came from Ele Shamans while the benchmark used Fire Mages"* tells a
+leader what to change. Same data, one cut deeper — and only the deeper cut implies
+an action.
+
+So the default is: **never ship the top-level tally alone.** Surface the
+breakdown that names the lever; let the total ride along as *context* for it ("23
+total — here's the split"), not as the headline. When a metric resists this — when
+there's no honest dimension to decompose it by — treat that as a warning sign that
+it may be a scoreboard rather than an insight, and let the data-integrity bar
+decide whether it ships at all.
+
+Two clarifications keep this from being misread:
+
+- **"Deeper" means a finer *grain*, not a finer *person*.** The actionable cut is
+  almost always the spec, the mechanic, the mob, or the phase — the level where a
+  leader makes an assignment or a callout. It is **not** a license for per-player
+  tables; the report stays raid/spec/mechanic-level by design.
+- **"Deeper" is about meaning, not volume.** Going a level deeper *sharpens* the
+  signal — it doesn't clutter the page. The lean Overview headline should itself
+  be the decomposed insight ("worst avoidable killing blow: Fragmentation Bomb"),
+  not a shallower number. How *much* shows at once is still governed by *Layout:
+  lean on top, deep on demand* below; this principle governs *what the thing you
+  surface actually says.*
+
 ## The benchmark is the spine — but not a cage
 
 The main idea is **comparison to a benchmark raid** (typically a better guild).
@@ -116,6 +146,10 @@ that doesn't reveal a gap does not.
 
 - **A raw data dump.** If it doesn't *interpret*, it doesn't ship. A wall of
   tables that re-implements Warcraft Logs has negative value.
+- **A scoreboard.** A bare aggregate that counts something without naming the
+  who/what/when behind it. It reads as information but implies no action — and
+  zoomed out, an unexplained total is often just confusing. See *Go one level
+  deeper than the count.*
 - **A blame machine.** Even per-player views exist to *coach*, not to name-and-
   shame. The aim is "here's how the raid improves," never "here's who to punish."
 - **A Warcraft Logs replacement.** We are a focused gap-analyzer, not a log
@@ -138,5 +172,10 @@ shallow breadth across many.
 > *Would this help an unfamiliar raid leader decide what to fix next — honestly,
 > and at a glance?*
 
-If yes, it might belong. If it's a data dump, a guess dressed as a fact, a way to
-blame someone, or breadth for its own sake — it doesn't.
+If yes, it might belong. If it's a data dump, a scoreboard a leader can't act on,
+a guess dressed as a fact, a way to blame someone, or breadth for its own sake —
+it doesn't.
+
+And a sharpening follow-up for anything that passes: *Is this the deepest honest
+cut, or just the easiest tally?* If there's a level deeper that names the lever,
+that's the one to ship.

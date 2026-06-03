@@ -23,7 +23,7 @@ Empty cells currently read as ambiguous — is that zero uses, or a slot that do
 
 ---
 
-## TODO: Fix Flasked / Elixir Pair display in Per-Player Consumables — Prep
+## ✅ DONE: Fix Flasked / Elixir Pair display in Per-Player Consumables — Prep
 
 > something wrong with Flasked / Elixir Pair section when compared to this matrix Per-Player Consumables — Prep
 

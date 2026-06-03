@@ -494,7 +494,7 @@ function renderEnchants(d){
   const cons=dp.consumables;
   if(cons&&cons.ours&&cons.theirs){
     const co=cons.ours, ct=cons.theirs;
-    h+=`<h2 class="section">Consumables Coverage<span class="hint">How much of the raid showed up prepared, read per-player from buff auras on the shared bosses and averaged across them. "Prepared" counts a <b>flask OR a full battle + guardian elixir pair</b> (an elixir pair is the TBC equivalent of a flask), matching the per-player matrix below. Food is the count Well Fed. Drums shown as fight uptime. Per-player elixir and combat-potion detail is in the matrix below.</span></h2>
+    h+=`<h2 class="section">Consumables Coverage<span class="hint">How many raiders showed up prepared, counted <b>per raider</b> across the shared bosses (not averaged per pull). A raider is counted when they were prepared on <b>at least half</b> the bosses they attended — the same threshold as the per-player matrix below, where a green or yellow Prep badge means ≥ half, red means below it; so this number is exactly the count of non-red rows in that matrix. "Prepared" counts a <b>flask OR a full battle + guardian elixir pair</b> (an elixir pair is the TBC equivalent of a flask). Food is the same per-raider count of Well Fed. Drums shown as fight uptime. Per-player elixir and combat-potion detail is in the matrix below.</span></h2>
     <div class="cards">
       ${acard("Flasked / Elixir Pair",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
       ${acard("Food (Well Fed)",`${co.food}/${co.rosterSize}`,`${ct.food}/${ct.rosterSize}`,deltaHigh(co.food,ct.food))}

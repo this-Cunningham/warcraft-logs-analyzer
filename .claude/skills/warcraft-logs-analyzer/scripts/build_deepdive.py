@@ -364,19 +364,28 @@ def _consumable_cat(name, guid=None):
 
 
 def consumable_report(directory, idx, enc_ids, roster_size):
-    """Raid consumable coverage averaged across the shared bosses. The "flask" count is the number of
-    raiders who showed up PREPARED — a flask OR a full battle + guardian elixir pair — read PER-PLAYER
-    from the consumes-<enc>.json buff auras (same `_cell_for` logic as the per-player matrix), so a
-    raider on an elixir pair counts exactly like a flasked one. (The aggregate Buffs table can't tell
-    flask-vs-pair apart, which is why a pair previously read as un-flasked here — a bug this fixes.)
-    Food is the number "Well Fed". Drums stays a fight uptime % from the aggregate Buffs table (a short
-    re-applied buff, not a per-player pre-pull consumable). Falls back to the aggregate Buffs flask/food
-    counts on any boss without a consumes file (older data folders), so it never regresses to empty.
-    Elixirs/potions aren't surfaced here as a raw count — the per-player matrix carries that detail."""
+    """Raid consumable coverage, counted PER RAIDER so the headline card reconciles with the per-player
+    matrix below. A raider counts as "Flasked / Elixir Pair" when they showed up PREPARED — a flask OR a
+    full battle + guardian elixir pair — on at least HALF of the shared bosses they attended. That 0.5
+    threshold is deliberately the matrix's own Prep-badge cutoff (green/yellow ≥ 0.5 vs red below it), so
+    a leader can tally the green/yellow rows in the matrix and land on this exact number. Both views run
+    the identical `_cell_for` pass (same battle+guardian pairing logic), so they can't disagree.
+
+    (This replaces an average-PER-BOSS count, which was the bug the TODO flagged: an avg like "18/25"
+    didn't map to anything a leader could see in the per-player matrix, so the two views looked at odds.)
+
+    Food is the same per-raider count for Well Fed. Drums stays a fight uptime % from the aggregate Buffs
+    table (a short re-applied buff, not a per-player pre-pull consumable). Falls back to the old aggregate
+    Buffs flask/food average only when NO shared boss has a consumes file (older data folders), so it
+    never regresses to empty. Elixirs/potions aren't surfaced here — the matrix carries that detail."""
     fm = fight_map(directory)
     name_to_id = name_id_map(directory)
-    prepared_per_boss, fed_per_boss = [], []
     drum_upt = []
+    # Per-raider tallies across the shared bosses (same _cell_for pass as the matrix).
+    present_cnt, prepared_cnt, fed_cnt = {}, {}, {}
+    have_consumes = False
+    # Fallback (only if NO boss has a consumes file): aggregate Buffs flask/food, avg per boss.
+    fb_prepared, fb_fed = [], []
     for enc in enc_ids:
         rep = load_boss(directory, str(enc))
         if not rep:
@@ -395,8 +404,8 @@ def consumable_report(directory, idx, enc_ids, roster_size):
         cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
         present = (idx.get(enc) or {}).get("players") or []
         if os.path.isfile(cons_path) and present:
+            have_consumes = True
             per_player = read_json(cons_path).get("perPlayer") or {}
-            prepared = fed = 0
             seen = set()
             for pl in present:
                 nm = pl["name"]
@@ -405,16 +414,17 @@ def consumable_report(directory, idx, enc_ids, roster_size):
                 seen.add(nm)
                 pid = name_to_id.get(nm)
                 cell = _cell_for(per_player.get(str(pid)) if pid is not None else None)
-                prepared += 1 if cell["consumed"] else 0
-                fed += 1 if cell["food"] else 0
-            prepared_per_boss.append(prepared)
-            fed_per_boss.append(fed)
+                present_cnt[nm] = present_cnt.get(nm, 0) + 1
+                if cell["consumed"]:
+                    prepared_cnt[nm] = prepared_cnt.get(nm, 0) + 1
+                if cell["food"]:
+                    fed_cnt[nm] = fed_cnt.get(nm, 0) + 1
         elif auras:  # fallback: aggregate Buffs flask/food totals (counts a pair only partially — best effort)
             flask = sum(int(a.get("totalUses", 0)) for a in auras
                         if _consumable_cat(a.get("name", ""), a.get("guid")) == "flask")
             food = sum(int(a.get("totalUses", 0)) for a in auras if a.get("name") == "Well Fed")
-            prepared_per_boss.append(flask)
-            fed_per_boss.append(food)
+            fb_prepared.append(flask)
+            fb_fed.append(food)
 
     def iavg(lst, cap=None):
         if not lst:
@@ -422,10 +432,19 @@ def consumable_report(directory, idx, enc_ids, roster_size):
         v = int(round(sum(lst) / len(lst)))
         return min(v, cap) if cap is not None else v
 
+    if have_consumes:
+        # A raider is "flasked"/"fed" if prepared on >= half of the bosses they attended (the matrix's
+        # own green/yellow Prep-badge threshold), so the card and matrix line up exactly.
+        flask = sum(1 for nm, p in present_cnt.items() if p > 0 and prepared_cnt.get(nm, 0) / p >= 0.5)
+        food = sum(1 for nm, p in present_cnt.items() if p > 0 and fed_cnt.get(nm, 0) / p >= 0.5)
+    else:
+        flask = iavg(fb_prepared, roster_size)
+        food = iavg(fb_fed, roster_size)
+
     return {
         "rosterSize": roster_size,
-        "flask": iavg(prepared_per_boss, roster_size),
-        "food": iavg(fed_per_boss, roster_size),
+        "flask": flask,
+        "food": food,
         "drumsUptime": iavg(drum_upt),
     }
 

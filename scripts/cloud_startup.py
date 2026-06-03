@@ -62,12 +62,19 @@ def main(argv=None):
         theirs_guild = compare_raids.guild_name(theirs_obj)
         ours_name = ours_guild or ours_code
         theirs_name = "Benchmark ({})".format(theirs_guild) if theirs_guild else theirs_code
+        # Zone for the header — derive it the same way compare_raids does so the cached report is
+        # IDENTICAL to a fresh run. This is the one tiny metadata query (not the heavy data fetch);
+        # if the container is fully offline it degrades gracefully to no zone label.
+        try:
+            zone = compare_raids.get_meta(ours_code).get("zone") or ""
+        except Exception:
+            zone = ""
         out_file = os.path.join(ROOT, "reports", "{}-vs-{}.html".format(
             compare_raids.slug(ours_guild or ours_code), compare_raids.slug(theirs_guild or theirs_code)))
         out_full = build_deepdive.build(
             os.path.join(data_root, ours_code), os.path.join(data_root, theirs_code),
             ours_parses, theirs_parses, out_file,
-            ours_name=ours_name, theirs_name=theirs_name, zone_name="")
+            ours_name=ours_name, theirs_name=theirs_name, zone_name=zone)
         print("Report: {}".format(out_full))
         if not args.no_open:
             compare_raids.open_file(out_full)

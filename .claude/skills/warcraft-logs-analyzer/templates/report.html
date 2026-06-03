@@ -313,15 +313,18 @@ function inCombatMatrix(ic){
 function throughputView(d){
   const dp=d.deep; if(!dp) return "";
   let h="";
+  // Only specs BOTH raids fielded (overlap) are in potionGap; also drop 0-vs-0 (neither potted that spec).
   const pg=rowsOf(dp.potionGap).filter(r=>r.ours>0||r.theirs>0);
   if(pg.length){
-    h+=`<h2 class="section">Throughput Potions — By Spec<span class="hint">Combat (throughput) potion activations on the shared boss fights, pooled by spec, ours vs the benchmark. Combat potions are pure throughput — popping more is free DPS — so a spec the benchmark pots more than you (red) is a concrete, repeatable gap. Shown as raid-wide total (and per-player average, so roster size doesn't skew it). Sourced from potion buff applications. Higher is better.</span></h2>
+    // Which specific potions a side used, e.g. "Haste ×12 · Destruction ×3" (most-used first).
+    const potList=(pots)=>{const a=asArr(pots).filter(p=>p&&p.count>0); return a.length?a.map(p=>`${esc(p.name)} ×${p.count}`).join(" · "):"—";};
+    h+=`<h2 class="section">Throughput Potions — By Spec<span class="hint">Combat (throughput) potion activations on the shared boss fights, pooled by spec, ours vs the benchmark — for specs <b>both raids fielded</b> (a spec only one raid runs is a roster question, not a potion gap). Combat potions are pure throughput — popping more is free DPS — so a spec the benchmark pots more than you (red) is a concrete, repeatable gap. The small line under each spec names the specific potions used (Haste / Destruction / Ironshield), so you can see throughput vs survival choices. Total + per-player average; sourced from potion buff applications. Higher is better.</span></h2>
       <table><thead><tr><th>Spec</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ total</th></tr></thead><tbody>`;
     for(const r of pg){
       const dl=deltaHigh(r.ours,r.theirs); // more pots = better
       h+=`<tr><td style="font-weight:600;color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</td>
-        <td class="num" style="color:var(--ours);font-weight:600">${r.ours} <span class="role" style="font-weight:400">(${r.oursAvg}/player)</span></td>
-        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs} <span class="role" style="font-weight:400">(${r.theirsAvg}/player)</span></td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours} <span class="role" style="font-weight:400">(${r.oursAvg}/player)</span><br><span class="role" style="font-weight:400">${potList(r.oursPots)}</span></td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs} <span class="role" style="font-weight:400">(${r.theirsAvg}/player)</span><br><span class="role" style="font-weight:400">${potList(r.theirsPots)}</span></td>
         <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
     }
     h+=`</tbody></table>`;

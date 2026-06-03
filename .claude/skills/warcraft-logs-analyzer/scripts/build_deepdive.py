@@ -639,34 +639,42 @@ def potion_usage_by_spec(directory, idx, enc_ids, spec_map, role_map, class_map)
                 continue
             seen.add(nm)
             pid = name_to_id.get(nm)
-            uses = sum(int(a.get("uses", 0)) for a in (per_player.get(str(pid)) or [])
-                       if _consumable_cat(a.get("name"), a.get("guid")) == "potion")
             cls = class_map.get(nm) or pl["class"]
             b = pool.setdefault("{}|{}".format(cls, spec),
                                 {"class": cls, "spec": spec, "role": role_map.get(nm) or pl["role"],
-                                 "total": 0, "players": set()})
-            b["total"] += uses
+                                 "total": 0, "players": set(), "pots": {}})
+            for a in (per_player.get(str(pid)) or []):
+                if _consumable_cat(a.get("name"), a.get("guid")) != "potion":
+                    continue
+                u = int(a.get("uses", 0))
+                b["total"] += u
+                pn = a.get("name") or "Combat Potion"  # which specific potion (Haste / Destruction / …)
+                b["pots"][pn] = b["pots"].get(pn, 0) + u
             b["players"].add(nm)
     return pool
+
+
+def _pot_names(pots):
+    """A spec's potion-name breakdown as a sorted "Haste ×12, Destruction ×3" list (most-used first)."""
+    return [{"name": n, "count": c} for n, c in sorted((pots or {}).items(), key=lambda kv: -kv[1]) if c > 0]
 
 
 def potion_gap(o_pool, t_pool):
     """Per-spec combat-potion activation gap, ours vs benchmark, ranked by where the benchmark popped the
     most more (the biggest throughput-potion deficit). Reports raid-wide total + per-player average per
-    spec so the gap reads both as "N fewer pots" and normalized for roster size."""
+    spec (so the gap reads both as "N fewer pots" and normalized for roster size) plus WHICH specific
+    potions each side used (Haste / Destruction / Ironshield). Restricted to specs BOTH raids fielded —
+    a spec only one raid runs is a roster question (Composition tab), not a potion-usage gap."""
     rows = []
-    for key in set(o_pool) | set(t_pool):
-        o, t = o_pool.get(key), t_pool.get(key)
-        ref = o or t
-        o_tot = o["total"] if o else 0
-        t_tot = t["total"] if t else 0
-        o_n = len(o["players"]) if o else 0
-        t_n = len(t["players"]) if t else 0
-        rows.append({"class": ref["class"], "spec": ref["spec"], "role": ref["role"],
-                     "ours": o_tot, "theirs": t_tot, "oursPlayers": o_n, "theirsPlayers": t_n,
-                     "oursAvg": round(o_tot / o_n, 1) if o_n else 0,
-                     "theirsAvg": round(t_tot / t_n, 1) if t_n else 0,
-                     "deficit": t_tot - o_tot})
+    for key in set(o_pool) & set(t_pool):  # overlap only: both raids fielded this spec
+        o, t = o_pool[key], t_pool[key]
+        o_n, t_n = len(o["players"]), len(t["players"])
+        rows.append({"class": o["class"], "spec": o["spec"], "role": o["role"],
+                     "ours": o["total"], "theirs": t["total"], "oursPlayers": o_n, "theirsPlayers": t_n,
+                     "oursAvg": round(o["total"] / o_n, 1) if o_n else 0,
+                     "theirsAvg": round(t["total"] / t_n, 1) if t_n else 0,
+                     "oursPots": _pot_names(o["pots"]), "theirsPots": _pot_names(t["pots"]),
+                     "deficit": t["total"] - o["total"]})
     rows.sort(key=lambda r: -r["deficit"])
     return rows
 

@@ -84,6 +84,8 @@
   .gaprow td:first-child{font-weight:600}
   .yes{color:var(--good);font-weight:700}.no{color:var(--bad);font-weight:700}
   tr.isgap{background:rgba(248,114,114,.07)}
+  /* Grouped interrupts table: each interrupted spell is a header row, kicking specs nested under it. */
+  table.igrp tr.igrphd td{background:var(--panel2);font-weight:700;font-size:13px;border-top:2px solid var(--line);border-bottom:1px solid var(--line);padding-top:9px}
   .tag2{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
   .tag2.gap{background:rgba(248,114,114,.18);color:#ffb4b4}
   .tag2.edge{background:rgba(78,161,255,.18);color:#bcdcff}
@@ -666,20 +668,22 @@ function interruptView(b){
   const I=b.interrupts||{};
   const ab=rowsOf(I.abilities), uk=rowsOf(b.unkicked);
   if(!ab.length && !uk.length) return `<p class="num" style="padding:8px 2px">No interruptible casts on this fight.</p>`;
-  // Per-ability kicking specs for one side, class-colored, count after each. "—" if that side never kicked it.
-  const specList=(specs,side)=>{
-    const items=asArr(specs).filter(s=>s[side]>0).sort((a,b)=>b[side]-a[side]);
-    if(!items.length) return '<span class="num">—</span>';
-    return items.map(s=>`<span style="color:${cc(s.class)};font-weight:600">${s.spec?esc(s.spec)+" ":""}${esc(s.class)}</span> <span class="num">×${s[side]}</span>`).join('<span class="num"> · </span>');
-  };
-  // Ability-first: each interrupted ability, with the kicking specs nested under it, ours vs benchmark.
+  // Ability-first GROUPED layout: each interrupted spell is a group header row, and one sub-row per spec
+  // that kicked it (either side), so "benchmark used Fire Mage, you used Ele Shaman" reads straight across
+  // — Kicked-by-spec | Our Raid | Benchmark. Clearer than cramming both raids' full spec lists into a cell.
+  const cnt=(v,who)=>v>0?`<span class="${who}" style="font-weight:600">${v}</span>`:`<span class="cna">·</span>`;
   const abTbl=()=>{
-    let h=`<table><thead><tr><th>Ability interrupted</th><th>${esc(DATA.ours.title)} — kicked by</th><th>${esc(DATA.theirs.title)} — kicked by</th></tr></thead><tbody>`;
+    let h=`<table class="igrp"><thead><tr><th>Kicked by spec</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th></tr></thead><tbody>`;
     for(const r of ab){
-      h+=`<tr>
-        <td><span style="font-weight:600">${esc(r.name)}</span><br><span class="role"><span class="cours">${r.ours||0}</span> vs <span class="cthe">${r.theirs||0}</span> kicks</span></td>
-        <td>${specList(r.specs,"ours")}</td>
-        <td>${specList(r.specs,"theirs")}</td></tr>`;
+      // Group header: the interrupted spell + total kicks each side. colspan spans the 3 columns.
+      h+=`<tr class="igrphd"><td colspan="3">${esc(r.name)} <span class="role" style="text-transform:none;letter-spacing:0;font-weight:400">· <span class="cours">${r.ours||0}</span> vs <span class="cthe">${r.theirs||0}</span> kicks</span></td></tr>`;
+      const specs=asArr(r.specs).filter(s=>s.ours>0||s.theirs>0).sort((a,b)=>Math.max(b.ours,b.theirs)-Math.max(a.ours,a.theirs));
+      if(!specs.length){ h+=`<tr><td class="num" colspan="3">No spec attribution recorded.</td></tr>`; continue; }
+      for(const s of specs){
+        h+=`<tr><td style="color:${cc(s.class)};font-weight:600;padding-left:18px">${s.spec?esc(s.spec)+" ":""}${esc(s.class)}</td>
+          <td class="num">${cnt(s.ours,"cours")}</td>
+          <td class="num">${cnt(s.theirs,"cthe")}</td></tr>`;
+      }
     }
     return h+`</tbody></table>`;
   };

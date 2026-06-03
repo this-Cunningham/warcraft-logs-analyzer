@@ -98,7 +98,7 @@ Consistency fix. The explanatory/context copy under this section is rendering in
 
 ---
 
-## TODO: Abilities Interrupted — by spec: rework to grouped-row layout
+## ✅ DONE: Abilities Interrupted — by spec: rework to grouped-row layout
 
 > The current flat table (Ability Interrupted | Our Raid — kicked by | Benchmark — kicked by) isn't clear. Rework to: rows = interrupted spell name (grouped header), sub-rows within each group = one row per spec that kicked it, columns = "Kicked by spec" | "Our Raid" | "Benchmark". Long guild names in column headers also make it worse (see truncation TODO).
 

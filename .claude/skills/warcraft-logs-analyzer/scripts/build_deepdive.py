@@ -666,7 +666,10 @@ def potion_gap(o_pool, t_pool):
     potions each side used (Haste / Destruction / Ironshield). Restricted to specs BOTH raids fielded —
     a spec only one raid runs is a roster question (Composition tab), not a potion-usage gap."""
     rows = []
-    for key in set(o_pool) & set(t_pool):  # overlap only: both raids fielded this spec
+    # Overlap ONLY (set intersection): both raids fielded this spec. A spec one raid never ran is a
+    # roster question (Composition tab), and comparing its potion rate would be apples-to-oranges — a
+    # data-integrity violation the soul prohibits. The template re-checks oursPlayers/theirsPlayers > 0.
+    for key in set(o_pool) & set(t_pool):
         o, t = o_pool[key], t_pool[key]
         o_n, t_n = len(o["players"]), len(t["players"])
         rows.append({"class": o["class"], "spec": o["spec"], "role": o["role"],

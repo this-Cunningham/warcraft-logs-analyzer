@@ -316,8 +316,11 @@ function inCombatMatrix(ic){
 function throughputView(d){
   const dp=d.deep; if(!dp) return "";
   let h="";
-  // Only specs BOTH raids fielded (overlap) are in potionGap; also drop 0-vs-0 (neither potted that spec).
-  const pg=rowsOf(dp.potionGap).filter(r=>r.ours>0||r.theirs>0);
+  // Only specs BOTH raids fielded belong here — comparing a spec one raid never ran is apples-to-oranges
+  // (a data-integrity violation). The builder already gates potionGap to the spec INTERSECTION; we also
+  // require a real player on each side here as a belt-and-suspenders guard, then drop 0-vs-0 (neither
+  // potted that overlapping spec — no gap to show).
+  const pg=rowsOf(dp.potionGap).filter(r=>r.oursPlayers>0&&r.theirsPlayers>0&&(r.ours>0||r.theirs>0));
   if(pg.length){
     // Which specific potions a side used, e.g. "Haste ×12 · Destruction ×3" (most-used first).
     const potList=(pots)=>{const a=asArr(pots).filter(p=>p&&p.count>0); return a.length?a.map(p=>`${esc(p.name)} ×${p.count}`).join(" · "):"—";};

@@ -31,7 +31,7 @@ The Flasked / Elixir Pair columns in the Per-Player Consumables — Prep section
 
 ---
 
-## TODO: Throughput Potions — By Spec: restrict comparison to overlapping specs only
+## ✅ DONE: Throughput Potions — By Spec: restrict comparison to overlapping specs only
 
 > Throughput Potions — By Spec — does this compare against specs that were not overlapping in our raids? If so we can't be doing this.
 

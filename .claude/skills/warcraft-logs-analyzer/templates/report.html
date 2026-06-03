@@ -148,7 +148,15 @@
   .dbarL .f.ours{right:0;background:var(--ours);border-radius:5px 0 0 5px}
   .dbarR .f.theirs{left:0;background:var(--theirs);border-radius:0 5px 5px 0}
   /* Per-player consumables matrix (bosses across the top, F/B/G/Fd/P sub-columns). */
-  .cmwrap{overflow-x:auto;margin-top:12px}
+  /* Horizontal scroll hint: a right/left edge shadow that only shows while there's off-screen content
+     and fades out at each end (cover layers = bg colour, attachment:local; shadow layers = attachment:scroll).
+     Self-hiding, so it stays invisible when the table fits (e.g. on desktop). */
+  .cmwrap{overflow-x:auto;margin-top:12px;
+    background:
+      linear-gradient(to right, var(--bg), rgba(11,14,20,0)) 0 0/22px 100% no-repeat local,
+      linear-gradient(to left, var(--bg), rgba(11,14,20,0)) 100% 0/22px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.45), rgba(0,0,0,0)) 0 0/13px 100% no-repeat,
+      radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.45), rgba(0,0,0,0)) 100% 0/13px 100% no-repeat}
   table.cmatrix{width:auto;min-width:100%;border-collapse:collapse;font-size:12px}
   table.cmatrix th,table.cmatrix td{padding:4px 0;text-align:center;border-bottom:1px solid rgba(38,47,64,.5)}
   table.cmatrix th.cbgrp{font-size:11px;color:var(--txt);text-transform:none;letter-spacing:0;font-weight:700;
@@ -187,7 +195,13 @@
   .tkmob{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--panel);border:1px solid var(--line);margin:2px 0}
   .tkmob.div{border-color:var(--warn);color:#ffe08a;font-weight:600}
   .tkarrow{color:var(--muted);margin:0 3px}
-  .ladder{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 8px;margin:2px 0 14px;overflow-x:auto}
+  .ladder{border:1px solid var(--line);border-radius:12px;padding:12px 8px;margin:2px 0 14px;overflow-x:auto;
+    background:
+      linear-gradient(to right, var(--panel), rgba(20,25,37,0)) 0 0/22px 100% no-repeat local,
+      linear-gradient(to left, var(--panel), rgba(20,25,37,0)) 100% 0/22px 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.4), rgba(0,0,0,0)) 0 0/13px 100% no-repeat,
+      radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.4), rgba(0,0,0,0)) 100% 0/13px 100% no-repeat,
+      var(--panel)}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:40px}
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.rostergrid,.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px;column-gap:5px}}
   /* Phone layout: tighten outer padding and let the primary tab bar scroll sideways instead of

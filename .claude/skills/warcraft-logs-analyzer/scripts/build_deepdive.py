@@ -785,6 +785,89 @@ def load_timeline(directory, enc):
     return read_json(p)
 
 
+def pet_owner_map(directory):
+    """pet actor id(int) -> owner player actor id(int), from masterData pets on fights.json. Used to
+    fold a pet's (or totem's) damage/healing into its OWNER's spec for the per-spec timeline, so a BM
+    hunter's pet or a warlock's felguard isn't dropped from that spec's curve. Graceful {} on older data
+    folders that predate the pets fetch (per-spec curves then just exclude pet output)."""
+    try:
+        rep = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]
+    except (OSError, KeyError, ValueError):
+        return {}
+    out = {}
+    for p in (((rep.get("masterData") or {}).get("pets")) or []):
+        if p.get("id") is not None and p.get("petOwner") is not None:
+            out[int(p["id"])] = int(p["petOwner"])
+    return out
+
+
+def _spec_curves(by_source, n, secs, id_to_name, spec_map, role_map, class_map, pet_owner):
+    """Fold one fight's per-source RAW bins (sourceID -> [amount per bin]) into per (class, spec) RATE
+    curves. Each source is first resolved to a player (a pet folds into its owner), then attributed to
+    that player's primary spec and pooled; the summed bins are divided by the bin width (`secs`) to get a
+    DPS/HPS-over-time curve for the whole spec. Returns {"class|spec": {class, spec, role, curve:[rates]}}."""
+    if not by_source or n <= 0 or secs <= 0:
+        return {}
+    folded = {}  # owner player id -> [raw sum per bin]
+    for sid_str, arr in by_source.items():
+        owner = pet_owner.get(int(sid_str), int(sid_str))  # pet -> owner; player -> itself
+        f = folded.get(owner)
+        if f is None:
+            f = folded[owner] = [0.0] * n
+        for i, v in enumerate(arr):
+            f[i] += v
+    pools = {}
+    for owner, arr in folded.items():
+        nm = id_to_name.get(owner)
+        spec = spec_map.get(nm) if nm else None
+        if not nm or not spec:
+            continue  # only roster players with a known primary spec
+        cls = class_map.get(nm) or "Unknown"
+        key = "{}|{}".format(cls, spec)
+        p = pools.setdefault(key, {"class": cls, "spec": spec, "role": role_map.get(nm), "sum": [0.0] * n})
+        for i, v in enumerate(arr):
+            p["sum"][i] += v
+    return {key: {"class": p["class"], "spec": p["spec"], "role": p["role"],
+                  "curve": [round(x / secs) for x in p["sum"]]}
+            for key, p in pools.items()}
+
+
+def spec_timelines(o_tl, t_tl, o_args, t_args):
+    """Per-spec DPS/HPS-over-time curves for a boss, ours vs the benchmark's same spec — the data behind
+    the per-spec Timeline sub-tabs. Restricted to specs BOTH raids fielded (the overlap): a spec only one
+    raid ran has no same-spec curve to compare against, so showing it would be a misleading apples-to-
+    oranges line (the same data-integrity rule as the potion/DPS gaps). A DPS-role spec carries its DPS
+    curve; a healer spec carries its HPS curve. Returns [] when either side lacks timeline data."""
+    if not o_tl or not t_tl:
+        return []
+
+    def side(tl, args):
+        id_to_name, spec_map, role_map, class_map, pet = args
+        n = tl.get("n") or len(tl.get("dps") or [])
+        if not n or not tl.get("durMs"):
+            return {}
+        secs = (tl["durMs"] / n) / 1000.0
+        dps = _spec_curves(tl.get("dpsBySource"), n, secs, id_to_name, spec_map, role_map, class_map, pet)
+        hps = _spec_curves(tl.get("hpsBySource"), n, secs, id_to_name, spec_map, role_map, class_map, pet)
+        out = {}
+        for key, c in dps.items():
+            if c["role"] == "dps":
+                out[key] = dict(c, metric="dps")
+        for key, c in hps.items():
+            if c["role"] == "healer":
+                out[key] = dict(c, metric="hps")  # healers compared on healing output
+        return out
+
+    o, t = side(o_tl, o_args), side(t_tl, t_args)
+    rows = []
+    for key in set(o) & set(t):  # overlap only — both raids fielded this spec
+        oc, tc = o[key], t[key]
+        rows.append({"class": oc["class"], "spec": oc["spec"], "role": oc["role"], "metric": oc["metric"],
+                     "ours": oc["curve"], "theirs": tc["curve"]})
+    rows.sort(key=lambda r: (r["metric"] != "dps", r["class"], r["spec"]))  # DPS specs first, stable order
+    return rows
+
+
 def _side_timeline(curves, deaths, lust_sec, dur_ms, fight_info):
     """One raid's timeline: DPS/HPS curves + markers placed at ABSOLUTE seconds into its own fight.
     Both sides share one real-time axis, so a shorter kill's line simply ends earlier — the gap is
@@ -2517,6 +2600,11 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Per-boss
     ours_fights = fight_map(ours_dir)
     theirs_fights = fight_map(theirs_dir)
+    # Maps for the per-spec timeline curves: source actor id -> name, and pet -> owner (computed once).
+    o_id_to_name = {v: k for k, v in name_id_map(ours_dir).items()}
+    t_id_to_name = {v: k for k, v in name_id_map(theirs_dir).items()}
+    o_pet = pet_owner_map(ours_dir)
+    t_pet = pet_owner_map(theirs_dir)
     # Accumulators for the tier-wide views (item level by role).
     o_ilvl, t_ilvl = {}, {}
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
@@ -2604,6 +2692,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         t_deaths = death_list(t_b, theirs_fights[enc]["start"])
         o_tl = load_timeline(ours_dir, enc)
         t_tl = load_timeline(theirs_dir, enc)
+        tl_payload = timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
+                                   o_dur, t_dur, ours_fights[enc], theirs_fights[enc])
+        if tl_payload:
+            # Per-spec DPS/HPS curves (overlapping specs only) for the per-spec Timeline sub-tabs.
+            tl_payload["specs"] = spec_timelines(
+                o_tl, t_tl,
+                (o_id_to_name, ours_spec, ours_role, ours_cls, o_pet),
+                (t_id_to_name, theirs_spec, theirs_role, theirs_cls, t_pet))
         per_boss.append({
             "encounterID": b["encounterID"], "name": b["name"],
             "oursLustSec": o_lust,
@@ -2631,8 +2727,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                        "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
             "focus": focus_view(o_tl, t_tl),
             "targetEngagement": target_engagement(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
-            "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
-                                      o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
+            "timeline": tl_payload,
         })
 
     # Overall DTPS is time-weighted (total damage / total fight time).

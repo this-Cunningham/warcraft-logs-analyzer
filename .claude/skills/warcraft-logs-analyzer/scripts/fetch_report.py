@@ -98,6 +98,9 @@ def _binned_curves(code, fid, start, end, n=40):
 
     def curve(dtype, with_focus=False):
         buckets = [0.0] * n
+        by_source = {}  # sourceID -> [raw amount per bin]; powers the PER-SPEC timeline curves (build
+                        # folds pets into owners, maps owner -> spec, and pools). No extra API cost —
+                        # the same event sweep already carries sourceID on every damage/heal event.
         tgt_bucket = [dict() for _ in range(n)] if with_focus else None  # bucket -> {targetID: dmg}
         tgt_total = {} if with_focus else None                          # targetID -> total dmg (whole fight)
         tgt_inst = {} if with_focus else None  # (targetID,targetInstance) -> [firstTs, lastTs] for add lifespans
@@ -111,6 +114,13 @@ def _binned_curves(code, fid, start, end, n=40):
                 amt = e.get("amount") or 0
                 bi = min(max(int((e["timestamp"] - int(start)) // width), 0), n - 1)
                 buckets[bi] += amt
+                if amt:
+                    sid = e.get("sourceID")
+                    if sid is not None:
+                        arr = by_source.get(sid)
+                        if arr is None:
+                            arr = by_source[sid] = [0.0] * n
+                        arr[bi] += amt
                 if with_focus and amt:
                     tid = e.get("targetID")
                     if tid is not None:
@@ -130,8 +140,10 @@ def _binned_curves(code, fid, start, end, n=40):
             cur = int(nxt)
         secs = width / 1000.0
         rates = [round(b / secs) for b in buckets]
+        # Per-source RAW sums (build divides by `secs` after folding pets into owners).
+        src_raw = {str(sid): [round(x) for x in arr] for sid, arr in by_source.items()}
         if not with_focus:
-            return rates, None
+            return rates, None, src_raw
         # Per-slice focus concentration = top target's share of that slice's damage.
         conc = []
         for tb in tgt_bucket:
@@ -153,11 +165,12 @@ def _binned_curves(code, fid, start, end, n=40):
             if s["firstSec"] is None or fsec < s["firstSec"]:
                 s["firstSec"] = fsec
         focus["targetSpans"] = spans
-        return rates, focus
+        return rates, focus, src_raw
 
-    dps, focus = curve("DamageDone", with_focus=True)
-    hps, _ = curve("Healing")
-    return {"durMs": dur, "n": n, "dps": dps, "hps": hps, "focus": focus}
+    dps, focus, dps_src = curve("DamageDone", with_focus=True)
+    hps, _, hps_src = curve("Healing")
+    return {"durMs": dur, "n": n, "dps": dps, "hps": hps, "focus": focus,
+            "dpsBySource": dps_src, "hpsBySource": hps_src}
 
 
 # Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,
@@ -259,7 +272,8 @@ def fetch(code, out_dir, full_encounters=None):
         "fights(killType:Kills){id name encounterID difficulty startTime endTime "
         "size averageItemLevel phaseTransitions{id startTime}} "
         "phases{encounterID separatesWipes phases{id name isIntermission}} "
-        "masterData{npcs: actors(type:\"NPC\"){id gameID name}}}}}"
+        "masterData{npcs: actors(type:\"NPC\"){id gameID name} "
+        "pets: actors(type:\"Pet\"){id petOwner}}}}}"  # pet->owner: fold pet damage into the owner's spec
     )
     kills = lib.invoke_query(kills_q, {"code": code})
     _save(kills, os.path.join(out_dir, "fights.json"))

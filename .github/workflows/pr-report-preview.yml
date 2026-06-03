@@ -5,12 +5,22 @@ name: PR report preview
 # raw.githack.com, so it is immutable (never serves a stale cached copy) and works BEFORE merge — no
 # GitHub Pages config, no merge-to-main, no branch/worktree juggling.
 #
+# This workflow does NOT build the report — building needs the Warcraft Logs API credentials, which
+# live in the local dev session (the cloud container), not in CI. The flow is: build + publish the
+# report LOCALLY (`python3 scripts/publish_report.py`, which commits the fresh file into docs/), then
+# open/update the PR — this workflow just links whatever is committed under docs/.
+#
+# Doc-only changes don't touch the report, so markdown edits (TODO.md, BACKLOG.md, README, etc.) are
+# excluded below and never trigger a run.
+#
 # Note: raw.githack renders files from PUBLIC GitHub repos. If this repo is private, swap the preview
 # host for Cloudflare Pages / Netlify (which support private repos and also give automatic PR previews).
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**/*.md'
 
 permissions:
   contents: read
@@ -44,11 +54,12 @@ jobs:
                 .join('\n');
               body = `${MARKER}\n### 📊 Report preview\n${links}\n\n` +
                      `<sub>Rendered via raw.githack, pinned to commit \`${sha.slice(0, 7)}\` — ` +
-                     `immutable and updates on every push. (Requires a public repo; for a private ` +
-                     `repo, use Cloudflare Pages / Netlify PR previews instead.)</sub>`;
+                     `immutable and updates on every push. Built & published locally via ` +
+                     `\`scripts/publish_report.py\` (CI doesn't have the Warcraft Logs API credentials). ` +
+                     `Requires a public repo; for a private repo, use Cloudflare Pages / Netlify previews.</sub>`;
             } else {
               body = `${MARKER}\n### 📊 Report preview\n_No report HTML found under \`docs/\` in this PR. ` +
-                     `Run \`python3 scripts/publish_report.py\` and push the result to get a preview link._`;
+                     `Run \`python3 scripts/publish_report.py\` locally and push the result to get a preview link._`;
             }
 
             // Upsert a single sticky comment (find by hidden marker, update if present else create).

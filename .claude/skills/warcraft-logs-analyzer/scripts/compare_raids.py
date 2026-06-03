@@ -82,8 +82,10 @@ def slug(s):
 def trunc_name(s, limit=13):
     """Truncate a guild/report name past `limit` chars with an ellipsis. Long names blow out column
     widths and delta labels and make the report wrap unpredictably; capping the GUILD name (not the
-    "Benchmark (…)" wrapper around it) at 13 chars keeps the layout stable for any guild pairing while
-    staying recognizable. Applied once here, at the naming source, so every reference to the name in the
+    "Benchmark (…)" wrapper around it) keeps the layout stable for any guild pairing while staying
+    recognizable. Our side caps at 13; the benchmark caps tighter at 8 (it carries the extra
+    "Benchmark (…)" wrapper AND appears as a column label in many side-by-side tables, so it crowds
+    headers fastest). Applied once here, at the naming source, so every reference to the name in the
     report (header, table columns, inline) inherits the truncated form for free. The filename slug still
     uses the full guild names, so on-disk reports stay distinguishable."""
     if not s:
@@ -160,12 +162,14 @@ def main(argv=None):
     # Manual --ours-name/--theirs-name override wins; guild name falls back to the report title.
     ours_guild = guild_name(parse_obj[ours_code])
     theirs_guild = guild_name(parse_obj[theirs_code])
-    # Guild names are truncated past 13 chars (the "Benchmark (…)" wrapper is added AFTER truncating the
-    # guild, so only the guild name itself is shortened). A manual --ours-name/--theirs-name override is
-    # the user's call and is left exactly as given.
+    # Guild names are truncated before any wrapper is added (the "Benchmark (…)" wrapper is applied AFTER
+    # truncating the guild, so only the guild name itself is shortened). Ours caps at 13; the benchmark
+    # caps tighter at 8 — it carries the wrapper and appears as a column label across many tables, so it
+    # crowds headers fastest. A manual --ours-name/--theirs-name override is the user's call and is left
+    # exactly as given.
     ours_name = args.ours_name or trunc_name(ours_guild or ours_meta["title"])
     theirs_name = args.theirs_name or (
-        "Benchmark ({})".format(trunc_name(theirs_guild)) if theirs_guild else trunc_name(theirs_meta["title"]))
+        "Benchmark ({})".format(trunc_name(theirs_guild, 8)) if theirs_guild else trunc_name(theirs_meta["title"], 8))
     # File named after the guilds (slugified), not the opaque report codes.
     out_file = args.out_file or os.path.join(
         root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))

@@ -95,3 +95,11 @@ Consistency fix. The explanatory/context copy under this section is rendering in
 > Same as above — "Interrupt Success — Kicked vs Leaked": "Per ability: kicked = interrupts you landed; leaked = interruptible casts that still went off un-kicked. A highlighted leaked count is a miss — lower is better, 0 leaked is ideal."
 
 Consistency fix. The explanatory/context copy under this section is rendering in a different style than the equivalent explanatory text elsewhere in the report. Align it to the standard additional-context copy style so the visual language is uniform throughout. (Same fix as the Abilities Interrupted — by spec item above.)
+
+---
+
+## TODO: Abilities Interrupted — by spec: rework to grouped-row layout
+
+> The current flat table (Ability Interrupted | Our Raid — kicked by | Benchmark — kicked by) isn't clear. Rework to: rows = interrupted spell name (grouped header), sub-rows within each group = one row per spec that kicked it, columns = "Kicked by spec" | "Our Raid" | "Benchmark". Long guild names in column headers also make it worse (see truncation TODO).
+
+The current flat layout puts both raids' full spec lists in a single cell per row, making the comparison hard to parse. Grouping by interrupted spell as the primary row, with one spec-per-sub-row, lets a leader see at a glance "benchmark used Fire Mage for this cast, we used Ele Shaman" — the exact side-by-side that reveals how each raid's interrupt assignments differ. This is the actionable cut the section promises.

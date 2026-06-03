@@ -14,3 +14,9 @@ consumables matrix (worst-first sort + green count numbers), the throughput-poti
 gap, the Clear Efficiency shared-zone scoping fix, trash killing-blow mob names +
 melee breakdown, the chain-pull view, the Crowd Control summary-table cut, the
 flask/elixir-pair coverage fix, and the cloud startup script._
+
+## TODO: Fix Flasked / Elixir Pair display in Per-Player Consumables — Prep
+
+> something wrong with Flasked / Elixir Pair section when compared to this matrix Per-Player Consumables — Prep
+
+The Flasked / Elixir Pair columns in the Per-Player Consumables — Prep section appear to disagree with or duplicate data from the consumables matrix. Gap: if a player shows as flasked in one view but not the other, a raid leader can't trust either. Investigate whether the two views are drawing from the same data pass and whether the battle+guardian elixir pairing logic is consistently applied in both places.

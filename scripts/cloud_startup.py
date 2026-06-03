@@ -20,6 +20,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, ".claude", "skills", "warcraft-logs-analyzer", "scripts"))
 
+# Run from the repo root regardless of the caller's cwd. The cloud setup script invokes us from
+# the environment's working_dir (e.g. /home/user, the repo's *parent*), and the pipeline resolves
+# both its inputs and its output dir relative to cwd (lib.find_repo_root walks up for a .git). Without
+# this, output silently lands outside the repo. Anchoring to ROOT makes invocation cwd-independent.
+os.chdir(ROOT)
+
 import compare_raids  # noqa: E402
 
 # --- PINNED REPORTS (swap these to retarget) ---------------------------------------------------------

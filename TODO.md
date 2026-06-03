@@ -134,6 +134,14 @@ Alongside the per-spec Timeline tabs, two aggregate tabs sum the whole melee or 
 
 ---
 
+## TODO: Remove shaded-edge fade on scrolling tables
+
+> undo the shaded edges of the scrolling tables you added recently
+
+Visual regression fix. The fade/shadow applied to the left and right edges of horizontally-scrollable tables was meant to hint at overflow, but it obscures the data at the edges of the viewport — the opposite of the soul's "honest, at a glance" standard. Clean removal restores full-bleed readability without sacrificing the scroll affordance (the scrollbar itself is sufficient).
+
+---
+
 ## TODO: Convert remaining sections to mirrored-bar layout — delta in center, context columns on the right
 
 > plz convert these tables to horizontal mirror bar tables with label and delta in middle, any tables mentioned with an extra context table, just maintain that all the way on the right

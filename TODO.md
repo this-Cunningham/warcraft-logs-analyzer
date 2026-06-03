@@ -123,3 +123,11 @@ Examples of tables with this layout: Boss Debuffs, Raid Buffs, Avg DPS / player 
 The existing raid-level DPS/HPS timeline shows the full-raid aggregate, which obscures whether individual specs are running at benchmark pace through each phase. A per-spec tab lets a leader click e.g. "Fire Mage" and see immediately whether their Mage's output curve matches the benchmark Mage's — revealing ramp timing gaps, phase drop-offs, or sustained throughput deficits that the aggregate buries. The spec-tab coloring by class type makes the tab bar scannable at a glance.
 
 Data integrity: only generate spec tabs for class/spec combos present in *both* our raid and the benchmark — a spec we ran but the benchmark didn't (or vice versa) has nothing to compare against, so showing it would be a misleading apples-to-oranges gap. Omit non-overlapping specs from the tab set entirely. (Same overlapping-specs rule as the Throughput Potions — By Spec item.)
+
+---
+
+## TODO: Boss portrait images — research API availability
+
+> Look into whether there are boss portrait assets available from the WCL or Blizzard API that we can use for each boss panel. Should appear to the left of the boss name.
+
+Polish item — a boss portrait anchors the panel visually and makes the report feel native to the game. Research needed: does the WCL GraphQL API expose a `gameData` or `encounter` icon/image URL? Alternatively, Blizzard's Game Data API (creature media endpoint) may provide NPC portraits by creature/display ID. If a clean asset URL is available, this is low-effort polish; if it requires a separate authenticated Blizzard API call, weigh the complexity.

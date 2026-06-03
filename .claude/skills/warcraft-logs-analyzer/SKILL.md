@@ -220,15 +220,14 @@ the static template, with no model in the path.
      wasn't a clean better/worse signal; the per-player-averaged **DPS by Spec** gap is the honest
      version of "is this class pulling its weight.")
    - **Prep**: leads with **Consumables Coverage** (`consumable_report` in build_deepdive.py),
-     then the Enchants & Gems audit. Consumables come from the per-boss **Buffs** tables we already
-     fetch — auras are bucketed by `_consumable_cat`, and `totalUses` is averaged across the shared
-     bosses (≈ one application per player for flask/food, so it's a raid-aggregate coverage proxy,
-     **not** per-player exact). The coverage cards show only **Flask**, **Food (Well Fed)**, and
-     **Drums uptime %** — the three clean signals. The soul audit cut the aggregate **Battle Elixir /
-     Guardian Elixir / Combat Potion** cards: as denominator-less raid totals ("Battle Elixirs: 12" —
-     12 of what?) they weren't an at-a-glance gap, and the **Per-Player Consumables** matrix below
-     already carries elixir/potion detail per raider, far more actionably (`_consumable_cat`/
-     `_elixir_type` still classify those for the matrix). Cards show ours/theirs/Δ.
+     then the Enchants & Gems audit. The **Flask / Elixir Pair** card now reads the **per-player**
+     consumes files (`_cell_for`), so a raider on a full **battle + guardian elixir pair** counts as
+     "prepared" exactly like a flasked one — the aggregate Buffs table can't tell flask-vs-pair apart,
+     which previously under-counted a pair as un-flasked (a bug, now fixed). Food is the per-player
+     Well-Fed count; **Drums uptime %** stays a fight-uptime read from the aggregate Buffs table. (Falls
+     back to the aggregate flask/food totals on any boss without a consumes file, so older data folders
+     still build.) The soul audit cut the aggregate Battle/Guardian Elixir & Combat-Potion cards — the
+     per-player matrices carry that detail far more actionably. Cards show ours/theirs/Δ.
      `ELIXIR_EXCLUDE` drops junk "…Elixir" names (Noggenfogger etc.).
    - **Consumables are classified by SPELL ID, not buff name.** WCL renames most consumable buffs to
      their *effect* — Flask of Supreme Power → "Supreme Power", Elixir of Major Shadow Power → "Major
@@ -240,23 +239,41 @@ the static template, with no model in the path.
      battle/guardian label verified once against Wowhead (WCL has no category field). A "Flask of …"/
      "Elixir of …" name fallback covers any id not yet listed. Extend the id sets when a new tier's
      data surfaces a consumable buff not yet mapped.
-   - **Prep — Per-Player Consumables** (ours only): a **matrix** — one row per raider (labeled with
-     their **primary spec**, not a bare role — "Holy" not "Healer", so a leader can tell the offender
-     apart at a glance; from `primary_spec_map`, falls back to role), sorted **worst-prepared first**,
-     the shared bosses across the top, and under each boss five
-     sub-columns **F · B · G · Fd · P** (flask / battle elixir / guardian elixir / food / combat
-     potion). A leading **Prep** column shows consumed-bosses / bosses-played, so a red streak across
-     a row is a chronic offender. "Consumed" = a **flask OR a battle + guardian elixir pair**
-     (`_elixir_type` types each elixir by spell id; a lone elixir is *not* enough). Built by
-     `per_player_consumables` (matrix shape: `bosses[]` + `players[].cells`).
-     Cell rendering is **route-aware**: a cell is red-tinted (`cmiss`) only if it's a real gap — a
-     flasked player's empty B/G cells render *faint* (the flask covers them), but a player with only a
-     guardian elixir gets a **red** battle-elixir cell (the missing half of the pair). Legend:
-     ✓=had it, red ✗=missing & needed, faint ✗=not needed via that route, ·=didn't attend that boss.
-     **Data source matters:** per-player consumables come from the Buffs *table scoped by `sourceID`*
-     (`_fetch_per_player_buffs` → `consumes-<enc>.json`), NOT events — flask/food/elixir are applied
-     pre-pull and generate no in-fight events, and `combatantInfo.auras` is empty in TBC. Fetched only
-     for the shared (`--full-encounters`) bosses.
+   - **Prep — Per-Player Consumables (two matrices)** (ours only). Both: one row per raider (labeled with
+     their **primary spec**, not a bare role — "Holy" not "Healer"; from `primary_spec_map`, falls back to
+     role), shared bosses across the top, built from per-player tables for the shared (`--full-encounters`)
+     bosses.
+     - **Prep matrix** (`per_player_consumables` → `consumeMatrix`): sorted **worst-prepared first**, four
+       sub-columns per boss **F · B · G · Fd** (flask / battle elixir / guardian elixir / food). The combat
+       potion's **P** column moved out to the in-combat matrix below — the prep matrix is now purely "did you
+       show up consumed." A leading **Prep** column shows consumed-bosses / played. "Consumed" = a **flask OR
+       a battle + guardian elixir pair** (`_elixir_type` types each elixir by spell id; a lone elixir is *not*
+       enough). Cell rendering is **route-aware**: a cell is red-tinted (`cmiss`) only if it's a real gap — a
+       flasked player's empty B/G render *faint*, but a player with only a guardian elixir gets a **red**
+       battle-elixir cell. Legend: ✓=had it, red ✗=missing & needed, faint ✗=not needed via that route,
+       ·=didn't attend. **Data source:** the Buffs *table scoped by `sourceID`* (`_fetch_per_player_buffs` →
+       `consumes-<enc>.json`), NOT events — flask/food/elixir are applied pre-pull and generate no in-fight
+       events, and `combatantInfo.auras` is empty in TBC.
+     - **In-combat matrix** (`per_player_incombat` → `inCombatMatrix`): the consumables pressed DURING the
+       fight — **P** combat throughput potion · **HP** health potion · **MP** mana potion · **HS** healthstone.
+       **P** is buff-sourced (POTION category, `consumes-<enc>.json`); **HP/MP/HS** are read from the **Casts**
+       table (`boss-<enc>.json`) because those instant items leave **no buff aura** (verified live — they
+       don't appear in the Buffs table at all; a mana potion casts "Restore Mana", a healthstone "Master
+       Healthstone", a health potion "Restore Health"). It's a **usage** view, not a prep pass/fail — using
+       a mana pot or healthstone is situational, so a non-use renders as a faint dash, **never a red gap**
+       (that would falsely flag a warrior for not drinking mana). **HS is warlock-dependent** — with no
+       warlock in the raid the column is flagged unavailable rather than empty. Sorted by least combat-potion
+       use first.
+   - **Prep — Throughput Consumables** (`throughputView`): two cross-guild reads. (1) **Throughput Potions
+     by Spec** (`potion_usage_by_spec`/`potion_gap`) — combat (throughput) potion activations on the shared
+     boss fights pooled by (class, primary spec), ours vs the benchmark, ranked by the biggest deficit
+     (raid-wide total + per-player average). Combat potions are pure throughput, so a spec the benchmark pots
+     more than you is a **clean better/worse** gap ("your Fury Warriors popped 13 fewer pots"). Sourced from
+     the per-player POTION-category buff `uses`. (2) **Throughput Consumable Choices** (`throughput_choices`)
+     — which **specific** flasks and battle elixirs each raid runs (the meta, mined from the benchmark — a
+     top guild — not hardcoded) and how many raiders used each, ours vs benchmark. **Descriptive** (a roster
+     story): surfaces casters on a survival flask vs a spell-damage one, or the battle elixir the best guilds
+     favor.
    - **Prep — Enchants & Weapon Oils audit**: per-player missing enchants from
      `combatantInfo.gear.permanentEnchant`, plus weapon-oil presence. Restricted to the
      **shared-boss roster** (same player set as Composition) — `audit_report` takes the roster names
@@ -313,13 +330,18 @@ the static template, with no model in the path.
        (`TRINKET_NAMES`) are read from the **Casts** table. The two sources are disjoint, so they never
        double-count. Both sides are measured identically, so the gap is a fair like-for-like even where a
        given cooldown isn't logged. Extend the name sets as new tiers surface more.
-     - **Rotation — Ability Mix** (`rotation_buckets`/`tier_rotation` → `rotationView`) — for each DPS spec
+     - **Rotation — Ability Mix** (`rotation_buckets`/`tier_rotation` → `rotationView`) — for each spec
        both raids fielded, the **share** of that spec's casts spent on each ability, ours vs the benchmark's
        same spec (pooled across shared bosses; the abilities whose share differs most are shown). Built from
        the **Casts** table (`dd.abilities` only covers damaging abilities; Casts covers the whole rotation).
-       **Descriptive, NOT scored** — a different cast mix can be gear/talent/fight-driven, not strictly
-       "worse", so the diff is neutral (the soul's Dispels-view rule). Stays at the **spec** grain (no
-       per-player breakdown). `min_share` drops trivial fillers so the rotation's backbone shows, not noise.
+       Split into a **DPS tab and a Healer tab** (`data-rtab`, wired in `mountBosses`) — healer spell priority
+       (e.g. a Resto Shaman over-relying on Lesser Healing Wave vs the benchmark's Healing Wave) is a real
+       coaching lever, so `rotation_buckets` now buckets healers too (tagged with `role`). Specs whose biggest
+       cast-share divergence is within `collapse_diff` (5 pp) **collapse to a green "rotation matches benchmark"
+       chip** (the `matches` flag) so a leader sees at a glance which specs are fine and focuses on the ones
+       that diverge; the rest render full panels. **Descriptive, NOT scored** — a different cast mix can be
+       gear/talent/fight-driven (the soul's Dispels-view rule). Stays at the **spec** grain (no per-player
+       breakdown). `min_share` drops trivial fillers so the rotation's backbone shows, not noise.
      - **Early Aggro — Threat Pulls** (`threat_pulls` → `threatPullsView`, feeds the Overview scorecard) —
        a **new modality** (`table(Threat)`, never used before): per shared boss, the count of times a
        **non-tank** roster player held the **named boss's** aggro, ours vs benchmark, with an "opener"
@@ -338,22 +360,19 @@ the static template, with no model in the path.
        also bins `amount` by `targetID`), so **no API cost**. Shown only when **both** sides are genuinely
        multi-target: `multiTarget` = top-enemy share <80% of fight damage AND ≥2 enemies ≥5% (a single-target
        burn is ~100% — no signal). Descriptive of focus-vs-spread.
-     - **Enemy Targets — Engagement & Survival** (`target_engagement`/`_targets_by_name` →
-       `targetEngagementView`) — per boss with >1 target, **every enemy by name** (from `masterData` NPCs)
-       — the **boss itself** (tagged `isBoss`) **and** its adds: when each **first appeared** (first-damage
-       time — a spawn proxy, since true spawn times aren't exposed; the `summon` events are player totems)
-       and how long it was **engaged / survived** (median first-hit→last), ours vs benchmark, with counts.
-       Sorted chronologically, so it reads as the fight's target timeline (Kael'thas: advisors → all 7
-       weapons at ~2:20 → Phoenix; Al'ar's embers; Kael himself first-seen 5:29, engaged 217s of a 546s
-       fight — i.e. untargetable in P1–3, which kill time alone can't show). **Including the boss is the
-       point on multi-phase and COUNCIL fights** (Illidari Council / High King Maulgar — every member shows,
-       the name-matched one tagged boss). Boss = target whose name == the encounter (fallback: top-damage
-       target — never hardcoded). Non-boss targets <1% of fight damage are dropped (stray cleave); a
-       lone-boss single-target fight returns nothing (its span just restates kill time). **Descriptive, NOT
-       scored** — a longer-lived add can be intentional (holding it until called), so the Δ is neutral (the
-       soul's Dispels-view rule); the leader reads it against their plan. (Tracks per-(targetID,instance)
-       damage spans in `_binned_curves` — no extra fetch. The literal "switch-latency / spawn→engage" idea
-       is a verified dead-end: spawn times aren't exposed, so engagement/survival is the buildable cousin.)
+     - **Add Control — Kill Speed** (`target_engagement`/`_targets_by_name` → `targetEngagementView`) — the
+       actionable rework of the old descriptive-but-inert "Engagement & Survival" timeline. Per boss with >1
+       target, for each **non-boss add both raids engaged**, how long it survived (median first-hit→last), ours
+       vs benchmark, **ranked by how much SLOWER we are** (our median − theirs; biggest deficit first). A slower
+       add kill prolongs the add's damage and the fight, so an add the benchmark consistently kills faster is a
+       **focus / CC / assignment target** — e.g. our Al'ar Embers lived 132.6s vs the benchmark's 42.9s, and the
+       Kael advisors all died faster for them. The **boss row was dropped** (its engaged span just restates kill
+       time) and so was the pure first-appearance timeline (not actionable on its own). **Descriptive** — some
+       adds are held on purpose, so the leader reads it against their plan — but the benchmark sets the pace, so
+       lower survival time is better (red Δ = the add lived longer for you). Boss = target whose name == the
+       encounter (fallback: top-damage target — never hardcoded); add names from `masterData` NPCs; targets <1%
+       of fight damage dropped as stray cleave. Returns [] when no add was engaged by both raids. (Tracks
+       per-(targetID,instance) damage spans in `_binned_curves` — no extra fetch.)
      - **Output Quality** — time-weighted **Raid DPS / Raid HPS**, avg DPS activity (`dd.activeTime`/
        duration), damage taken ex-tanks (`dt`, with an in-report **Per second / Overall** toggle that
        also switches the per-boss damage breakdowns), healer overheal (`heal.overheal`). (The old raw
@@ -364,7 +383,11 @@ the static template, with no model in the path.
        component — so a leader knows *what kind* of fix it needs (drill movement vs. coach gear). It's
        framed as an **estimate** (DPS-activity is the DPS core's, raid DPS is whole-raid) and stays
        silent unless we trail on raid DPS.
-     - **Clear Efficiency** — first-pull-to-last-kill wall-clock vs in-combat time (downtime = trash/wipes).
+     - **Clear Efficiency** — first-pull-to-last-kill wall-clock vs in-combat time (downtime = trash/wipes),
+       **scoped to the shared bosses** on each side (`efficiency(directory, enc_ids)` filters fights to the
+       shared encounters). This is the BUG fix: the old full-report span made the comparison meaningless when
+       the two reports covered different content (a benchmark that also cleared SSC was timed on its whole-night
+       clock); now each side's window spans only the encounters both raids did.
      - **Per-Boss Execution** — each boss is a card with an output strip (Raid DPS, activity, overheal,
        dmg taken/s) plus eight sub-tabs (**Timeline** is the default when present):
      - **Timeline** (`timeline_view` → `timelineChart`/`tlChart`) — **Raid DPS and HPS over the course
@@ -395,9 +418,13 @@ the static template, with no model in the path.
        **"Cascade"** (`death_cascades()` → `deathCascade`), flags a near-wipe burst — ≥4 deaths inside a
        15s window (two-pointer over sorted death times) — distinguishing a single mechanic failure from
        scattered attrition; silent otherwise.
-     - **Interrupts** — abilities interrupted + interrupters by spec, plus a **Casts That Went
-       Off Un-kicked** section (kicked / went-off per ability). Un-kicked = `intr` entries'
-       `missedCasts[]` filtered to hostile casters (`type` NPC/Boss) so friendly-ability noise
+     - **Interrupts** — **ability-first** (`int_break`/`int_compare` → `interruptView`): one row per
+       interrupted enemy ability, with the **kicking specs nested under it**, ours vs benchmark side by side
+       ("benchmark kicked it with Fire Mages, you used Ele Shaman") — built from the Interrupts `details[]`
+       per-player kick counts joined to `primary_spec_map`. **Descriptive** (a different kick assignment isn't
+       better/worse, it reveals strategy), so this replaced the old separate "Interrupters by Spec" table.
+       Below it, the **Casts That Went Off Un-kicked** section (kicked / leaked per ability) stays: leaked =
+       `intr` entries' `missedCasts[]` filtered to hostile casters (`type` NPC/Boss) so friendly-ability noise
        is excluded.
      - **Dispels** (`disp_compare` → `dispelsView`) — which enemy auras each raid *chose* to remove on
        this fight, and how often (`disp` entries' `details[].total`). **Descriptive, not better/worse**
@@ -424,17 +451,29 @@ the static template, with no model in the path.
      mirroring how the boss tab only compares shared encounters. Each trash fight carries `gameZone{id name}`
      (added to the fetch query); the shared zone name(s) show in the Glance hint (`trash.zones`). Older data
      folders without `gameZone` skip filtering gracefully. Three sections — **Glance**, **What's Killing
-     Us on Trash**, and a sub-tabbed **Kill Order & Crowd Control** (kept lean: Kill Order is the
-     default, Crowd Control is one click away):
+     Us on Trash**, **Chain-Pulling**, and a sub-tabbed **Kill Order & Crowd Control** (kept lean: Kill Order
+     is the default, Crowd Control is one click away):
      - **Trash at a Glance** (`_trash_glance`) — total trash pulls, clear time, and deaths, ours vs
        benchmark. Clear time is a **rough proxy** (routes/skips differ between guilds — labeled as such);
        deaths are the clean signal.
-     - **What's Killing Us on Trash** (`trash_death_causes`) — player trash deaths aggregated by killing
-       blow, ranked by the **biggest improvable delta** (ours − theirs deaths), ours vs benchmark, so the
-       blows the benchmark has solved and we haven't (the fix-it list) sit above blows both raids take
-       equally. Mob/ability killing blows align across guilds. Same idea as the boss "What's Killing Us."
-       (Source: the **friendly Deaths table** over all trash fights — entries carry the killing-blow
-       *name* and a `fight` id; events only carry the ability's game id.)
+     - **What's Killing Us on Trash** (`trash_death_causes` + `_death_source_mob`) — player trash deaths
+       aggregated by killing blow, ranked by the **biggest improvable delta** (ours − theirs deaths), ours vs
+       benchmark, so the blows the benchmark has solved and we haven't (the fix-it list) sit above blows both
+       raids take equally. Each **named** killing blow now carries the **source mob in parens**
+       ("Fragmentation Bomb (Tempest-Smith)") — the mob is the actionable half (CC / kite / position that
+       mob), resolved from the death entry's killing-blow **event** `sourceID` joined to the trash NPC map
+       (fallback: the entry's top hostile `damage.sources`). **"Melee"** stays one aggregate row here (mob
+       varies) and is broken out by mob in a **Melee deaths — by mob** sub-table (`trash_melee_by_mob`), since
+       a bare "Melee" killing blow is opaque and the mob points straight at the fix. Mob+ability align across
+       guilds. (Source: the **friendly Deaths table** over all trash fights — entries carry the killing-blow
+       *name*, a `fight` id, and death-window `events` with `sourceID`.)
+     - **Chain-Pulling — Pull Size** (`trash_chain_pull`) — how many mobs each raid pulls at once (a WCL trash
+       segment is one pull): avg + max mobs/pull and the count of LARGE pulls (≥10), ours vs benchmark, plus
+       each side's single biggest pull (segment + roster) as a concrete example. The honest answer to the
+       "detect merged packs" question: a segment with far more mobs than typical IS a chain-pull, but WCL
+       exposes **no pack object** and no single-pack baseline per zone, so the exact "N packs merged" count
+       **can't be inferred cleanly** and we don't claim it. **Descriptive** — aggressive chain-pulling is a
+       throughput lever AND a wipe risk; the benchmark sets the bar (neutral Δ).
      - **Kill Order & Crowd Control** — a **two-tab toggle** (`.btab[data-ttab]` → Kill Order | Crowd
        Control, `killOrderBody`/`trashCcView`) keeps the page lean: **Kill Order is the default**, Crowd
        Control is one click in. `mountTrash()` wires both this outer `data-ttab` toggle and the inner
@@ -459,11 +498,11 @@ the static template, with no model in the path.
        object, no position in TBC, segment names are a single notable mob). Same-Pack gives a few rock-solid
        1:1 comparisons; Pairwise gives broad coverage. (Earlier name-matching wrongly paired a 6-mob pull with
        a 2-mob pull; composition-by-type-set ignored counts.)
-       - **Crowd Control** (`trash_cc_compare` + `trash_cc_by_mob` → `trashCcView`, the second `data-ttab`
-         tab) — first a by-type summary (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …)
-         ours vs benchmark, then a **by-mob breakdown** (`trash_cc_by_mob` → one row per (mob, CC type):
-         which mob gets CC'd, by which CC, how often, ours vs benchmark — grouped per mob, most-CC'd first).
-         The by-mob view is the actionable one: e.g. benchmark Polymorphs the Greyheart Nether-Mage 73× and
+       - **Crowd Control** (`trash_cc_by_mob` → `trashCcView`, the second `data-ttab` tab) — the **by-mob
+         breakdown** only (one row per (mob, CC type): which mob gets CC'd, by which CC, how often, ours vs
+         benchmark — grouped per mob, most-CC'd first). The old top **by-type summary table** (`trash_cc_compare`
+         + totals) was cut: its totals are implied by the per-mob rows and added no signal a leader acts on, so
+         the tab keeps only the actionable view — e.g. benchmark Polymorphs the Greyheart Nether-Mage 73× and
          you 2×, pinpointing a caster you should be CCing. All **descriptive** (more CC isn't better — a raid
          that safely AoEs trash may need little). Count = landed `applydebuff` events. **CC is classified by
          NAME, not spell id** — unlike consumable *buffs* (which WCL renames to their effect, so those are
@@ -518,10 +557,16 @@ the static template, with no model in the path.
   parses file is what `build_deepdive` reads, so the Avg Raid Parse and the (separate) Healers roster
   table are both HPS-correct. If you ever fetch parses by hand, pass `playerMetric:hps` for healers.
 - `playerDetails.combatantInfo.potionUse`/`healthstoneUse` are NOT tracked (always 0) — don't use
-  that field. BUT consumables (flasks, food, elixirs, drums, **and combat potions**) DO appear as
-  **auras in the `Buffs` table** with a `totalUses` count, which is how the Consumables Coverage
-  panel surfaces them. Potion buff names ("Destruction", "Haste", etc.) are matched via a curated
-  `POTION_NAMES` set and are approximate (a few names can come from non-potion sources).
+  that field. BUT consumables (flasks, food, elixirs, drums, **and combat throughput potions**) DO appear as
+  **auras in the `Buffs` table** with a `totalUses` count, which is how the Consumables Coverage and the
+  combat-potion ("P") views surface them (combat potions = Haste/Destruction/Ironshield, `POTION_IDS`).
+- **In-combat INSTANT items leave NO buff aura — they log as CASTS (verified live).** A health potion, mana
+  potion, and healthstone are instant, so they do **not** appear in the Buffs table at all. They DO show in
+  the **Casts** table under their effect name: a mana potion casts **"Restore Mana"**, a healthstone
+  **"Master Healthstone"** (rank names contain "Healthstone"), a health potion **"Restore Health"**. So the
+  in-combat consumables matrix reads MP/HS/HP from Casts (`MANA_POTION_NAMES`/`HEALTH_POTION_NAMES`/
+  `_is_healthstone`), per-player by cast name — never from buffs. (Healthstones are warlock-dependent — the
+  matrix flags "no warlock" instead of marking the whole column a gap.)
 - **Cooldowns log as BUFFS, not casts, in TBC (verified).** The marquee off-GCD DPS cooldowns
   (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane Power, Icy Veins, …) generate **no cast
   events** — they appear only in the `Buffs` table with a `totalUses` (activation) count. So the

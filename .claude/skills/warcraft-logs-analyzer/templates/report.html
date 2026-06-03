@@ -114,6 +114,11 @@
   .btab{padding:6px 14px;border-radius:8px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   .btab:hover{color:var(--txt)}
   .btab.on{background:var(--ours);color:#06101f;border-color:transparent}
+  /* Per-spec Timeline tabs: class colour rides on --tlc (set inline). Inactive = coloured text;
+     active = filled with the class colour. Raid / Melee / Ranged tabs set no --tlc → default accent. */
+  .tltabs{margin-top:10px}
+  .tltab{color:var(--tlc,var(--muted))}
+  .tltab.on{color:#06101f;background:var(--tlc,var(--ours))}
   .bsub{display:none}.bsub.active{display:block}
   .ccard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 12px;min-width:98px}
   .ccard .chead{font-weight:700;font-size:13px;margin-bottom:5px}
@@ -1018,20 +1023,50 @@ function tlChart(o,t,m1,m2){
 }
 function timelineChart(b){
   const tl=b.timeline; if(!tl||!tl.ours) return `<p class="num" style="padding:8px 2px">No timeline data for this fight.</p>`;
+  const enc=b.encounterID;
   const sw=c=>`<span style="display:inline-block;width:18px;height:3px;background:${c};vertical-align:middle;margin-right:5px"></span>`;
   const legend=`<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin:2px 0 12px">
     <span>${sw("var(--ours)")}${esc(DATA.ours.title)}</span><span>${sw("var(--theirs)")}${esc(DATA.theirs.title)}</span>
     <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>&#8230; phase (your fight)</span></div>`;
-  const dps=tlChart(tl.ours.dps,tl.theirs.dps,tl.ours,tl.theirs);
-  const hps=tlChart(tl.ours.hps,tl.theirs.hps,tl.ours,tl.theirs);
   const op=b.openerGap;
   const opLine=op?(()=>{const pct=op.theirsDps>0?Math.round(op.oursDps/op.theirsDps*100):100;const behind=op.oursDps<op.theirsDps*0.95;
     return `<p class="srcs" style="margin:2px 0 12px${behind?';color:#ffb4b4':''}"><b>Opening ${op.secs}s:</b> ${fmtR(op.oursDps)} vs ${fmtR(op.theirsDps)} raid DPS (${pct}% of benchmark)${behind?' — a slow start. Check prepot, precast, and pull timing.':' — a strong start.'}</p>`;})():"";
-  return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Two fights of different length share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line simply <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are exact (event-binned into ${tl.n} slices), not WCL's smoothed graph, so they agree with the Raid DPS shown elsewhere. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.</p>
+
+  // Inner tabs inside the Timeline view: the raid aggregate, then Melee/Ranged DPS aggregates, then one
+  // per overlapping spec. Each shows the same absolute-seconds chart for its own curve, ours vs benchmark.
+  const specs=asArr(tl.specs);
+  const cur=specs.length?(tlTab[enc]||"raid"):"raid";
+  // Class colour rides on a CSS custom property (--tlc) so it survives the class-only toggle on click:
+  // inactive tab shows class-coloured text, active tab fills with the class colour (dark text). See CSS.
+  const tabBtn=(k,label,color,on)=>`<button class="btab tltab${on?' on':''}" data-tlboss="${enc}" data-tlk="${k}"${color?` style="--tlc:${color}"`:''}>${esc(label)}</button>`;
+  const pane=(k,inner,on)=>`<div class="tlpane bsub${on?' active':''}" data-tlboss="${enc}" data-tlk="${k}">${inner}</div>`;
+
+  // Raid tab: DPS + HPS, the original view.
+  let tabs=tabBtn("raid","Raid",null,cur==="raid");
+  let panes=pane("raid",
+    `<h4 style="margin:8px 0 2px">Raid DPS over time</h4>${tlChart(tl.ours.dps,tl.theirs.dps,tl.ours,tl.theirs)}
+     <h4 style="margin:16px 0 2px">Raid HPS over time</h4>${tlChart(tl.ours.hps,tl.theirs.hps,tl.ours,tl.theirs)}`,
+    cur==="raid");
+
+  specs.forEach((s,i)=>{
+    const k="s"+i, on=cur===k;
+    const color=s.agg?null:cc(s.class);          // class-colour the per-spec tabs; aggregates stay neutral
+    const label=s.agg?s.spec:`${s.spec} ${s.class}`;
+    tabs+=tabBtn(k,label,color,on);
+    const unit=s.metric==="hps"?"HPS":"DPS";
+    const title=s.agg
+      ? `${esc(s.spec)} over time <span class="role" style="text-transform:none;letter-spacing:0">· ${s.specCount} spec${s.specCount>1?"s":""} combined, ours vs benchmark</span>`
+      : `<span style="color:${cc(s.class)}">${esc(s.spec)} ${esc(s.class)}</span> — ${unit} over time, ours vs benchmark`;
+    panes+=pane(k,`<h4 style="margin:8px 0 2px">${title}</h4>${tlChart(s.ours,s.theirs,tl.ours,tl.theirs)}`,on);
+  });
+
+  const tabBar=specs.length?`<div class="btabs tltabs">${tabs}</div>`:"";
+  const specNote=specs.length?` Use the tabs below for <b>Melee DPS</b> / <b>Ranged DPS</b> aggregates or an individual spec — each compares ours vs the benchmark's same spec, restricted to specs both raids fielded.`:"";
+  return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Two fights of different length share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line simply <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are exact (event-binned into ${tl.n} slices), not WCL's smoothed graph, so they agree with the Raid DPS shown elsewhere. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.${specNote}</p>
     ${legend}
     ${opLine}
-    <h4 style="margin:8px 0 2px">Raid DPS over time</h4>${dps}
-    <h4 style="margin:16px 0 2px">Raid HPS over time</h4>${hps}`;
+    ${tabBar}
+    ${panes}`;
 }
 function statStrip(b){
   const cell=(label,o,t,fmt,lower)=>{const f=fmt||(x=>x);

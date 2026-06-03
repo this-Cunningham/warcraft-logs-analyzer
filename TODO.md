@@ -116,13 +116,21 @@ Examples of tables with this layout: Boss Debuffs, Raid Buffs, Avg DPS / player 
 
 ---
 
-## TODO: Per-spec DPS and HPS timeline tabs inside each boss panel
+## ✅ DONE: Per-spec DPS and HPS timeline tabs inside each boss panel
 
 > In each boss panel under "Timeline": keep the existing "Raid DPS Timeline" as the first sub-tab (unchanged). Add additional sub-tabs named after each class/spec combo present in our raid — clicking one shows the same timeline graph but with our spec's DPS vs. the benchmark's same spec. Do the same for healing ("Raid HPS over time"). Color the tabs by class color.
 
 The existing raid-level DPS/HPS timeline shows the full-raid aggregate, which obscures whether individual specs are running at benchmark pace through each phase. A per-spec tab lets a leader click e.g. "Fire Mage" and see immediately whether their Mage's output curve matches the benchmark Mage's — revealing ramp timing gaps, phase drop-offs, or sustained throughput deficits that the aggregate buries. The spec-tab coloring by class type makes the tab bar scannable at a glance.
 
 Data integrity: only generate spec tabs for class/spec combos present in *both* our raid and the benchmark — a spec we ran but the benchmark didn't (or vice versa) has nothing to compare against, so showing it would be a misleading apples-to-oranges gap. Omit non-overlapping specs from the tab set entirely. (Same overlapping-specs rule as the Throughput Potions — By Spec item.)
+
+---
+
+## ✅ DONE: Per-boss timeline — add "Melee DPS" and "Ranged DPS" aggregate tabs
+
+> On the new dps per spec over time per boss, also add additional tabs that are "melee dps" and "ranged dps" that aggregates all the specs over time per boss.
+
+Alongside the per-spec Timeline tabs, two aggregate tabs sum the whole melee or ranged core's DPS over time, ours vs the benchmark — so a leader sees the group's combined ramp/sustain, not just one spec. Summed over the same (overlapping) DPS specs on both sides to stay apples-to-apples; melee/ranged classified by the existing `_is_melee` (Warriors/Rogues, Enh/Ret/Feral = melee; casters and hunters = ranged).
 
 ---
 

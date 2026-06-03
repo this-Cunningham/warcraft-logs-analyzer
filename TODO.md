@@ -134,6 +134,20 @@ Alongside the per-spec Timeline tabs, two aggregate tabs sum the whole melee or 
 
 ---
 
+## TODO: Convert remaining sections to mirrored-bar layout — delta in center, context columns on the right
+
+> plz convert these tables to horizontal mirror bar tables with label and delta in middle, any tables mentioned with an extra context table, just maintain that all the way on the right
+>
+> BUFF & DEBUFF COVERAGE GAPS
+> EARLY AGGRO — THREAT PULLS — keep extra column on right for earliest
+> ADD CONTROL — KILL SPEED
+> WHAT'S KILLING US ON TRASH
+> Melee deaths — by mob
+
+Five sections that haven't yet been converted to the mirrored-bar pattern already applied across most of the report. Unifying them closes the visual inconsistency: delta lands right next to the name (where the eye already is), mirrored bars make magnitude comparison instant, and the layout reads as "comparison" rather than "wall of numbers." For sections that carry an extra context column — specifically the earliest-pull timestamp in Threat Pulls — that column stays anchored on the right as additive context; it is not part of the mirrored comparison and shouldn't move.
+
+---
+
 ## ✅ DONE: New "Bosses" top-level tab — consolidate all per-boss content
 
 > Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:

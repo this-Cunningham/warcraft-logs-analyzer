@@ -865,7 +865,27 @@ def spec_timelines(o_tl, t_tl, o_args, t_args):
         rows.append({"class": oc["class"], "spec": oc["spec"], "role": oc["role"], "metric": oc["metric"],
                      "ours": oc["curve"], "theirs": tc["curve"]})
     rows.sort(key=lambda r: (r["metric"] != "dps", r["class"], r["spec"]))  # DPS specs first, stable order
-    return rows
+
+    # Aggregate "Melee DPS" / "Ranged DPS" curves: the whole melee or ranged core summed over time, ours
+    # vs benchmark. Summed over the SAME (overlapping) DPS specs on both sides, so it stays apples-to-
+    # apples — a leader sees the melee/ranged group's combined ramp and sustain, not just one spec.
+    dps_rows = [r for r in rows if r["metric"] == "dps"]
+
+    def _agg(melee):
+        sel = [r for r in dps_rows if _is_melee(r["class"], r["spec"]) == melee]
+        if not sel:
+            return None
+        m = len(sel[0]["ours"])
+        o_sum, t_sum = [0] * m, [0] * m
+        for r in sel:
+            for i in range(m):
+                o_sum[i] += r["ours"][i]
+                t_sum[i] += r["theirs"][i]
+        return {"spec": "Melee DPS" if melee else "Ranged DPS", "agg": "melee" if melee else "ranged",
+                "role": "dps", "metric": "dps", "specCount": len(sel), "ours": o_sum, "theirs": t_sum}
+
+    aggs = [a for a in (_agg(True), _agg(False)) if a]
+    return aggs + rows  # aggregates first (after the Raid tab), then the individual specs
 
 
 def _side_timeline(curves, deaths, lust_sec, dur_ms, fight_info):

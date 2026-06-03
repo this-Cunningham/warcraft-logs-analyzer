@@ -97,7 +97,9 @@
   .uptwrap{display:flex;align-items:center;gap:8px}.uptwrap .pct{font-variant-numeric:tabular-nums;font-size:12.5px;min-width:34px}
   .twocol{display:grid;grid-template-columns:1fr 1fr;gap:22px}
   .warnpill{color:var(--warn);font-weight:700}
-  .strip{display:flex;flex-wrap:wrap;gap:20px;margin:2px 0 12px;padding:11px 14px;background:var(--panel2);border-radius:10px}
+  /* Boss-panel summary strip — four stats spread evenly across the full panel width (not bunched left). */
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:2px 0 12px;padding:11px 16px;background:var(--panel2);border-radius:10px}
+  @media(max-width:560px){.strip{grid-template-columns:repeat(2,1fr)}}
   .stat .sl{color:var(--muted);display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
   .stat .sv{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
   .cours{color:var(--ours)}.cthe{color:var(--theirs)}
@@ -215,7 +217,8 @@ const deltaLow =(o,t)=>{if(o===t)return{cls:"flat",txt:"even"};const b=o<t;retur
 const deltaHigh=(o,t)=>{const d=Math.round((o-t)*10)/10;if(d===0)return{cls:"flat",txt:"even"};return{cls:d>0?"good":"bad",txt:(d>0?"+":"")+d};};
 let dmgMode="persec"; // "persec" | "total" — toggled in the Output Quality section, drives all damage-taken displays
 const bossTab={};      // per-boss sub-tab state, keyed by encounterID -> "buffs" | "dmg" (survives re-render)
-let overviewTab=null;  // Overview boss sub-tab state (encounterID as string); null -> first boss
+let bossSel=null;      // Bosses-tab selected boss (encounterID as string); null -> first boss
+const tlTab={};        // per-boss Timeline inner-tab state, keyed by encounterID -> "raid" | "s<i>"
 
 function rosterTable(players, metricLabel){
   metricLabel=metricLabel||"DPS/HPS";
@@ -394,44 +397,32 @@ function renderOverview(d){
     <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
     ${wipeCard}
-  </div><h2 class="section">Boss-by-Boss<span class="hint">Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, attempts, and both rosters side by side.</span></h2>`;
-  const obosses=asArr(d.bosses);
-  // One sub-tab per boss; first boss active by default (or the remembered selection).
-  const oat=obosses.some(b=>String(b.encounterID)===overviewTab)?overviewTab:(obosses[0]?String(obosses[0].encounterID):"");
-  h+=`<div class="btabs">`+obosses.map(b=>`<button class="btab ${String(b.encounterID)===oat?'on':''}" data-otab="${b.encounterID}">${esc(b.name)}</button>`).join("")+`</div>`;
-  for(const b of obosses){
-    const rdps=b.oursRaidDps!=null?metricBars("Raid DPS",b.oursRaidDps,b.theirsRaidDps,fmtR,Math.max(b.oursRaidDps,b.theirsRaidDps,1),false):"";
-    const rhps=b.oursRaidHps!=null?metricBars("Raid HPS",b.oursRaidHps,b.theirsRaidHps,fmtR,Math.max(b.oursRaidHps,b.theirsRaidHps,1),false):"";
-    // Wipes only when at least one side had them (a 0-vs-0 bar is noise on a one-shot boss).
-    const wipes=((b.oursWipes||0)+(b.theirsWipes||0))>0?metricBars("Wipes before kill",b.oursWipes||0,b.theirsWipes||0,x=>x,Math.max(b.oursWipes||0,b.theirsWipes||0,1),true):"";
-    // Wipe DEPTH: how close the best attempt got (boss HP% remaining) + the phase it died in — a clean
-    // ABSOLUTE progression read (where the wall is), shown only when we actually wiped this boss.
-    // Sub-1% reads "<1%" — avoids false precision on a near-kill (and on bosses whose health resets at a
-    // phase transition, e.g. Al'ar, where the raw fightPercentage can collapse to ~0 without being a kill).
-    const pctTxt=p=>p<1?"<1%":(Math.round(p*10)/10)+"%";
-    const wd=(b.oursWipes>0&&b.oursBestWipePct!=null)?`<p class="srcs" style="margin:-4px 0 10px">Best attempt: <b style="color:var(--ours)">${pctTxt(b.oursBestWipePct)}</b> boss HP remaining${b.oursBestWipePhase?` <span class="num">(${esc(b.oursBestWipePhase)})</span>`:""}${(b.theirsWipes>0&&b.theirsBestWipePct!=null)?` &nbsp;·&nbsp; benchmark <b style="color:var(--theirs)">${pctTxt(b.theirsBestWipePct)}</b>`:""}</p>`:"";
-    h+=`<div class="bsub ${String(b.encounterID)===oat?'active':''}" data-otab="${b.encounterID}">
-      <div class="boss"><h3>${esc(b.name)}<span class="badge">encounter ${b.encounterID}</span></h3>
-      ${metricBars("Kill time",b.ours.durationMs,b.theirs.durationMs,fmtTime,Math.max(b.ours.durationMs,b.theirs.durationMs),true)}
-      ${rdps}${rhps}
-      ${metricBars("Avg parse",b.ours.avgParse,b.theirs.avgParse,x=>x,100,false)}
-      ${metricBars("Deaths",b.ours.deaths,b.theirs.deaths,x=>x,Math.max(b.ours.deaths,b.theirs.deaths,1),true)}
-      ${wipes}${wd}
-      <div class="rostergrid">
-        <div><h4 class="ours">${esc(d.ours.title)}</h4>${sideRosters(b.ours.players)}</div>
-        <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${sideRosters(b.theirs.players)}</div>
-      </div></div></div>`;
-  }
+  </div><p class="srcs" style="margin:12px 0 0">Per-fight kill time, parse, rosters and the full execution drill-down now live on the <b>Bosses</b> tab.</p>`;
   return h;
 }
-// Overview boss sub-tabs (one per boss). Mirrors the per-boss execution sub-tabs on the Bosses tab.
-function mountOverview(){
-  const el=document.getElementById("p-overview");
-  el.querySelectorAll(".btab[data-otab]").forEach(t=>t.addEventListener("click",()=>{
-    const id=t.dataset.otab; overviewTab=id;
-    el.querySelectorAll(".btab[data-otab]").forEach(x=>x.classList.toggle("on",x.dataset.otab===id));
-    el.querySelectorAll(".bsub[data-otab]").forEach(x=>x.classList.toggle("active",x.dataset.otab===id));
-  }));
+// One boss's kill-time / raid-output / parse / roster summary card — the old Overview "Boss-by-Boss"
+// content, now shown on the Bosses tab beneath that boss's execution panel.
+function bossSummaryBlock(b,d){
+  const rdps=b.oursRaidDps!=null?metricBars("Raid DPS",b.oursRaidDps,b.theirsRaidDps,fmtR,Math.max(b.oursRaidDps,b.theirsRaidDps,1),false):"";
+  const rhps=b.oursRaidHps!=null?metricBars("Raid HPS",b.oursRaidHps,b.theirsRaidHps,fmtR,Math.max(b.oursRaidHps,b.theirsRaidHps,1),false):"";
+  // Wipes only when at least one side had them (a 0-vs-0 bar is noise on a one-shot boss).
+  const wipes=((b.oursWipes||0)+(b.theirsWipes||0))>0?metricBars("Wipes before kill",b.oursWipes||0,b.theirsWipes||0,x=>x,Math.max(b.oursWipes||0,b.theirsWipes||0,1),true):"";
+  // Wipe DEPTH: how close the best attempt got (boss HP% remaining) + the phase it died in — a clean
+  // ABSOLUTE progression read (where the wall is), shown only when we actually wiped this boss.
+  // Sub-1% reads "<1%" — avoids false precision on a near-kill (and on bosses whose health resets at a
+  // phase transition, e.g. Al'ar, where the raw fightPercentage can collapse to ~0 without being a kill).
+  const pctTxt=p=>p<1?"<1%":(Math.round(p*10)/10)+"%";
+  const wd=(b.oursWipes>0&&b.oursBestWipePct!=null)?`<p class="srcs" style="margin:-4px 0 10px">Best attempt: <b style="color:var(--ours)">${pctTxt(b.oursBestWipePct)}</b> boss HP remaining${b.oursBestWipePhase?` <span class="num">(${esc(b.oursBestWipePhase)})</span>`:""}${(b.theirsWipes>0&&b.theirsBestWipePct!=null)?` &nbsp;·&nbsp; benchmark <b style="color:var(--theirs)">${pctTxt(b.theirsBestWipePct)}</b>`:""}</p>`:"";
+  return `<div class="boss"><h3>Kill Summary &amp; Rosters<span class="badge">encounter ${b.encounterID}</span></h3>
+    ${metricBars("Kill time",b.ours.durationMs,b.theirs.durationMs,fmtTime,Math.max(b.ours.durationMs,b.theirs.durationMs),true)}
+    ${rdps}${rhps}
+    ${metricBars("Avg parse",b.ours.avgParse,b.theirs.avgParse,x=>x,100,false)}
+    ${metricBars("Deaths",b.ours.deaths,b.theirs.deaths,x=>x,Math.max(b.ours.deaths,b.theirs.deaths,1),true)}
+    ${wipes}${wd}
+    <div class="rostergrid">
+      <div><h4 class="ours">${esc(d.ours.title)}</h4>${sideRosters(b.ours.players)}</div>
+      <div><h4 class="theirs">${esc(d.theirs.title)}</h4>${sideRosters(b.theirs.players)}</div>
+    </div></div>`;
 }
 
 /* ---------- COMPOSITION / ENCHANTS / BOSSES ---------- */
@@ -558,12 +549,11 @@ function renderEnchants(d){
   return h;
 }
 
-/* ---------- BOSSES ---------- */
-function renderBosses(d){
-  const dp=d.deep; if(!dp) return "<p>No boss data.</p>";
+/* ---------- EXECUTION (raid-wide gaps) ---------- */
+// Raid-wide execution gaps across the whole shared clear. The per-boss drill-down moved to the Bosses tab.
+function renderExecution(d){
+  const dp=d.deep; if(!dp) return "<p>No execution data.</p>";
   let h="";
-
-  /* Raid-wide gaps first (most actionable), then the per-boss drill-down. */
 
   /* 1. What's killing us — killing blows aggregated across the whole shared clear. */
   h+=deathCausesView(d);
@@ -595,7 +585,7 @@ function renderBosses(d){
     const dmFmt=persec?(x=>x.toLocaleString()):fmtM;
     const dmDiff=Math.round(dmO-dmT);
     const dmD={cls:dmDiff===0?"flat":(dmDiff<0?"good":"bad"),txt:dmDiff===0?"even":((dmDiff>0?"+":"−")+dmFmt(Math.abs(dmDiff)))};
-    h+=`<h2 class="section">Output Quality<span class="hint">Averaged across shared bosses. Activity = time actively casting (dead GCDs cost DPS). Overheal = healing wasted. Damage taken (ex-tanks) approximates avoidable damage — toggle per-second (normalizes for kill time) vs overall total. The toggle also switches the per-boss damage breakdowns below.</span></h2>
+    h+=`<h2 class="section">Output Quality<span class="hint">Averaged across shared bosses. Activity = time actively casting (dead GCDs cost DPS). Overheal = healing wasted. Damage taken (ex-tanks) approximates avoidable damage — toggle per-second (normalizes for kill time) vs overall total. The toggle also switches the per-boss damage breakdowns on the Bosses tab.</span></h2>
     <div class="segwrap"><span class="lbl">Damage taken</span><div class="seg">
       <button class="dmgbtn ${persec?'on':''}" data-mode="persec">Per second</button>
       <button class="dmgbtn ${persec?'':'on'}" data-mode="total">Overall</button>
@@ -623,47 +613,60 @@ function renderBosses(d){
     </div>`;
   }
 
-  /* 6. Per-boss buff/debuff uptime + lust timing + execution strip */
-  const pb=asArr(dp.perBoss);
-  if(pb.length){
-    h+=`<h2 class="section">Per-Boss Execution<span class="hint">Per fight: an output-quality strip plus tabs for buff/debuff uptime, damage taken, deaths, interrupts, dispels, and phase timing. Bloodlust time is shown in each header.</span></h2>
-    <p class="srcs" style="margin:-6px 0 18px;line-height:1.5">
-      <b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss. It is <b>not</b> the number of raiders who had it: "Blessing of Kings 30%" means Kings was up for 30% of the fight's duration, <i>not</i> that 30% of players had it.
-      Persistent raid buffs and key boss debuffs (Curse of the Elements, Faerie Fire, Sunder/Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums of Battle read low because they only last a few seconds — that's expected, not a problem. Higher is better, and a red bar means you trailed the benchmark.
-      <br><span style="opacity:.85">Note: this is a raid-aggregate "was it up at all" measure, so it shows whether a buff existed on the raid — not how many players it reached.</span>
-    </p>`;
-    for(const b of pb){
-      const lust=(s)=>s==null?'<span class="no">none</span>':fmtTime(s*1000)+" in";
-      // Timeline leads when present — the clearest "where in the fight did the gap open" view.
-      const at=bossTab[b.encounterID]||(b.timeline?"timeline":"buffs");
-      const subs=[];
-      if(b.timeline) subs.push({k:"timeline",label:"Timeline"});
-      subs.push(
-        {k:"buffs",label:"Buff Uptime"},
-        {k:"specdps",label:"DPS by Spec"},
-        {k:"dmg",label:"Damage Taken"},
-        {k:"deaths",label:"Deaths"},
-        {k:"intr",label:"Interrupts"},
-        {k:"disp",label:"Dispels"},
-        {k:"phases",label:"Phases"}
-      );
-      const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
-      const body={
-        timeline:b.timeline?timelineChart(b):"",
-        buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
-        specdps:specDpsView(b),
-        dmg:topSources(b),
-        deaths:deathsView(b),
-        intr:interruptView(b),
-        disp:dispelsView(b),
-        phases:phasesView(b)
-      };
-      h+=`<div class="boss"><h3>${esc(b.name)}<span class="badge">Bloodlust: <span style="color:var(--ours)">${lust(b.oursLustSec)}</span> vs <span style="color:var(--theirs)">${lust(b.theirsLustSec)}</span></span></h3>
-      ${statStrip(b)}
-      <div class="btabs">${btabs}</div>
-      ${subs.map(s=>`<div class="bsub ${at===s.k?'active':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${body[s.k]}</div>`).join("")}
-      </div>`;
-    }
+  return h;
+}
+
+/* ---------- BOSSES (per-boss drill-down: execution panel + kill summary) ---------- */
+// One boss's execution panel: an output strip + eight analysis sub-tabs (Timeline default when present).
+function execPanel(b){
+  const lust=(s)=>s==null?'<span class="no">none</span>':fmtTime(s*1000)+" in";
+  // Timeline leads when present — the clearest "where in the fight did the gap open" view.
+  const at=bossTab[b.encounterID]||(b.timeline?"timeline":"buffs");
+  const subs=[];
+  if(b.timeline) subs.push({k:"timeline",label:"Timeline"});
+  subs.push(
+    {k:"buffs",label:"Buff Uptime"},
+    {k:"specdps",label:"DPS by Spec"},
+    {k:"dmg",label:"Damage Taken"},
+    {k:"deaths",label:"Deaths"},
+    {k:"intr",label:"Interrupts"},
+    {k:"disp",label:"Dispels"},
+    {k:"phases",label:"Phases"}
+  );
+  const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
+  const body={
+    timeline:b.timeline?timelineChart(b):"",
+    buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
+    specdps:specDpsView(b),
+    dmg:topSources(b),
+    deaths:deathsView(b),
+    intr:interruptView(b),
+    disp:dispelsView(b),
+    phases:phasesView(b)
+  };
+  return `<div class="boss"><h3>${esc(b.name)}<span class="badge">Bloodlust: <span style="color:var(--ours)">${lust(b.oursLustSec)}</span> vs <span style="color:var(--theirs)">${lust(b.theirsLustSec)}</span></span></h3>
+    ${statStrip(b)}
+    <div class="btabs">${btabs}</div>
+    ${subs.map(s=>`<div class="bsub ${at===s.k?'active':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${body[s.k]}</div>`).join("")}
+    </div>`;
+}
+// The Bosses tab: one sub-tab per boss, each pairing that boss's execution panel with its kill summary.
+function renderBossPanels(d){
+  const dp=d.deep; if(!dp) return "<p>No boss data.</p>";
+  const bosses=asArr(d.bosses);
+  if(!bosses.length) return `<p class="num" style="padding:8px 2px">No shared bosses to break down.</p>`;
+  const pbById={}; for(const p of asArr(dp.perBoss)) pbById[p.encounterID]=p;
+  const active=bosses.some(b=>String(b.encounterID)===bossSel)?bossSel:String(bosses[0].encounterID);
+  let h=`<h2 class="section">Per-Boss Breakdown<span class="hint">Pick a boss: its execution panel — timeline, buff/debuff uptime, DPS by spec, damage taken, deaths, interrupts, dispels, phases — sits above its kill-time, parse and roster summary.</span></h2>
+  <p class="srcs" style="margin:-6px 0 16px;line-height:1.5">
+    <b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss. It is <b>not</b> the number of raiders who had it: "Blessing of Kings 30%" means Kings was up for 30% of the fight's duration, <i>not</i> that 30% of players had it.
+    Persistent raid buffs and key boss debuffs (Curse of the Elements, Faerie Fire, Sunder/Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums of Battle read low because they only last a few seconds — that's expected, not a problem. Higher is better, and a red bar means you trailed the benchmark.
+  </p>`;
+  h+=`<div class="btabs">`+bosses.map(b=>`<button class="btab ${String(b.encounterID)===active?'on':''}" data-bossel="${b.encounterID}">${esc(b.name)}</button>`).join("")+`</div>`;
+  for(const b of bosses){
+    const p=pbById[b.encounterID];
+    const panel=p?execPanel(p):`<div class="boss"><h3>${esc(b.name)}</h3><p class="num" style="padding:6px 2px">No execution tables fetched for this boss.</p></div>`;
+    h+=`<div class="bsub ${String(b.encounterID)===active?'active':''}" data-bossel="${b.encounterID}">${panel}${bossSummaryBlock(b,d)}</div>`;
   }
   return h;
 }
@@ -1085,21 +1088,43 @@ function uptimeCompare(rows,label){
   return h+`</div></div>`;
 }
 
-function mountBosses(){
-  const el=document.getElementById("p-bosses");
-  el.innerHTML=renderBosses(DATA);
-  el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; mountBosses(); } }));
-  // Per-boss execution sub-tabs (scoped to those carrying data-boss, so the Rotation DPS/Healer tabs below don't collide).
-  el.querySelectorAll(".btab[data-boss]").forEach(t=>t.addEventListener("click",()=>{
-    const boss=t.dataset.boss, bp=t.dataset.bp; bossTab[boss]=bp;
-    el.querySelectorAll(`.btab[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.bp===bp));
-    el.querySelectorAll(`.bsub[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.bp===bp));
+// The damage-taken toggle lives on Execution (Output Quality) but also drives the per-boss damage
+// breakdowns on the Bosses tab, so flipping it re-renders BOTH panels.
+function renderExecPanel(){ document.getElementById("p-execution").innerHTML=renderExecution(DATA); }
+function renderBossesPanel(){ document.getElementById("p-bosses").innerHTML=renderBossPanels(DATA); }
+function mountExecution(){ renderExecPanel(); wireExecution(); }
+function mountBosses(){ renderBossesPanel(); wireBosses(); }
+function wireExecution(){
+  const el=document.getElementById("p-execution");
+  el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{
+    if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; renderExecPanel(); wireExecution(); renderBossesPanel(); wireBosses(); }
   }));
   // Rotation — Ability Mix DPS/Healer toggle (native, no re-render).
   el.querySelectorAll(".btab[data-rtab]").forEach(t=>t.addEventListener("click",()=>{
     const k=t.dataset.rtab;
     el.querySelectorAll(".btab[data-rtab]").forEach(x=>x.classList.toggle("on",x.dataset.rtab===k));
     el.querySelectorAll(".bsub[data-rtab]").forEach(x=>x.classList.toggle("active",x.dataset.rtab===k));
+  }));
+}
+function wireBosses(){
+  const el=document.getElementById("p-bosses");
+  // Boss selector (which boss): toggles the per-boss panels.
+  el.querySelectorAll(".btab[data-bossel]").forEach(t=>t.addEventListener("click",()=>{
+    const id=t.dataset.bossel; bossSel=id;
+    el.querySelectorAll(".btab[data-bossel]").forEach(x=>x.classList.toggle("on",x.dataset.bossel===id));
+    el.querySelectorAll(".bsub[data-bossel]").forEach(x=>x.classList.toggle("active",x.dataset.bossel===id));
+  }));
+  // Per-boss execution sub-tabs (scoped by data-boss so distinct bosses don't collide).
+  el.querySelectorAll(".btab[data-boss]").forEach(t=>t.addEventListener("click",()=>{
+    const boss=t.dataset.boss, bp=t.dataset.bp; bossTab[boss]=bp;
+    el.querySelectorAll(`.btab[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.bp===bp));
+    el.querySelectorAll(`.bsub[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.bp===bp));
+  }));
+  // Timeline inner tabs (Raid / Melee DPS / Ranged DPS / per-spec), scoped by data-tlboss.
+  el.querySelectorAll(".btab[data-tlboss]").forEach(t=>t.addEventListener("click",()=>{
+    const boss=t.dataset.tlboss, k=t.dataset.tlk; tlTab[boss]=k;
+    el.querySelectorAll(`.btab[data-tlboss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.tlk===k));
+    el.querySelectorAll(`.tlpane[data-tlboss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.tlk===k));
   }));
 }
 /* ---------- TRASH ---------- */
@@ -1296,15 +1321,16 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="bosses">Execution</div><div class="tab" data-t="trash">Trash</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="trash">Trash</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-composition">${renderComposition(d)}</div>
   <div class="panel" id="p-enchants">${renderEnchants(d)}</div>
+  <div class="panel" id="p-execution"></div>
   <div class="panel" id="p-bosses"></div>
   <div class="panel" id="p-trash">${renderTrash(d)}</div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;
   document.getElementById("app").innerHTML=h;
-  mountOverview();
+  mountExecution();
   mountBosses();
   mountTrash();
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{

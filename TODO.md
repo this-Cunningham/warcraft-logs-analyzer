@@ -126,7 +126,7 @@ Data integrity: only generate spec tabs for class/spec combos present in *both* 
 
 ---
 
-## TODO: New "Bosses" top-level tab — consolidate all per-boss content
+## ✅ DONE: New "Bosses" top-level tab — consolidate all per-boss content
 
 > Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:
 > - **One sub-tab per boss.** Each boss sub-tab shows that boss's full content from the current "Per-Boss Execution" panel, and directly below the panel, that same boss's parse table from the current "Boss-by-Boss" section.
@@ -139,6 +139,6 @@ Navigation architecture change that consolidates a scattered story. Today boss-s
 
 Sub-points to carry through:
 - **Even-width summary stats** — the headline stats are the first thing a leader sees per boss; full-width distribution gives each equal visual weight and scans cleanly left-to-right.
-- **Boss portrait (research)** — does the WCL GraphQL API expose a `gameData`/`encounter` image URL, or does it require Blizzard's Game Data API (creature media endpoint, by creature/display ID)? Low-effort polish if a clean asset URL exists; weigh complexity if it needs a separate authenticated call. Portrait sits to the left of the boss name.
+- **Boss portrait (research) — SKIPPED.** The WCL GraphQL `Encounter` type exposes only `journalID` (no image/icon URL); a portrait would require Blizzard's separate Game Data API, which this tool isn't set up for. Per the maintainer, skip when it isn't in WCL GraphQL.
 
 (Note: the separate per-spec DPS/HPS timeline-tabs item below is a distinct feature — timeline graphs inside each boss panel — and is intentionally tracked on its own.)

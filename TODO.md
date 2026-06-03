@@ -55,7 +55,7 @@ A scan-order fix. Leaders read left-to-right; the provider (which class/spec cov
 
 ---
 
-## TODO: Truncate guild names past 13 characters with "…" everywhere in the report
+## ✅ DONE: Truncate guild names past 13 characters with "…" everywhere in the report
 
 > Any references to the guild names across the report should truncate the guild name past 13 chars with ...
 

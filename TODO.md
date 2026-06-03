@@ -164,6 +164,14 @@ Five sections that haven't yet been converted to the mirrored-bar pattern alread
 
 ---
 
+## TODO: Fix inconsistent font on per-spec timeline tab titles — audit report-wide
+
+> this font is off from normal table title label fonts BeastMastery Hunter — DPS over time, ours vs benchmark, audit for others like this
+
+The "Beast Mastery Hunter — DPS over time, ours vs benchmark" tab title renders in a different font style than standard section/table title labels elsewhere in the report. These per-spec timeline tabs were added recently and appear to have inherited a different style. Fix the offending title and audit all dynamically-generated tab/section labels (per-spec DPS, per-spec HPS, any other generated titles) to ensure they match the report-wide title font. Consistent typography is a readability baseline — a mismatched font signals "rough edge" and undermines trust in the report at a glance.
+
+---
+
 ## ✅ DONE: New "Bosses" top-level tab — consolidate all per-boss content
 
 > Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:

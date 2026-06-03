@@ -15,7 +15,7 @@ gap, the Clear Efficiency shared-zone scoping fix, trash killing-blow mob names 
 melee breakdown, the chain-pull view, the Crowd Control summary-table cut, the
 flask/elixir-pair coverage fix, and the cloud startup script._
 
-## TODO: In-Combat consumables matrix — gray "✕" for empty slots
+## ✅ DONE: In-Combat consumables matrix — gray "✕" for empty slots
 
 > In Per-Player Consumables — In Combat, in that matrix — any slot that's not filled with a number, can we fill with a gray "✕" like in the matrix above?
 
@@ -23,7 +23,7 @@ Empty cells currently read as ambiguous — is that zero uses, or a slot that do
 
 ---
 
-## TODO: Fix Flasked / Elixir Pair display in Per-Player Consumables — Prep
+## ✅ DONE: Fix Flasked / Elixir Pair display in Per-Player Consumables — Prep
 
 > something wrong with Flasked / Elixir Pair section when compared to this matrix Per-Player Consumables — Prep
 
@@ -31,7 +31,7 @@ The Flasked / Elixir Pair columns in the Per-Player Consumables — Prep section
 
 ---
 
-## TODO: Throughput Potions — By Spec: restrict comparison to overlapping specs only
+## ✅ DONE: Throughput Potions — By Spec: restrict comparison to overlapping specs only
 
 > Throughput Potions — By Spec — does this compare against specs that were not overlapping in our raids? If so we can't be doing this.
 
@@ -39,7 +39,7 @@ Data-integrity issue. If the By Spec view compares potion usage rates for specs 
 
 ---
 
-## TODO: Remove or replace "Throughput Consumable Choices" section
+## ✅ DONE: Remove or replace "Throughput Consumable Choices" section
 
 > This section is useless — Throughput Consumable Choices.
 
@@ -47,7 +47,7 @@ If it doesn't reveal an actionable gap it fails the soul's first test. Evaluate 
 
 ---
 
-## TODO: Raid Composition & Buff Coverage — "Provided by" as first column
+## ✅ DONE: Raid Composition & Buff Coverage — "Provided by" as first column
 
 > In the Raid Composition & Buff Coverage table, put "Provided by" as the first column.
 
@@ -55,7 +55,7 @@ A scan-order fix. Leaders read left-to-right; the provider (which class/spec cov
 
 ---
 
-## TODO: Truncate guild names past 13 characters with "…" everywhere in the report
+## ✅ DONE: Truncate guild names past 13 characters with "…" everywhere in the report
 
 > Any references to the guild names across the report should truncate the guild name past 13 chars with ...
 
@@ -63,7 +63,7 @@ Layout robustness. Long guild names break column widths and delta labels, making
 
 ---
 
-## TODO: Write a clear, concise description for the "Rotation Matches Benchmark" metric
+## ✅ DONE: Write a clear, concise description for the "Rotation Matches Benchmark" metric
 
 > Clear concise description for "rotation matches benchmark."
 
@@ -71,7 +71,7 @@ The label surfaces in the report but a raid leader reading it cold needs to know
 
 ---
 
-## TODO: Rotation — Ability Mix: add horizontal bars, delta in the middle
+## ✅ DONE: Rotation — Ability Mix: add horizontal bars, delta in the middle
 
 > Rotation — Ability Mix tables for each class/spec should render horizontal bars in this layout:
 > `our value → our bar → ability name → delta value → benchmark bar → benchmark value`
@@ -82,7 +82,7 @@ Visual upgrade that puts the gap where the eye lands. The ability name is the na
 
 ---
 
-## TODO: Fix font style on "Abilities Interrupted — by spec" explanatory copy
+## ✅ DONE: Fix font style on "Abilities Interrupted — by spec" explanatory copy
 
 > This copy doesn't match the other font styles for "additional explanation context" — Abilities Interrupted — by spec: "Each interrupted enemy cast and which specs kicked it, ours vs the benchmark — so you can see e.g. 'benchmark kicked it with Fire Mages, you used Ele Shaman.' Descriptive: a different kick assignment isn't better or worse, it reveals how each raid covers interrupts."
 
@@ -90,7 +90,7 @@ Consistency fix. The explanatory/context copy under this section is rendering in
 
 ---
 
-## TODO: Fix font style on "Interrupt Success — Kicked vs Leaked" explanatory copy
+## ✅ DONE: Fix font style on "Interrupt Success — Kicked vs Leaked" explanatory copy
 
 > Same as above — "Interrupt Success — Kicked vs Leaked": "Per ability: kicked = interrupts you landed; leaked = interruptible casts that still went off un-kicked. A highlighted leaked count is a miss — lower is better, 0 leaked is ideal."
 
@@ -98,7 +98,7 @@ Consistency fix. The explanatory/context copy under this section is rendering in
 
 ---
 
-## TODO: Abilities Interrupted — by spec: rework to grouped-row layout
+## ✅ DONE: Abilities Interrupted — by spec: rework to grouped-row layout
 
 > The current flat table (Ability Interrupted | Our Raid — kicked by | Benchmark — kicked by) isn't clear. Rework to: rows = interrupted spell name (grouped header), sub-rows within each group = one row per spec that kicked it, columns = "Kicked by spec" | "Our Raid" | "Benchmark". Long guild names in column headers also make it worse (see truncation TODO).
 
@@ -106,7 +106,7 @@ The current flat layout puts both raids' full spec lists in a single cell per ro
 
 ---
 
-## TODO: All mirrored-bar tables — move delta to center, next to the name
+## ✅ DONE: All mirrored-bar tables — move delta to center, next to the name
 
 > For all tables with the layout `value — bar — name — bar — value — delta (sorted)`, move the delta to be right next to the name in the center. Apply to ALL tables of this type.
 
@@ -116,7 +116,7 @@ Examples of tables with this layout: Boss Debuffs, Raid Buffs, Avg DPS / player 
 
 ---
 
-## TODO: Per-spec DPS and HPS timeline tabs inside each boss panel
+## ✅ DONE: Per-spec DPS and HPS timeline tabs inside each boss panel
 
 > In each boss panel under "Timeline": keep the existing "Raid DPS Timeline" as the first sub-tab (unchanged). Add additional sub-tabs named after each class/spec combo present in our raid — clicking one shows the same timeline graph but with our spec's DPS vs. the benchmark's same spec. Do the same for healing ("Raid HPS over time"). Color the tabs by class color.
 
@@ -126,7 +126,15 @@ Data integrity: only generate spec tabs for class/spec combos present in *both* 
 
 ---
 
-## TODO: New "Bosses" top-level tab — consolidate all per-boss content
+## ✅ DONE: Per-boss timeline — add "Melee DPS" and "Ranged DPS" aggregate tabs
+
+> On the new dps per spec over time per boss, also add additional tabs that are "melee dps" and "ranged dps" that aggregates all the specs over time per boss.
+
+Alongside the per-spec Timeline tabs, two aggregate tabs sum the whole melee or ranged core's DPS over time, ours vs the benchmark — so a leader sees the group's combined ramp/sustain, not just one spec. Summed over the same (overlapping) DPS specs on both sides to stay apples-to-apples; melee/ranged classified by the existing `_is_melee` (Warriors/Rogues, Enh/Ret/Feral = melee; casters and hunters = ranged).
+
+---
+
+## ✅ DONE: New "Bosses" top-level tab — consolidate all per-boss content
 
 > Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:
 > - **One sub-tab per boss.** Each boss sub-tab shows that boss's full content from the current "Per-Boss Execution" panel, and directly below the panel, that same boss's parse table from the current "Boss-by-Boss" section.
@@ -139,6 +147,6 @@ Navigation architecture change that consolidates a scattered story. Today boss-s
 
 Sub-points to carry through:
 - **Even-width summary stats** — the headline stats are the first thing a leader sees per boss; full-width distribution gives each equal visual weight and scans cleanly left-to-right.
-- **Boss portrait (research)** — does the WCL GraphQL API expose a `gameData`/`encounter` image URL, or does it require Blizzard's Game Data API (creature media endpoint, by creature/display ID)? Low-effort polish if a clean asset URL exists; weigh complexity if it needs a separate authenticated call. Portrait sits to the left of the boss name.
+- **Boss portrait (research) — SKIPPED.** The WCL GraphQL `Encounter` type exposes only `journalID` (no image/icon URL); a portrait would require Blizzard's separate Game Data API, which this tool isn't set up for. Per the maintainer, skip when it isn't in WCL GraphQL.
 
 (Note: the separate per-spec DPS/HPS timeline-tabs item below is a distinct feature — timeline graphs inside each boss panel — and is intentionally tracked on its own.)

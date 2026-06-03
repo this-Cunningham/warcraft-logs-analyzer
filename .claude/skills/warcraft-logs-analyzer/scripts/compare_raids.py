@@ -79,6 +79,19 @@ def slug(s):
     return out or "raid"
 
 
+def trunc_name(s, limit=13):
+    """Truncate a guild/report name past `limit` chars with an ellipsis. Long names blow out column
+    widths and delta labels and make the report wrap unpredictably; capping the GUILD name (not the
+    "Benchmark (…)" wrapper around it) at 13 chars keeps the layout stable for any guild pairing while
+    staying recognizable. Applied once here, at the naming source, so every reference to the name in the
+    report (header, table columns, inline) inherits the truncated form for free. The filename slug still
+    uses the full guild names, so on-disk reports stay distinguishable."""
+    if not s:
+        return s
+    s = s.strip()
+    return s if len(s) <= limit else s[:limit].rstrip() + "…"
+
+
 def get_meta(code):
     r = lib.invoke_query(META_Q, {"code": code})["reportData"]["report"]
     if not r:
@@ -147,8 +160,12 @@ def main(argv=None):
     # Manual --ours-name/--theirs-name override wins; guild name falls back to the report title.
     ours_guild = guild_name(parse_obj[ours_code])
     theirs_guild = guild_name(parse_obj[theirs_code])
-    ours_name = args.ours_name or ours_guild or ours_meta["title"]
-    theirs_name = args.theirs_name or ("Benchmark ({})".format(theirs_guild) if theirs_guild else theirs_meta["title"])
+    # Guild names are truncated past 13 chars (the "Benchmark (…)" wrapper is added AFTER truncating the
+    # guild, so only the guild name itself is shortened). A manual --ours-name/--theirs-name override is
+    # the user's call and is left exactly as given.
+    ours_name = args.ours_name or trunc_name(ours_guild or ours_meta["title"])
+    theirs_name = args.theirs_name or (
+        "Benchmark ({})".format(trunc_name(theirs_guild)) if theirs_guild else trunc_name(theirs_meta["title"]))
     # File named after the guilds (slugified), not the opaque report codes.
     out_file = args.out_file or os.path.join(
         root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))

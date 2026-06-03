@@ -18,6 +18,27 @@ def slugify(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+def short_sha():
+    """Short (5-char) HEAD commit SHA, used as a cache-busting suffix on the published filename.
+    A stable filename means GitHub Pages and the browser keep serving the OLD bytes after a
+    re-publish; stamping the commit SHA gives every build a fresh, immutable URL. Falls back to a
+    UTC timestamp if git isn't available (still unique, still cache-busting)."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short=5", "HEAD"],
+                             capture_output=True, text=True, cwd=ROOT, check=True)
+        sha = out.stdout.strip()
+        if sha:
+            return sha
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return datetime.utcnow().strftime("%H%M%S")
+
+
+# A published filename is "<base>-<sha>.html"; this strips the trailing SHA back off for the title
+# and to recognise prior versions of the same matchup. 5–12 hex chars (or the timestamp fallback).
+_SHA_SUFFIX = re.compile(r"-[0-9a-f]{5,12}$")
+
+
 def rebuild_index():
     files = sorted(
         [f for f in DOCS.glob("*.html") if f.name != "index.html"],
@@ -26,8 +47,9 @@ def rebuild_index():
     )
     reports = []
     for f in files:
-        # Try to extract a human title from the filename
-        title = f.stem.replace("-", " ").title()
+        # Human title from the filename, with the cache-busting SHA suffix stripped off.
+        base = _SHA_SUFFIX.sub("", f.stem)
+        title = base.replace("-", " ").title()
         date = datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d")
         reports.append({"file": f.name, "title": title, "date": date})
 
@@ -52,7 +74,15 @@ def main():
     if not src.exists():
         sys.exit(f"File not found: {src}")
 
-    dest = DOCS / src.name
+    # Cache-busting filename: "<base>-<sha>.html". Prune any prior version of THIS matchup (the bare
+    # name or an older SHA) so docs/ keeps one current file per matchup instead of accumulating stale
+    # duplicates — each still gets a fresh URL, so caches never serve old bytes.
+    base = _SHA_SUFFIX.sub("", src.stem)
+    for old in list(DOCS.glob(f"{base}.html")) + list(DOCS.glob(f"{base}-*.html")):
+        if _SHA_SUFFIX.search(old.stem) or old.stem == base:
+            old.unlink()
+            print(f"Removed stale {old.name}")
+    dest = DOCS / f"{base}-{short_sha()}.html"
     shutil.copy2(src, dest)
     print(f"Copied -> {dest}")
 
@@ -62,21 +92,23 @@ def main():
     os.chdir(ROOT)
     subprocess.run(["git", "add", "docs/"], check=True)
     subprocess.run(
-        ["git", "commit", "-m", f"docs: publish {src.name}"],
+        ["git", "commit", "-m", f"docs: publish {dest.name}"],
         check=True,
     )
     subprocess.run(["git", "push"], check=True)
 
-    # Print the Pages URL
-    result = subprocess.run(
-        ["gh", "repo", "view", "--json", "url", "-q", ".url"],
-        capture_output=True, text=True,
-    )
-    repo_url = result.stdout.strip().rstrip("/")
-    owner_repo = repo_url.replace("https://github.com/", "")
-    owner = owner_repo.split("/")[0].lower()
-    pages_base = f"https://{owner}.github.io/warcraft-logs-analyzer"
-    print(f"\nReport live at:\n  {pages_base}/{src.name}")
+    # Pages URL — derive owner/repo from the git remote (no `gh` dependency, which isn't always present).
+    owner, repo = "", "warcraft-logs-analyzer"
+    try:
+        remote = subprocess.run(["git", "remote", "get-url", "origin"],
+                                capture_output=True, text=True, cwd=ROOT, check=True).stdout.strip()
+        m = re.search(r"[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", remote)
+        if m:
+            owner, repo = m.group(1).lower(), m.group(2)
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    pages_base = f"https://{owner}.github.io/{repo}" if owner else "(set GitHub Pages owner)"
+    print(f"\nReport live at:\n  {pages_base}/{dest.name}")
     print(f"\nIndex:\n  {pages_base}/")
 
 

@@ -364,19 +364,28 @@ def _consumable_cat(name, guid=None):
 
 
 def consumable_report(directory, idx, enc_ids, roster_size):
-    """Raid consumable coverage averaged across the shared bosses. The "flask" count is the number of
-    raiders who showed up PREPARED — a flask OR a full battle + guardian elixir pair — read PER-PLAYER
-    from the consumes-<enc>.json buff auras (same `_cell_for` logic as the per-player matrix), so a
-    raider on an elixir pair counts exactly like a flasked one. (The aggregate Buffs table can't tell
-    flask-vs-pair apart, which is why a pair previously read as un-flasked here — a bug this fixes.)
-    Food is the number "Well Fed". Drums stays a fight uptime % from the aggregate Buffs table (a short
-    re-applied buff, not a per-player pre-pull consumable). Falls back to the aggregate Buffs flask/food
-    counts on any boss without a consumes file (older data folders), so it never regresses to empty.
-    Elixirs/potions aren't surfaced here as a raw count — the per-player matrix carries that detail."""
+    """Raid consumable coverage, counted PER RAIDER so the headline card reconciles with the per-player
+    matrix below. A raider counts as "Flasked / Elixir Pair" when they showed up PREPARED — a flask OR a
+    full battle + guardian elixir pair — on at least HALF of the shared bosses they attended. That 0.5
+    threshold is deliberately the matrix's own Prep-badge cutoff (green/yellow ≥ 0.5 vs red below it), so
+    a leader can tally the green/yellow rows in the matrix and land on this exact number. Both views run
+    the identical `_cell_for` pass (same battle+guardian pairing logic), so they can't disagree.
+
+    (This replaces an average-PER-BOSS count, which was the bug the TODO flagged: an avg like "18/25"
+    didn't map to anything a leader could see in the per-player matrix, so the two views looked at odds.)
+
+    Food is the same per-raider count for Well Fed. Drums stays a fight uptime % from the aggregate Buffs
+    table (a short re-applied buff, not a per-player pre-pull consumable). Falls back to the old aggregate
+    Buffs flask/food average only when NO shared boss has a consumes file (older data folders), so it
+    never regresses to empty. Elixirs/potions aren't surfaced here — the matrix carries that detail."""
     fm = fight_map(directory)
     name_to_id = name_id_map(directory)
-    prepared_per_boss, fed_per_boss = [], []
     drum_upt = []
+    # Per-raider tallies across the shared bosses (same _cell_for pass as the matrix).
+    present_cnt, prepared_cnt, fed_cnt = {}, {}, {}
+    have_consumes = False
+    # Fallback (only if NO boss has a consumes file): aggregate Buffs flask/food, avg per boss.
+    fb_prepared, fb_fed = [], []
     for enc in enc_ids:
         rep = load_boss(directory, str(enc))
         if not rep:
@@ -395,8 +404,8 @@ def consumable_report(directory, idx, enc_ids, roster_size):
         cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
         present = (idx.get(enc) or {}).get("players") or []
         if os.path.isfile(cons_path) and present:
+            have_consumes = True
             per_player = read_json(cons_path).get("perPlayer") or {}
-            prepared = fed = 0
             seen = set()
             for pl in present:
                 nm = pl["name"]
@@ -405,16 +414,17 @@ def consumable_report(directory, idx, enc_ids, roster_size):
                 seen.add(nm)
                 pid = name_to_id.get(nm)
                 cell = _cell_for(per_player.get(str(pid)) if pid is not None else None)
-                prepared += 1 if cell["consumed"] else 0
-                fed += 1 if cell["food"] else 0
-            prepared_per_boss.append(prepared)
-            fed_per_boss.append(fed)
+                present_cnt[nm] = present_cnt.get(nm, 0) + 1
+                if cell["consumed"]:
+                    prepared_cnt[nm] = prepared_cnt.get(nm, 0) + 1
+                if cell["food"]:
+                    fed_cnt[nm] = fed_cnt.get(nm, 0) + 1
         elif auras:  # fallback: aggregate Buffs flask/food totals (counts a pair only partially — best effort)
             flask = sum(int(a.get("totalUses", 0)) for a in auras
                         if _consumable_cat(a.get("name", ""), a.get("guid")) == "flask")
             food = sum(int(a.get("totalUses", 0)) for a in auras if a.get("name") == "Well Fed")
-            prepared_per_boss.append(flask)
-            fed_per_boss.append(food)
+            fb_prepared.append(flask)
+            fb_fed.append(food)
 
     def iavg(lst, cap=None):
         if not lst:
@@ -422,10 +432,19 @@ def consumable_report(directory, idx, enc_ids, roster_size):
         v = int(round(sum(lst) / len(lst)))
         return min(v, cap) if cap is not None else v
 
+    if have_consumes:
+        # A raider is "flasked"/"fed" if prepared on >= half of the bosses they attended (the matrix's
+        # own green/yellow Prep-badge threshold), so the card and matrix line up exactly.
+        flask = sum(1 for nm, p in present_cnt.items() if p > 0 and prepared_cnt.get(nm, 0) / p >= 0.5)
+        food = sum(1 for nm, p in present_cnt.items() if p > 0 and fed_cnt.get(nm, 0) / p >= 0.5)
+    else:
+        flask = iavg(fb_prepared, roster_size)
+        food = iavg(fb_fed, roster_size)
+
     return {
         "rosterSize": roster_size,
-        "flask": iavg(prepared_per_boss, roster_size),
-        "food": iavg(fed_per_boss, roster_size),
+        "flask": flask,
+        "food": food,
         "drumsUptime": iavg(drum_upt),
     }
 
@@ -666,7 +685,10 @@ def potion_gap(o_pool, t_pool):
     potions each side used (Haste / Destruction / Ironshield). Restricted to specs BOTH raids fielded —
     a spec only one raid runs is a roster question (Composition tab), not a potion-usage gap."""
     rows = []
-    for key in set(o_pool) & set(t_pool):  # overlap only: both raids fielded this spec
+    # Overlap ONLY (set intersection): both raids fielded this spec. A spec one raid never ran is a
+    # roster question (Composition tab), and comparing its potion rate would be apples-to-oranges — a
+    # data-integrity violation the soul prohibits. The template re-checks oursPlayers/theirsPlayers > 0.
+    for key in set(o_pool) & set(t_pool):
         o, t = o_pool[key], t_pool[key]
         o_n, t_n = len(o["players"]), len(t["players"])
         rows.append({"class": o["class"], "spec": o["spec"], "role": o["role"],
@@ -679,39 +701,9 @@ def potion_gap(o_pool, t_pool):
     return rows
 
 
-def throughput_choices(o_dir, t_dir, o_idx, t_idx, enc_ids):
-    """Which specific throughput consumables each raid runs — the meta, discovered from the benchmark
-    (a top guild) rather than hardcoded. Per category (Flask / Battle Elixir), the specific buff names
-    and how many distinct raiders used each, ours vs benchmark. Surfaces e.g. casters on a survival flask
-    vs a spell-damage one, or which battle elixir the top guild favors. Descriptive (a roster story)."""
-    def collect(directory, idx):
-        name_to_id = name_id_map(directory)
-        agg = {}  # (cat, name) -> set(players)
-        for enc in enc_ids:
-            path = os.path.join(directory, "consumes-{}.json".format(enc))
-            present = (idx.get(enc) or {}).get("players") or []
-            if not (os.path.isfile(path) and present):
-                continue
-            per_player = read_json(path).get("perPlayer") or {}
-            for pl in present:
-                pid = name_to_id.get(pl["name"])
-                for a in (per_player.get(str(pid)) or []):
-                    nm, guid = a.get("name"), a.get("guid")
-                    cat = _consumable_cat(nm, guid)
-                    if cat == "flask":
-                        label = "Flask"
-                    elif cat == "elixir" and _elixir_type(nm, guid) == "battle":
-                        label = "Battle Elixir"
-                    else:
-                        continue
-                    agg.setdefault((label, nm or "?"), set()).add(pl["name"])
-        return {k: len(v) for k, v in agg.items()}
-    o_counts, t_counts = collect(o_dir, o_idx), collect(t_dir, t_idx)
-    rows = [{"cat": cat, "name": nm, "ours": o_counts.get((cat, nm), 0), "theirs": t_counts.get((cat, nm), 0)}
-            for (cat, nm) in set(o_counts) | set(t_counts)]
-    # Group by category (Flask first), then most-used within it.
-    rows.sort(key=lambda r: (r["cat"] != "Flask", r["cat"], -max(r["ours"], r["theirs"]), r["name"]))
-    return rows
+# (throughput_choices was removed — the "Throughput Consumable Choices" flask/battle-elixir meta table
+# it fed was descriptive-only and revealed no actionable gap. The per-spec combat-potion gap, which IS
+# a clean throughput lever, stays in potion_gap above.)
 
 
 # ---------- PER-BOSS BUFF/DEBUFF UPTIME + LUST TIMING ----------
@@ -791,6 +783,109 @@ def load_timeline(directory, enc):
     if not os.path.isfile(p):
         return None
     return read_json(p)
+
+
+def pet_owner_map(directory):
+    """pet actor id(int) -> owner player actor id(int), from masterData pets on fights.json. Used to
+    fold a pet's (or totem's) damage/healing into its OWNER's spec for the per-spec timeline, so a BM
+    hunter's pet or a warlock's felguard isn't dropped from that spec's curve. Graceful {} on older data
+    folders that predate the pets fetch (per-spec curves then just exclude pet output)."""
+    try:
+        rep = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]
+    except (OSError, KeyError, ValueError):
+        return {}
+    out = {}
+    for p in (((rep.get("masterData") or {}).get("pets")) or []):
+        if p.get("id") is not None and p.get("petOwner") is not None:
+            out[int(p["id"])] = int(p["petOwner"])
+    return out
+
+
+def _spec_curves(by_source, n, secs, id_to_name, spec_map, role_map, class_map, pet_owner):
+    """Fold one fight's per-source RAW bins (sourceID -> [amount per bin]) into per (class, spec) RATE
+    curves. Each source is first resolved to a player (a pet folds into its owner), then attributed to
+    that player's primary spec and pooled; the summed bins are divided by the bin width (`secs`) to get a
+    DPS/HPS-over-time curve for the whole spec. Returns {"class|spec": {class, spec, role, curve:[rates]}}."""
+    if not by_source or n <= 0 or secs <= 0:
+        return {}
+    folded = {}  # owner player id -> [raw sum per bin]
+    for sid_str, arr in by_source.items():
+        owner = pet_owner.get(int(sid_str), int(sid_str))  # pet -> owner; player -> itself
+        f = folded.get(owner)
+        if f is None:
+            f = folded[owner] = [0.0] * n
+        for i, v in enumerate(arr):
+            f[i] += v
+    pools = {}
+    for owner, arr in folded.items():
+        nm = id_to_name.get(owner)
+        spec = spec_map.get(nm) if nm else None
+        if not nm or not spec:
+            continue  # only roster players with a known primary spec
+        cls = class_map.get(nm) or "Unknown"
+        key = "{}|{}".format(cls, spec)
+        p = pools.setdefault(key, {"class": cls, "spec": spec, "role": role_map.get(nm), "sum": [0.0] * n})
+        for i, v in enumerate(arr):
+            p["sum"][i] += v
+    return {key: {"class": p["class"], "spec": p["spec"], "role": p["role"],
+                  "curve": [round(x / secs) for x in p["sum"]]}
+            for key, p in pools.items()}
+
+
+def spec_timelines(o_tl, t_tl, o_args, t_args):
+    """Per-spec DPS/HPS-over-time curves for a boss, ours vs the benchmark's same spec — the data behind
+    the per-spec Timeline sub-tabs. Restricted to specs BOTH raids fielded (the overlap): a spec only one
+    raid ran has no same-spec curve to compare against, so showing it would be a misleading apples-to-
+    oranges line (the same data-integrity rule as the potion/DPS gaps). A DPS-role spec carries its DPS
+    curve; a healer spec carries its HPS curve. Returns [] when either side lacks timeline data."""
+    if not o_tl or not t_tl:
+        return []
+
+    def side(tl, args):
+        id_to_name, spec_map, role_map, class_map, pet = args
+        n = tl.get("n") or len(tl.get("dps") or [])
+        if not n or not tl.get("durMs"):
+            return {}
+        secs = (tl["durMs"] / n) / 1000.0
+        dps = _spec_curves(tl.get("dpsBySource"), n, secs, id_to_name, spec_map, role_map, class_map, pet)
+        hps = _spec_curves(tl.get("hpsBySource"), n, secs, id_to_name, spec_map, role_map, class_map, pet)
+        out = {}
+        for key, c in dps.items():
+            if c["role"] == "dps":
+                out[key] = dict(c, metric="dps")
+        for key, c in hps.items():
+            if c["role"] == "healer":
+                out[key] = dict(c, metric="hps")  # healers compared on healing output
+        return out
+
+    o, t = side(o_tl, o_args), side(t_tl, t_args)
+    rows = []
+    for key in set(o) & set(t):  # overlap only — both raids fielded this spec
+        oc, tc = o[key], t[key]
+        rows.append({"class": oc["class"], "spec": oc["spec"], "role": oc["role"], "metric": oc["metric"],
+                     "ours": oc["curve"], "theirs": tc["curve"]})
+    rows.sort(key=lambda r: (r["metric"] != "dps", r["class"], r["spec"]))  # DPS specs first, stable order
+
+    # Aggregate "Melee DPS" / "Ranged DPS" curves: the whole melee or ranged core summed over time, ours
+    # vs benchmark. Summed over the SAME (overlapping) DPS specs on both sides, so it stays apples-to-
+    # apples — a leader sees the melee/ranged group's combined ramp and sustain, not just one spec.
+    dps_rows = [r for r in rows if r["metric"] == "dps"]
+
+    def _agg(melee):
+        sel = [r for r in dps_rows if _is_melee(r["class"], r["spec"]) == melee]
+        if not sel:
+            return None
+        m = len(sel[0]["ours"])
+        o_sum, t_sum = [0] * m, [0] * m
+        for r in sel:
+            for i in range(m):
+                o_sum[i] += r["ours"][i]
+                t_sum[i] += r["theirs"][i]
+        return {"spec": "Melee DPS" if melee else "Ranged DPS", "agg": "melee" if melee else "ranged",
+                "role": "dps", "metric": "dps", "specCount": len(sel), "ours": o_sum, "theirs": t_sum}
+
+    aggs = [a for a in (_agg(True), _agg(False)) if a]
+    return aggs + rows  # aggregates first (after the Raid tab), then the individual specs
 
 
 def _side_timeline(curves, deaths, lust_sec, dur_ms, fight_info):
@@ -2521,11 +2616,15 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     potion_spec_gap = potion_gap(
         potion_usage_by_spec(ours_dir, ours_idx, common_ids, ours_spec, ours_role, ours_cls),
         potion_usage_by_spec(theirs_dir, theirs_idx, common_ids, theirs_spec, theirs_role, theirs_cls))
-    throughput_picks = throughput_choices(ours_dir, theirs_dir, ours_idx, theirs_idx, common_ids)
 
     # Per-boss
     ours_fights = fight_map(ours_dir)
     theirs_fights = fight_map(theirs_dir)
+    # Maps for the per-spec timeline curves: source actor id -> name, and pet -> owner (computed once).
+    o_id_to_name = {v: k for k, v in name_id_map(ours_dir).items()}
+    t_id_to_name = {v: k for k, v in name_id_map(theirs_dir).items()}
+    o_pet = pet_owner_map(ours_dir)
+    t_pet = pet_owner_map(theirs_dir)
     # Accumulators for the tier-wide views (item level by role).
     o_ilvl, t_ilvl = {}, {}
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
@@ -2613,6 +2712,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         t_deaths = death_list(t_b, theirs_fights[enc]["start"])
         o_tl = load_timeline(ours_dir, enc)
         t_tl = load_timeline(theirs_dir, enc)
+        tl_payload = timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
+                                   o_dur, t_dur, ours_fights[enc], theirs_fights[enc])
+        if tl_payload:
+            # Per-spec DPS/HPS curves (overlapping specs only) for the per-spec Timeline sub-tabs.
+            tl_payload["specs"] = spec_timelines(
+                o_tl, t_tl,
+                (o_id_to_name, ours_spec, ours_role, ours_cls, o_pet),
+                (t_id_to_name, theirs_spec, theirs_role, theirs_cls, t_pet))
         per_boss.append({
             "encounterID": b["encounterID"], "name": b["name"],
             "oursLustSec": o_lust,
@@ -2640,8 +2747,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                        "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
             "focus": focus_view(o_tl, t_tl),
             "targetEngagement": target_engagement(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
-            "timeline": timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
-                                      o_dur, t_dur, ours_fights[enc], theirs_fights[enc]),
+            "timeline": tl_payload,
         })
 
     # Overall DTPS is time-weighted (total damage / total fight time).
@@ -2730,7 +2836,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
-                 "potionGap": potion_spec_gap, "throughputChoices": throughput_picks,
+                 "potionGap": potion_spec_gap,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,

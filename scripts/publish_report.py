@@ -92,14 +92,7 @@ def main():
     if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
         print("No changes to publish (docs/ already up to date).")
     else:
-        msg = f"docs: publish {dest.name}"
-        # When this runs inside GitHub Actions, mark the commit [skip ci] so pushing it back to the PR
-        # branch doesn't re-trigger the report-preview workflow. (Pushes made with the default
-        # GITHUB_TOKEN already don't re-trigger workflows; this is belt-and-suspenders, and also covers
-        # a PAT-based push.)
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            msg += " [skip ci]"
-        subprocess.run(["git", "commit", "-m", msg], check=True)
+        subprocess.run(["git", "commit", "-m", f"docs: publish {dest.name}"], check=True)
         subprocess.run(["git", "push"], check=True)
 
     # Pages URL — derive owner/repo from the git remote (no `gh` dependency, which isn't always present).

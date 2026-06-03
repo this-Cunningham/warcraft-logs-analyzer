@@ -1,86 +1,44 @@
 name: PR report preview
 
-# On every PR push this workflow REGENERATES the pinned benchmark report from the PR's current code
-# (template + pipeline), publishes it under docs/, and posts/keeps-updated a single sticky comment with
-# a clickable, render-in-browser link pinned to the resulting commit via raw.githack.com. Because the
-# report is rebuilt here, the preview link always reflects the PR's code — it can't go stale the way a
-# pre-committed docs/ artifact does.
+# Posts (and keeps updated) a single sticky comment on every PR with a clickable, render-in-browser
+# link to each report HTML committed under docs/. The link is pinned to the PR's head commit via
+# raw.githack.com, so it is immutable (never serves a stale cached copy) and works BEFORE merge — no
+# GitHub Pages config, no merge-to-main, no branch/worktree juggling.
 #
-# Requirements:
-#   - Repo secrets WCL_CLIENT_ID / WCL_CLIENT_SECRET (Warcraft Logs API client-credentials). Without
-#     them the regeneration step is skipped and the comment links whatever is already in docs/ (with a
-#     warning). Set them at: Settings -> Secrets and variables -> Actions.
-#   - raw.githack renders files from PUBLIC GitHub repos. For a private repo, swap the preview host for
-#     Cloudflare Pages / Netlify (which support private repos and also give automatic PR previews).
+# This workflow does NOT build the report — building needs the Warcraft Logs API credentials, which
+# live in the local dev session (the cloud container), not in CI. The flow is: build + publish the
+# report LOCALLY (`python3 scripts/publish_report.py`, which commits the fresh file into docs/), then
+# open/update the PR — this workflow just links whatever is committed under docs/.
 #
-# Fork PRs can't read secrets (by design), so regeneration is skipped for them and the existing docs/
-# file is linked instead.
+# Doc-only changes don't touch the report, so markdown edits (TODO.md, BACKLOG.md, README, etc.) are
+# excluded below and never trigger a run.
+#
+# Note: raw.githack renders files from PUBLIC GitHub repos. If this repo is private, swap the preview
+# host for Cloudflare Pages / Netlify (which support private repos and also give automatic PR previews).
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**/*.md'
 
 permissions:
-  contents: write          # push the freshly published docs/ report back to the PR branch
-  pull-requests: write     # upsert the sticky preview comment
-
-# One run per PR; cancel an in-flight run when a newer push arrives.
-concurrency:
-  group: pr-report-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  contents: read
+  pull-requests: write
 
 jobs:
   preview-link:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the PR head branch
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Regenerate and publish the report (same-repo PRs with secrets)
-        id: publish
-        env:
-          WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
-          WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
-          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-        run: |
-          set -euo pipefail
-          if [ "$SAME_REPO" = "true" ] && [ -n "${WCL_CLIENT_ID:-}" ] && [ -n "${WCL_CLIENT_SECRET:-}" ]; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            # Stdlib-only pipeline — nothing to pip install. Fetches the pinned reports live (~30-60s),
-            # rebuilds the HTML from the current template, then copies it into docs/ (content-hashed
-            # filename) and commits+pushes only if the bytes actually changed.
-            python3 scripts/cloud_startup.py --no-open
-            python3 scripts/publish_report.py
-          else
-            echo "::notice title=Report preview::Skipping live regeneration (fork PR, or WCL secrets not set) — linking the existing docs/ report instead."
-          fi
-          # Link must pin to the commit that actually has the published file: HEAD after any publish push.
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Upsert the sticky preview comment
-        uses: actions/github-script@v7
-        env:
-          PUBLISHED_SHA: ${{ steps.publish.outputs.sha }}
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
             const pr = context.payload.pull_request;
-            // Pin to the commit that holds the freshly published file (HEAD after publish), not the
-            // pre-publish event SHA — otherwise the link would point at the old docs/ bytes.
-            const sha = process.env.PUBLISHED_SHA || pr.head.sha;
-            // The head repo's full name so the link works for branches in this repo (and forks).
+            const sha = pr.head.sha;
+            // Use the HEAD repo's full name so the link works for branches in this repo (and forks).
             const headSlug = pr.head.repo.full_name;
 
             const dir = 'docs';
@@ -95,13 +53,13 @@ jobs:
                 .map(f => `- [\`${f}\`](https://raw.githack.com/${headSlug}/${sha}/docs/${f})`)
                 .join('\n');
               body = `${MARKER}\n### 📊 Report preview\n${links}\n\n` +
-                     `<sub>Regenerated from this PR's code and rendered via raw.githack, pinned to ` +
-                     `commit \`${sha.slice(0, 7)}\` — immutable and rebuilt on every push. (Requires a ` +
-                     `public repo; for a private repo, use Cloudflare Pages / Netlify PR previews instead.)</sub>`;
+                     `<sub>Rendered via raw.githack, pinned to commit \`${sha.slice(0, 7)}\` — ` +
+                     `immutable and updates on every push. Built & published locally via ` +
+                     `\`scripts/publish_report.py\` (CI doesn't have the Warcraft Logs API credentials). ` +
+                     `Requires a public repo; for a private repo, use Cloudflare Pages / Netlify previews.</sub>`;
             } else {
-              body = `${MARKER}\n### 📊 Report preview\n_No report HTML found under \`docs/\`. ` +
-                     `Set the \`WCL_CLIENT_ID\` / \`WCL_CLIENT_SECRET\` repo secrets so this workflow can ` +
-                     `regenerate it, or run \`python3 scripts/publish_report.py\` locally and push._`;
+              body = `${MARKER}\n### 📊 Report preview\n_No report HTML found under \`docs/\` in this PR. ` +
+                     `Run \`python3 scripts/publish_report.py\` locally and push the result to get a preview link._`;
             }
 
             // Upsert a single sticky comment (find by hidden marker, update if present else create).

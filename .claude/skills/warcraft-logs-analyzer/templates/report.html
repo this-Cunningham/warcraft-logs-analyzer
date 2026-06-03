@@ -425,7 +425,7 @@ function renderOverview(d){
   let h=gapsScorecard(d)+didWellScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
-    <div class="card"><div class="label">Total Boss Kill Time <span class="hint">summed combat, shared bosses</span></div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
+    <div class="card"><div class="label">Boss Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
     ${wipeCard}
   </div><p class="srcs" style="margin:12px 0 0">Per-fight kill time, parse, rosters and the full execution drill-down now live on the <b>Bosses</b> tab.</p>`;
   return h;

@@ -91,11 +91,13 @@ def main():
     # Commit and push
     os.chdir(ROOT)
     subprocess.run(["git", "add", "docs/"], check=True)
-    subprocess.run(
-        ["git", "commit", "-m", f"docs: publish {dest.name}"],
-        check=True,
-    )
-    subprocess.run(["git", "push"], check=True)
+    # If nothing is staged (re-publishing the identical file at the same commit, e.g. a CI re-run),
+    # skip the commit/push cleanly instead of erroring on "nothing to commit".
+    if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+        print("No changes to publish (docs/ already up to date).")
+    else:
+        subprocess.run(["git", "commit", "-m", f"docs: publish {dest.name}"], check=True)
+        subprocess.run(["git", "push"], check=True)
 
     # Pages URL — derive owner/repo from the git remote (no `gh` dependency, which isn't always present).
     owner, repo = "", "warcraft-logs-analyzer"

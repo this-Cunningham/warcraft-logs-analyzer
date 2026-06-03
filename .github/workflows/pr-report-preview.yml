@@ -1,57 +1,125 @@
 name: PR report preview
 
-# Posts (and keeps updated) a single sticky comment on every PR with a clickable, render-in-browser
-# link to each report HTML committed under docs/. The link is pinned to the PR's head commit via
-# raw.githack.com, so it is immutable (never serves a stale cached copy) and works BEFORE merge — no
-# GitHub Pages config, no merge-to-main, no branch/worktree juggling.
+# On every PR push, GENERATE a fresh report from the PR's own code against live Warcraft Logs data,
+# publish it under docs/ (pruned to one file per matchup), and keep a single sticky PR comment updated
+# with a clickable, render-in-browser link pinned to the resulting commit via raw.githack.com — so the
+# link is immutable (never a stale cache), works BEFORE merge, and reflects the code in *this* PR.
 #
-# Note: raw.githack renders files from PUBLIC GitHub repos. If this repo is private, swap the preview
-# host for Cloudflare Pages / Netlify (which support private repos and also give automatic PR previews).
+# Requirements:
+#   - Secrets WCL_CLIENT_ID / WCL_CLIENT_SECRET (Settings → Secrets and variables → Actions). Without
+#     them the job can't authenticate to the WCL API; it posts a comment telling you to add them.
+#   - A PUBLIC repo (raw.githack renders public repos). For a private repo, swap the preview host for
+#     Cloudflare Pages / Netlify.
+#   - Same-repo PRs get the report committed back to the PR branch (the default GITHUB_TOKEN can push,
+#     and such pushes do NOT retrigger this workflow, so there's no loop). PRs from forks can't be
+#     pushed to with GITHUB_TOKEN, so they get the report as a downloadable artifact instead.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
-  preview-link:
+  build-preview:
     runs-on: ubuntu-latest
     steps:
+      # Check out the PR's HEAD branch (not the merge ref) so we can commit the report back to it.
       - uses: actions/checkout@v4
-      - uses: actions/github-script@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # Generate the report. The analyzer is pure-stdlib, so no pip install is needed.
+      - name: Generate fresh report
+        id: gen
+        env:
+          WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
+          WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
+        run: |
+          if [ -z "${WCL_CLIENT_ID}" ] || [ -z "${WCL_CLIENT_SECRET}" ]; then
+            echo "state=missing-secrets" >> "$GITHUB_OUTPUT"
+            echo "::warning::WCL_CLIENT_ID / WCL_CLIENT_SECRET not set — skipping report generation."
+            exit 0
+          fi
+          python3 scripts/cloud_startup.py --no-open
+          echo "state=ok" >> "$GITHUB_OUTPUT"
+
+      # Same-repo PR: publish to docs/ and push the commit back to the PR branch.
+      - name: Publish report to docs/ and push
+        id: pub
+        if: >-
+          steps.gen.outputs.state == 'ok' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 scripts/publish_report.py
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Fork PR: can't push to the fork with GITHUB_TOKEN, so expose the report as an artifact.
+      - name: Upload report artifact (fork PRs)
+        id: art
+        if: >-
+          steps.gen.outputs.state == 'ok' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-preview
+          path: docs/*.html
+
+      - name: Upsert sticky preview comment
+        uses: actions/github-script@v7
+        env:
+          GEN_STATE: ${{ steps.gen.outputs.state }}
+          PUB_SHA: ${{ steps.pub.outputs.sha }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
         with:
           script: |
             const fs = require('fs');
             const { owner, repo } = context.repo;
             const pr = context.payload.pull_request;
-            const sha = pr.head.sha;
-            // Use the HEAD repo's full name so the link works for branches in this repo (and forks).
-            const headSlug = pr.head.repo.full_name;
-
-            const dir = 'docs';
-            const htmls = fs.existsSync(dir)
-              ? fs.readdirSync(dir).filter(f => f.endsWith('.html') && f !== 'index.html')
-              : [];
-
             const MARKER = '<!-- report-preview -->';
+            const state = process.env.GEN_STATE;
+            const isFork = process.env.IS_FORK === 'true';
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
             let body;
-            if (htmls.length) {
-              const links = htmls
-                .map(f => `- [\`${f}\`](https://raw.githack.com/${headSlug}/${sha}/docs/${f})`)
-                .join('\n');
-              body = `${MARKER}\n### 📊 Report preview\n${links}\n\n` +
-                     `<sub>Rendered via raw.githack, pinned to commit \`${sha.slice(0, 7)}\` — ` +
-                     `immutable and updates on every push. (Requires a public repo; for a private ` +
-                     `repo, use Cloudflare Pages / Netlify PR previews instead.)</sub>`;
+            if (state === 'missing-secrets') {
+              body = `${MARKER}\n### 📊 Report preview\n` +
+                `⚠️ Can't generate a report: repository secrets **\`WCL_CLIENT_ID\`** and ` +
+                `**\`WCL_CLIENT_SECRET\`** aren't set.\n\n` +
+                `Add them under **Settings → Secrets and variables → Actions**, then push again.`;
+            } else if (isFork) {
+              body = `${MARKER}\n### 📊 Report preview\n` +
+                `This PR is from a fork, so the report can't be committed for an in-browser link. ` +
+                `Download it from the [workflow run artifacts](${runUrl}) (\`report-preview\`).`;
             } else {
-              body = `${MARKER}\n### 📊 Report preview\n_No report HTML found under \`docs/\` in this PR. ` +
-                     `Run \`python3 scripts/publish_report.py\` and push the result to get a preview link._`;
+              const sha = process.env.PUB_SHA;
+              const headSlug = pr.head.repo.full_name;
+              const htmls = fs.existsSync('docs')
+                ? fs.readdirSync('docs').filter(f => f.endsWith('.html') && f !== 'index.html')
+                : [];
+              if (htmls.length && sha) {
+                const links = htmls
+                  .map(f => `- [\`${f}\`](https://raw.githack.com/${headSlug}/${sha}/docs/${f})`)
+                  .join('\n');
+                body = `${MARKER}\n### 📊 Report preview\n${links}\n\n` +
+                  `<sub>Freshly generated from this PR's code and rendered via raw.githack, pinned to ` +
+                  `commit \`${sha.slice(0, 7)}\` — immutable and rebuilt on every push.</sub>`;
+              } else {
+                body = `${MARKER}\n### 📊 Report preview\n` +
+                  `_Report generation ran but produced no HTML under \`docs/\`. See the ` +
+                  `[workflow run](${runUrl}) for details._`;
+              }
             }
 
-            // Upsert a single sticky comment (find by hidden marker, update if present else create).
             const { data: comments } = await github.rest.issues.listComments({
               owner, repo, issue_number: pr.number, per_page: 100,
             });

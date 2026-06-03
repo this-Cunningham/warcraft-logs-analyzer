@@ -180,6 +180,14 @@ The explanatory copy under tables and sections has grown verbose. The soul calls
 
 ---
 
+## TODO: Tighten benchmark guild name truncation to 8 characters
+
+> truncate benchmark guild name even down to 8 chars
+
+The current 13-char limit still lets the benchmark guild name crowd column headers and delta labels — particularly bad for the benchmark side, which appears as a column label in many side-by-side tables. Dropping to 8 chars keeps headers tight and layout stable across any guild name. The 8-char rule should apply to the benchmark name specifically (or both names if that's cleaner); the existing truncation logic just needs its cap lowered.
+
+---
+
 ## ✅ DONE: New "Bosses" top-level tab — consolidate all per-boss content
 
 > Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:

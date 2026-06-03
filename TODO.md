@@ -126,32 +126,19 @@ Data integrity: only generate spec tabs for class/spec combos present in *both* 
 
 ---
 
-## TODO: Boss portrait images — research API availability
+## TODO: New "Bosses" top-level tab — consolidate all per-boss content
 
-> Look into whether there are boss portrait assets available from the WCL or Blizzard API that we can use for each boss panel. Should appear to the left of the boss name.
+> Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:
+> - **One sub-tab per boss.** Each boss sub-tab shows that boss's full content from the current "Per-Boss Execution" panel, and directly below the panel, that same boss's parse table from the current "Boss-by-Boss" section.
+> - **Promote "Per-Boss Execution"** out of its current location into these per-boss sub-tabs.
+> - **Move "Boss-by-Boss"** (kill time, raid DPS/HPS, parse, deaths, attempts, both rosters side by side) out of Overview into these same per-boss sub-tabs.
+> - **Boss panel summary stats** (Raid DPS, DPS activity, Healer overheal, Dmg taken/s ex-tanks) should spread evenly across the full panel width rather than bunching.
+> - **Boss portrait image** (research item): look into whether WCL or Blizzard API exposes a boss portrait/icon asset; if so, render it to the left of the boss name in each sub-tab header.
 
-Polish item — a boss portrait anchors the panel visually and makes the report feel native to the game. Research needed: does the WCL GraphQL API expose a `gameData` or `encounter` icon/image URL? Alternatively, Blizzard's Game Data API (creature media endpoint) may provide NPC portraits by creature/display ID. If a clean asset URL is available, this is low-effort polish; if it requires a separate authenticated Blizzard API call, weigh the complexity.
+Navigation architecture change that consolidates a scattered story. Today boss-specific analysis is split across Overview (Boss-by-Boss picker) and a buried Per-Boss Execution panel. Unifying everything under one "Bosses" tab with a sub-tab per fight gives a leader a single, first-class per-fight lens: pick a boss, see its execution panel and its parse table together. Overview slims down to the raid-level summary it's meant to be.
 
----
+Sub-points to carry through:
+- **Even-width summary stats** — the headline stats are the first thing a leader sees per boss; full-width distribution gives each equal visual weight and scans cleanly left-to-right.
+- **Boss portrait (research)** — does the WCL GraphQL API expose a `gameData`/`encounter` image URL, or does it require Blizzard's Game Data API (creature media endpoint, by creature/display ID)? Low-effort polish if a clean asset URL exists; weigh complexity if it needs a separate authenticated call. Portrait sits to the left of the boss name.
 
-## TODO: Boss panel summary stats — spread evenly across full width
-
-> The stats at the top of each boss panel (Raid DPS, DPS activity, Healer overheal, Dmg taken/s ex-tanks) should be spaced evenly across the full width of the panel rather than left-aligned or bunched.
-
-Layout fix. These headline stats are the first thing a leader sees on each boss — they should use the full width so each stat gets equal visual weight and the row scans cleanly left-to-right. Currently the stats cluster rather than distribute, which wastes space and makes the row harder to parse at a glance.
-
----
-
-## TODO: Promote "Per-Boss Execution" to a top-level tab next to "Trash"
-
-> Per-Boss Execution — move this to a new top-level tab next to "Trash."
-
-Navigation architecture change. Per-boss execution is high-signal, boss-specific analysis — it deserves top-level real estate alongside the other main tabs rather than being buried inside another tab. Elevating it to the nav bar makes it immediately accessible and signals to a leader that per-boss breakdown is a first-class lens, not a drill-down afterthought.
-
----
-
-## TODO: Move "Boss-by-Boss" section from Overview into the new "Bosses" tab
-
-> The "Boss-by-Boss — Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, attempts, and both rosters side by side" section currently under Overview should move to the new top-level tab (see previous TODO). Name that tab "Bosses."
-
-Consolidation to go with the tab promotion above. All boss-specific content — the picker/summary and the per-boss execution panels — lives in one place under "Bosses," so a leader who wants to dig into a specific fight goes to one tab. Overview slims down to the raid-level summary it's meant to be; Bosses becomes the dedicated per-fight lens.
+(Note: the separate per-spec DPS/HPS timeline-tabs item below is a distinct feature — timeline graphs inside each boss panel — and is intentionally tracked on its own.)

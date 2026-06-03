@@ -5,7 +5,7 @@ Usage:
     python scripts/publish_report.py reports/my-report.html
     python scripts/publish_report.py              # publishes the newest file in reports/
 """
-import sys, os, shutil, json, subprocess, re
+import sys, os, shutil, json, subprocess, re, hashlib
 from pathlib import Path
 from datetime import datetime
 
@@ -18,24 +18,19 @@ def slugify(name):
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
-def short_sha():
-    """Short (5-char) HEAD commit SHA, used as a cache-busting suffix on the published filename.
-    A stable filename means GitHub Pages and the browser keep serving the OLD bytes after a
-    re-publish; stamping the commit SHA gives every build a fresh, immutable URL. Falls back to a
-    UTC timestamp if git isn't available (still unique, still cache-busting)."""
-    try:
-        out = subprocess.run(["git", "rev-parse", "--short=5", "HEAD"],
-                             capture_output=True, text=True, cwd=ROOT, check=True)
-        sha = out.stdout.strip()
-        if sha:
-            return sha
-    except (OSError, subprocess.CalledProcessError):
-        pass
-    return datetime.utcnow().strftime("%H%M%S")
+def content_hash(path):
+    """8-char hash of the report bytes, used as a cache-busting AND deterministic filename suffix.
+    Identical report bytes -> identical filename, so re-publishing an unchanged report is a no-op
+    (nothing staged -> no commit, no push) — which means CI can republish on every PR push without
+    churning the branch or looping. Any template/data change flips the hash and yields a fresh,
+    immutable URL, so GitHub Pages / the browser never serve stale bytes. (Replaces the old commit-SHA
+    suffix, which changed on every commit even when the report was byte-identical.)"""
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:8]
 
 
-# A published filename is "<base>-<sha>.html"; this strips the trailing SHA back off for the title
-# and to recognise prior versions of the same matchup. 5–12 hex chars (or the timestamp fallback).
+# A published filename is "<base>-<hash>.html"; this strips the trailing hash back off for the title
+# and to recognise prior versions of the same matchup. 5–12 hex chars (covers the 8-char content hash
+# and any legacy commit-SHA / timestamp suffix from before the switch).
 _SHA_SUFFIX = re.compile(r"-[0-9a-f]{5,12}$")
 
 
@@ -74,15 +69,16 @@ def main():
     if not src.exists():
         sys.exit(f"File not found: {src}")
 
-    # Cache-busting filename: "<base>-<sha>.html". Prune any prior version of THIS matchup (the bare
-    # name or an older SHA) so docs/ keeps one current file per matchup instead of accumulating stale
-    # duplicates — each still gets a fresh URL, so caches never serve old bytes.
+    # Cache-busting filename: "<base>-<hash>.html". Prune any prior version of THIS matchup (the bare
+    # name or an older hash) so docs/ keeps one current file per matchup instead of accumulating stale
+    # duplicates — each still gets a fresh URL, so caches never serve old bytes. (When the content is
+    # unchanged the recreated file is byte-identical at the same path, so git stages nothing.)
     base = _SHA_SUFFIX.sub("", src.stem)
     for old in list(DOCS.glob(f"{base}.html")) + list(DOCS.glob(f"{base}-*.html")):
         if _SHA_SUFFIX.search(old.stem) or old.stem == base:
             old.unlink()
             print(f"Removed stale {old.name}")
-    dest = DOCS / f"{base}-{short_sha()}.html"
+    dest = DOCS / f"{base}-{content_hash(src)}.html"
     shutil.copy2(src, dest)
     print(f"Copied -> {dest}")
 
@@ -96,7 +92,14 @@ def main():
     if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
         print("No changes to publish (docs/ already up to date).")
     else:
-        subprocess.run(["git", "commit", "-m", f"docs: publish {dest.name}"], check=True)
+        msg = f"docs: publish {dest.name}"
+        # When this runs inside GitHub Actions, mark the commit [skip ci] so pushing it back to the PR
+        # branch doesn't re-trigger the report-preview workflow. (Pushes made with the default
+        # GITHUB_TOKEN already don't re-trigger workflows; this is belt-and-suspenders, and also covers
+        # a PAT-based push.)
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            msg += " [skip ci]"
+        subprocess.run(["git", "commit", "-m", msg], check=True)
         subprocess.run(["git", "push"], check=True)
 
     # Pages URL — derive owner/repo from the git remote (no `gh` dependency, which isn't always present).

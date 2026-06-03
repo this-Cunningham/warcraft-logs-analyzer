@@ -71,7 +71,7 @@ The label surfaces in the report but a raid leader reading it cold needs to know
 
 ---
 
-## TODO: Rotation — Ability Mix: add horizontal bars, delta in the middle
+## ✅ DONE: Rotation — Ability Mix: add horizontal bars, delta in the middle
 
 > Rotation — Ability Mix tables for each class/spec should render horizontal bars in this layout:
 > `our value → our bar → ability name → delta value → benchmark bar → benchmark value`
@@ -106,7 +106,7 @@ The current flat layout puts both raids' full spec lists in a single cell per ro
 
 ---
 
-## TODO: All mirrored-bar tables — move delta to center, next to the name
+## ✅ DONE: All mirrored-bar tables — move delta to center, next to the name
 
 > For all tables with the layout `value — bar — name — bar — value — delta (sorted)`, move the delta to be right next to the name in the center. Apply to ALL tables of this type.
 

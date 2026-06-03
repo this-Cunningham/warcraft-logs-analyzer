@@ -172,6 +172,14 @@ The "Beast Mastery Hunter — DPS over time, ours vs benchmark" tab title render
 
 ---
 
+## TODO: Tighten in-report table/section descriptions — concise without losing meaning
+
+> simplify and make beefy table/context descriptions more concise while maintaining meaning
+
+The explanatory copy under tables and sections has grown verbose. The soul calls for leaders to get the headline gaps in seconds; long descriptions create friction before they reach the data. Trim each one to the minimum that answers "what am I looking at and what does a gap here mean?" — cut throat-clearing, restate only what isn't obvious from the table itself, keep any caveat that affects how to read the numbers. No meaning lost, just less to wade through.
+
+---
+
 ## ✅ DONE: New "Bosses" top-level tab — consolidate all per-boss content
 
 > Build a new top-level tab named "Bosses" (next to "Trash") that becomes the single home for all boss-specific content. Inside it:

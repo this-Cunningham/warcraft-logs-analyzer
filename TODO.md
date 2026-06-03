@@ -44,3 +44,11 @@ Data-integrity issue. If the By Spec view compares potion usage rates for specs 
 > This section is useless — Throughput Consumable Choices.
 
 If it doesn't reveal an actionable gap it fails the soul's first test. Evaluate whether the section is a scoreboard (counts without a lever) or a data dump that WCL already shows better. If no clean gap-revealing reformulation exists, remove it. If there's a salvageable insight — e.g. wrong potion choice by spec vs. benchmark — define that narrowly and rebuild; otherwise cut.
+
+---
+
+## TODO: Raid Composition & Buff Coverage — "Provided by" as first column
+
+> In the Raid Composition & Buff Coverage table, put "Provided by" as the first column.
+
+A scan-order fix. Leaders read left-to-right; the provider (which class/spec covers the buff) is the actionable lever — knowing *who* provides the buff is the thing a leader acts on when a coverage gap exists. Moving it first keeps the highest-value identifier at the anchor position before the coverage columns.

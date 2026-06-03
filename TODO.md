@@ -103,3 +103,11 @@ Consistency fix. The explanatory/context copy under this section is rendering in
 > The current flat table (Ability Interrupted | Our Raid — kicked by | Benchmark — kicked by) isn't clear. Rework to: rows = interrupted spell name (grouped header), sub-rows within each group = one row per spec that kicked it, columns = "Kicked by spec" | "Our Raid" | "Benchmark". Long guild names in column headers also make it worse (see truncation TODO).
 
 The current flat layout puts both raids' full spec lists in a single cell per row, making the comparison hard to parse. Grouping by interrupted spell as the primary row, with one spec-per-sub-row, lets a leader see at a glance "benchmark used Fire Mage for this cast, we used Ele Shaman" — the exact side-by-side that reveals how each raid's interrupt assignments differ. This is the actionable cut the section promises.
+
+---
+
+## TODO: All mirrored-bar tables — move delta to center, next to the name
+
+> For all tables with the layout `value — bar — name — bar — value — delta (sorted)`, move the delta to be right next to the name in the center. Apply to ALL tables of this type.
+
+This supersedes/generalizes the Rotation — Ability Mix item above. The delta is the signal; the name is the anchor — they belong together. Placing the delta beside the name means a leader reads the gap at the same moment they identify what it's for, without tracking to a far-right column. Apply consistently to every mirrored-bar table in the report so the pattern is uniform. The sort order (by delta) stays unchanged; this is a column-position change only.

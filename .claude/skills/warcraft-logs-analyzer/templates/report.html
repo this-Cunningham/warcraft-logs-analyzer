@@ -231,13 +231,13 @@ function sideRosters(players){
 function consumeMatrix(ppc){
   const bosses=rowsOf(ppc.bosses), players=rowsOf(ppc.players);
   if(!bosses.length||!players.length) return '<p class="num" style="padding:8px 2px">No per-player consumable data.</p>';
-  const SUB=[["F","Flask"],["B","Battle Elixir"],["G","Guardian Elixir"],["Fd","Food"],["P","Combat Potion"]];
+  const SUB=[["F","Flask"],["B","Battle Elixir"],["G","Guardian Elixir"],["Fd","Food"]];
   const yes='<span class="cyes">✓</span>', no='<span class="cno">✗</span>', na='<span class="cna">·</span>';
-  // Two-level header: boss names spanning 5, then F/B/G/Fd/P under each.
+  // Two-level header: boss names spanning the sub-columns, then F/B/G/Fd under each.
   let h1=`<tr><th class="cmname" rowspan="2">Player</th><th class="csum" rowspan="2" title="Bosses where prepared (flask or battle+guardian) / bosses played">Prep</th>`;
   let h2=`<tr>`;
   for(const b of bosses){
-    h1+=`<th class="cbgrp" colspan="5">${esc(b.name)}</th>`;
+    h1+=`<th class="cbgrp" colspan="${SUB.length}">${esc(b.name)}</th>`;
     h2+=SUB.map(([s,full],i)=>`<th class="csub2${i===0?' cbsep':''}" title="${full}">${s}</th>`).join("");
   }
   h1+=`</tr>`; h2+=`</tr>`;
@@ -262,15 +262,88 @@ function consumeMatrix(ppc){
       else { fS=(!c.battle&&!c.guardian)?"miss":"na";              // nothing at all → flask is a miss too
              bS=c.battle?"good":"miss"; gS=c.guardian?"good":"miss"; } // partial → flag the missing half
       const fdS=c.food?"good":"miss";
-      const pot=c.potions>0?`<span class="cyes">${c.potions}</span>`:na;
       const td=(s,glyph,first)=>`<td class="cc${first?" cbsep":""}${s==="miss"?" cmiss":""}">${glyph}</td>`;
-      row+=td(fS,gly(fS),true)+td(bS,gly(bS))+td(gS,gly(gS))+td(fdS,gly(fdS))+`<td class="cc">${pot}</td>`;
+      row+=td(fS,gly(fS),true)+td(bS,gly(bS))+td(gS,gly(gS))+td(fdS,gly(fdS));
     }
     body+=row+`</tr>`;
   }
   // Legend key above the table — ties each yellow column letter to its full name (same SUB source).
   const legend=`<div class="clegend">${SUB.map(([s,full])=>`<span class="ckey"><b>${s}</b>${esc(full)}</span>`).join("")}</div>`;
   return `${legend}<div class="cmwrap"><table class="cmatrix"><thead>${h1}${h2}</thead><tbody>${body}</tbody></table></div>`;
+}
+// In-combat consumable USAGE matrix (ours only): P combat potion · HP health pot · MP mana pot · HS
+// healthstone, per player × boss. ✓count = used, faint dash = not used (NOT red — usage is situational).
+// HS is warlock-dependent: no warlock → the column is shown unavailable rather than implying a gap.
+function inCombatMatrix(ic){
+  const bosses=rowsOf(ic.bosses), players=rowsOf(ic.players);
+  if(!bosses.length||!players.length) return '<p class="num" style="padding:8px 2px">No in-combat consumable data.</p>';
+  const hasWarlock=ic.hasWarlock!==false;
+  const SUB=[["P","Combat Potion"],["HP","Health Potion"],["MP","Mana Potion"],["HS","Healthstone"]];
+  const na='<span class="cna">·</span>';
+  let h1=`<tr><th class="cmname" rowspan="2">Player</th>`, h2=`<tr>`;
+  for(const b of bosses){
+    h1+=`<th class="cbgrp" colspan="${SUB.length}">${esc(b.name)}</th>`;
+    h2+=SUB.map(([s,full],i)=>`<th class="csub2${i===0?' cbsep':''}" title="${full}">${s}</th>`).join("");
+  }
+  h1+=`</tr>`; h2+=`</tr>`;
+  const keys=["P","HP","MP","HS"];
+  let body="";
+  for(const p of players){
+    let row=`<tr><td class="cmname pname" style="color:${cc(p.class)}">${esc(p.name)} <span class="role">${esc(p.spec||p.role)}</span></td>`;
+    for(const b of bosses){
+      const c=p.cells?p.cells[String(b.encounterID)]:null;
+      if(!c||!c.present){ row+=SUB.map((_,i)=>`<td class="cc${i===0?' cbsep':''}">${na}</td>`).join(""); continue; }
+      row+=keys.map((k,i)=>{
+        const unavail=(k==="HS"&&!hasWarlock);
+        const v=c[k]||0;
+        // Green NUMBER when used (the count itself signals "good" — no separate ✓), faint dash when not.
+        const cls=unavail?"cna":(v>0?"cyes":"cna");
+        const glyph=unavail?"–":(v>0?String(v):"·");
+        return `<td class="cc${i===0?' cbsep':''}"><span class="${cls}">${glyph}</span></td>`;
+      }).join("");
+    }
+    body+=row+`</tr>`;
+  }
+  const wlNote=hasWarlock?"":` <span class="warnpill" style="font-weight:600">No warlock — healthstones unavailable.</span>`;
+  const legend=`<div class="clegend">${SUB.map(([s,full])=>`<span class="ckey"><b>${s}</b>${esc(full)}</span>`).join("")}${wlNote}</div>`;
+  return `${legend}<div class="cmwrap"><table class="cmatrix"><thead>${h1}${h2}</thead><tbody>${body}</tbody></table></div>`;
+}
+// Throughput consumables: combat-potion activations by spec (clean throughput gap, ours vs benchmark)
+// + which specific flasks / battle elixirs each raid runs (the meta, discovered from the benchmark).
+function throughputView(d){
+  const dp=d.deep; if(!dp) return "";
+  let h="";
+  // Only specs BOTH raids fielded (overlap) are in potionGap; also drop 0-vs-0 (neither potted that spec).
+  const pg=rowsOf(dp.potionGap).filter(r=>r.ours>0||r.theirs>0);
+  if(pg.length){
+    // Which specific potions a side used, e.g. "Haste ×12 · Destruction ×3" (most-used first).
+    const potList=(pots)=>{const a=asArr(pots).filter(p=>p&&p.count>0); return a.length?a.map(p=>`${esc(p.name)} ×${p.count}`).join(" · "):"—";};
+    h+=`<h2 class="section">Throughput Potions — By Spec<span class="hint">Combat (throughput) potion activations on the shared boss fights, pooled by spec, ours vs the benchmark — for specs <b>both raids fielded</b> (a spec only one raid runs is a roster question, not a potion gap). Combat potions are pure throughput — popping more is free DPS — so a spec the benchmark pots more than you (red) is a concrete, repeatable gap. The small line under each spec names the specific potions used (Haste / Destruction / Ironshield), so you can see throughput vs survival choices. Total + per-player average; sourced from potion buff applications. Higher is better.</span></h2>
+      <table><thead><tr><th>Spec</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ total</th></tr></thead><tbody>`;
+    for(const r of pg){
+      const dl=deltaHigh(r.ours,r.theirs); // more pots = better
+      h+=`<tr><td style="font-weight:600;color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours} <span class="role" style="font-weight:400">(${r.oursAvg}/player)</span><br><span class="role" style="font-weight:400">${potList(r.oursPots)}</span></td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs} <span class="role" style="font-weight:400">(${r.theirsAvg}/player)</span><br><span class="role" style="font-weight:400">${potList(r.theirsPots)}</span></td>
+        <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  const tc=rowsOf(dp.throughputChoices);
+  if(tc.length){
+    h+=`<h2 class="section">Throughput Consumable Choices<span class="hint">Which specific flasks and battle elixirs each raid runs, and how many raiders used each — ours vs the benchmark. The benchmark (a top guild) reveals the meta without us hardcoding it: a spell-damage flask vs a survival one, or the battle elixir the best guilds favor. <b>Descriptive</b> — a roster story, not a pass/fail.</span></h2>
+      <table><thead><tr><th>Category</th><th>Consumable</th><th>${esc(d.ours.title)} <span class="role">raiders</span></th><th>${esc(d.theirs.title)} <span class="role">raiders</span></th></tr></thead><tbody>`;
+    let prev=null;
+    for(const r of tc){
+      const catCell = r.cat!==prev ? `<td class="pname">${esc(r.cat)}</td>` : `<td></td>`;
+      prev=r.cat;
+      h+=`<tr>${catCell}<td>${esc(r.name)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours||"—"}</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs||"—"}</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  return h;
 }
 function metricBars(label,o,t,fmt,maxVal,lowerBetter){
   const f=fmt||(x=>x), max=maxVal||Math.max(o,t,1), w=v=>Math.max(6,Math.round(v/max*100));
@@ -426,9 +499,9 @@ function renderEnchants(d){
   const cons=dp.consumables;
   if(cons&&cons.ours&&cons.theirs){
     const co=cons.ours, ct=cons.theirs;
-    h+=`<h2 class="section">Consumables Coverage<span class="hint">How much of the raid showed up consumed, from buff auras on the shared bosses, averaged across them. Counts are raid-aggregate (≈ one application per player; not per-player exact) — flasks and food are the clearest preparation gap. Drums shown as fight uptime. Per-player elixir and combat-potion detail is in the matrix below.</span></h2>
+    h+=`<h2 class="section">Consumables Coverage<span class="hint">How much of the raid showed up prepared, read per-player from buff auras on the shared bosses and averaged across them. "Prepared" counts a <b>flask OR a full battle + guardian elixir pair</b> (an elixir pair is the TBC equivalent of a flask), matching the per-player matrix below. Food is the count Well Fed. Drums shown as fight uptime. Per-player elixir and combat-potion detail is in the matrix below.</span></h2>
     <div class="cards">
-      ${acard("Flasked",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
+      ${acard("Flasked / Elixir Pair",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
       ${acard("Food (Well Fed)",`${co.food}/${co.rosterSize}`,`${ct.food}/${ct.rosterSize}`,deltaHigh(co.food,ct.food))}
       ${acard("Drums Uptime",`${co.drumsUptime}%`,`${ct.drumsUptime}%`,deltaHigh(co.drumsUptime,ct.drumsUptime))}
     </div>`;
@@ -437,9 +510,19 @@ function renderEnchants(d){
   /* Per-player consumables matrix — bosses across the top, offenders at the top. */
   const ppc=dp.perPlayerConsumes;
   if(ppc&&rowsOf(ppc.players).length){
-    h+=`<h2 class="section">Per-Player Consumables<span class="hint">Each raider in ${oT} × each shared boss; the yellow <b>F · B · G · Fd · P</b> sub-columns are keyed just above the table. A player is "prepared" with a <b>flask</b> <i>or</i> a <b>battle + guardian pair</b>, plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red cell)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed via that route (e.g. no flask because elixirs cover it). So "had guardian, no battle elixir" shows as <span style="color:var(--good)">G ✓</span> next to a red <span style="color:var(--bad)">B ✗</span>. Sorted worst-prepared first; the Prep column is bosses-consumed / played. Source: per-player buff tables (catches pre-pull consumables the event stream misses).</span></h2>
+    h+=`<h2 class="section">Per-Player Consumables — Prep<span class="hint">Each raider in ${oT} × each shared boss; the yellow <b>F · B · G · Fd</b> sub-columns are keyed just above the table. A player is "prepared" with a <b>flask</b> <i>or</i> a <b>battle + guardian pair</b>, plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red cell)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed via that route (e.g. no flask because elixirs cover it). So "had guardian, no battle elixir" shows as <span style="color:var(--good)">G ✓</span> next to a red <span style="color:var(--bad)">B ✗</span>. Sorted worst-prepared first; the Prep column is bosses-consumed / played. Source: per-player buff tables (catches pre-pull consumables the event stream misses). The combat potion now lives in the in-combat matrix below.</span></h2>
     ${consumeMatrix(ppc)}`;
   }
+
+  /* In-combat consumables matrix — the consumables you press DURING the fight. */
+  const ic=dp.perPlayerInCombat;
+  if(ic&&rowsOf(ic.players).length){
+    h+=`<h2 class="section">Per-Player Consumables — In Combat<span class="hint">The consumables pressed <b>during</b> the fight: <b>P</b> combat throughput potion · <b>HP</b> health potion · <b>MP</b> mana potion · <b>HS</b> healthstone. A <span style="color:var(--good)">✓</span> (with a count when &gt;1) means used on that boss; a faint dash means it wasn't. This is a <b>usage</b> view, not a pass/fail — a mana pot or healthstone is situational, so a non-use isn't flagged red. P comes from buff auras; HP/MP/HS from the casts log (instant items leave no buff). Sorted by least combat-potion use first. Source: per-player buff &amp; cast tables for the shared bosses.</span></h2>
+    ${inCombatMatrix(ic)}`;
+  }
+
+  /* Throughput consumable choices — combat-potion gap by spec + which flasks/elixirs (the meta). */
+  h+=throughputView(d);
 
   h+=`<h2 class="section">Enchants &amp; Weapon Oils<span class="hint">Per-player preparation across the shared-boss roster. Missing enchants and weapon oils/sharpening stones are free damage/survivability left on the table. For melee, <b>Windfury Totem counts as a valid weapon-slot buff</b> — a melee in a Windfury group won't apply an oil, so they're shown as covered (✓ WF), not flagged. (Potion use isn't tracked in Classic logs.)</span></h2>
   <div class="cards">
@@ -529,7 +612,7 @@ function renderBosses(d){
   if(e){
     const spanD=deltaLow(Math.round(e.ours.spanMs/60000),Math.round(e.theirs.spanMs/60000));
     const dtD=deltaLow(Math.round(e.ours.downtimeMs/60000),Math.round(e.theirs.downtimeMs/60000));
-    h+=`<h2 class="section">Clear Efficiency<span class="hint">First-pull to last-kill wall-clock vs time spent in boss fights. Out-of-boss time covers trash, wipes, and breaks.</span></h2>
+    h+=`<h2 class="section">Clear Efficiency<span class="hint">Wall-clock vs time spent in boss fights, <b>scoped to the shared bosses</b> — first pull to last kill spanning only the encounters both raids did, on each side. (This is the apples-to-apples window: a benchmark that also cleared another zone the same night isn't penalized for its whole-night clock.) Out-of-boss time covers the trash, wipes, and breaks within that window.</span></h2>
     <div class="cards">
       <div class="card"><div class="label">Raid Wall-clock</div><div class="vals"><span class="v ours">${fmtMin(e.ours.spanMs)}</span><span class="v theirs">${fmtMin(e.theirs.spanMs)}</span><span class="delta ${spanD.cls}">${spanD.txt}m</span></div></div>
       <div class="card"><div class="label">In Boss Fights</div><div class="vals"><span class="v ours">${fmtMin(e.ours.combatMs)}</span><span class="v theirs">${fmtMin(e.theirs.combatMs)}</span></div></div>
@@ -583,19 +666,22 @@ function renderBosses(d){
 }
 function interruptView(b){
   const I=b.interrupts||{};
-  const ab=rowsOf(I.abilities), it=rowsOf(I.interrupters), uk=rowsOf(b.unkicked);
-  if(!ab.length && !it.length && !uk.length) return `<p class="num" style="padding:8px 2px">No interruptible casts on this fight.</p>`;
-  const cnt=(o,t)=>`<td class="num" style="color:var(--ours);font-weight:600">${o||0}</td><td class="num" style="color:var(--theirs);font-weight:600">${t||0}</td>`;
-  const abTbl=()=>{
-    let h=`<table><thead><tr><th>Ability</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th></tr></thead><tbody>`;
-    for(const r of ab) h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>${cnt(r.ours,r.theirs)}</tr>`;
-    return h+`</tbody></table>`;
+  const ab=rowsOf(I.abilities), uk=rowsOf(b.unkicked);
+  if(!ab.length && !uk.length) return `<p class="num" style="padding:8px 2px">No interruptible casts on this fight.</p>`;
+  // Per-ability kicking specs for one side, class-colored, count after each. "—" if that side never kicked it.
+  const specList=(specs,side)=>{
+    const items=asArr(specs).filter(s=>s[side]>0).sort((a,b)=>b[side]-a[side]);
+    if(!items.length) return '<span class="num">—</span>';
+    return items.map(s=>`<span style="color:${cc(s.class)};font-weight:600">${s.spec?esc(s.spec)+" ":""}${esc(s.class)}</span> <span class="num">×${s[side]}</span>`).join('<span class="num"> · </span>');
   };
-  const itTbl=()=>{
-    let h=`<table><thead><tr><th>Interrupter</th><th>${esc(DATA.ours.title)}</th><th>${esc(DATA.theirs.title)}</th></tr></thead><tbody>`;
-    for(const r of it){
-      const label=`<span style="color:${cc(r.class)};font-weight:600">${r.spec?esc(r.spec)+" ":""}${esc(r.class)}</span>`;
-      h+=`<tr><td>${label}</td>${cnt(r.ours,r.theirs)}</tr>`;
+  // Ability-first: each interrupted ability, with the kicking specs nested under it, ours vs benchmark.
+  const abTbl=()=>{
+    let h=`<table><thead><tr><th>Ability interrupted</th><th>${esc(DATA.ours.title)} — kicked by</th><th>${esc(DATA.theirs.title)} — kicked by</th></tr></thead><tbody>`;
+    for(const r of ab){
+      h+=`<tr>
+        <td><span style="font-weight:600">${esc(r.name)}</span><br><span class="role"><span class="cours">${r.ours||0}</span> vs <span class="cthe">${r.theirs||0}</span> kicks</span></td>
+        <td>${specList(r.specs,"ours")}</td>
+        <td>${specList(r.specs,"theirs")}</td></tr>`;
     }
     return h+`</tbody></table>`;
   };
@@ -610,10 +696,7 @@ function interruptView(b){
     }
     return h+`</tbody></table>`;
   };
-  let out=`<div class="twocol">
-    <div><h4>Abilities Interrupted</h4>${ab.length?abTbl():'<p class="num">None</p>'}</div>
-    <div><h4>Interrupters by Spec</h4>${it.length?itTbl():'<p class="num">None</p>'}</div>
-  </div>`;
+  let out=`<div><h4>Abilities Interrupted — by spec<span class="hint" style="display:block">Each interrupted enemy cast and which specs kicked it, ours vs the benchmark — so you can see e.g. "benchmark kicked it with Fire Mages, you used Ele Shaman." <b>Descriptive</b>: a different kick assignment isn't better or worse, it reveals how each raid covers interrupts.</span></h4>${ab.length?abTbl():'<p class="num">No casts were interrupted on this fight.</p>'}</div>`;
   if(uk.length) out+=`<div style="margin-top:16px"><h4>Interrupt Success — Kicked vs Leaked<span class="hint" style="display:block">Per ability: <b>kicked</b> = interrupts you landed; <b>leaked</b> = interruptible casts that still went off un-kicked. A <span class="warnpill">highlighted</span> leaked count is a miss — lower is better, 0 leaked is ideal.</span></h4>${ukTbl()}</div>`;
   return out;
 }
@@ -776,17 +859,31 @@ function cdUsageView(d){
 function rotationView(d){
   const rows=rowsOf(d.deep&&d.deep.tierRotation);
   if(!rows.length) return "";
-  let h=`<h2 class="section">Rotation — Ability Mix<span class="hint">For each DPS spec both raids fielded, the share of that spec's casts spent on each ability, ours vs the benchmark's same spec (pooled across all shared bosses). The abilities whose share differs most are shown — a big gap can flag a rotation difference (too much filler, a missing maintenance cast, a different priority). <b>Descriptive, not scored:</b> a different mix isn't automatically worse, so read it as "here's how your rotation differs," then weigh it against the spec's playbook.</span></h2>`;
-  for(const r of rows){
-    h+=`<div style="margin:0 0 16px"><h4 style="color:${cc(r.class)};margin:0 0 6px">${esc(r.spec)} ${esc(r.class)}</h4>
-      <table><thead><tr><th>Ability</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ share</th></tr></thead><tbody>`;
-    for(const a of rowsOf(r.abilities)){
-      h+=`<tr><td style="font-weight:600">${esc(a.name)}</td>
-        <td class="num" style="color:var(--ours)">${a.ours}%</td>
-        <td class="num" style="color:var(--theirs)">${a.theirs}%</td>
-        <td class="num">${a.diff>0?"+":""}${a.diff} pts</td></tr>`;
+  const roles=[["dps","DPS"],["healer","Healer"]].filter(([k])=>rows.some(r=>r.role===k));
+  if(!roles.length) return "";
+  const first=roles[0][0];
+  let h=`<h2 class="section">Rotation — Ability Mix<span class="hint">For each spec both raids fielded, the share of that spec's casts spent on each ability, ours vs the benchmark's same spec (pooled across all shared bosses). Split into <b>DPS</b> and <b>Healer</b> — healer spell priority (e.g. a Holy Priest over-relying on Flash Heal vs Greater Heal) is a real coaching lever too. The abilities whose share differs most are shown; specs whose mix closely matches the benchmark collapse to a green chip so you can focus on the ones that diverge. <b>Descriptive, not scored:</b> a different mix isn't automatically worse — read it against the spec's playbook.</span></h2>`;
+  h+=`<div class="btabs">`+roles.map(([k,lbl],i)=>`<button class="btab ${i===0?'on':''}" data-rtab="${k}">${lbl}</button>`).join("")+`</div>`;
+  for(const [k,lbl] of roles){
+    const rr=rows.filter(r=>r.role===k);
+    const diverge=rr.filter(r=>!r.matches), match=rr.filter(r=>r.matches);
+    let body="";
+    if(match.length){
+      body+=`<div class="complist" style="margin:0 0 14px">`+match.map(r=>`<span class="chip" style="border-color:var(--good)"><span style="color:${cc(r.class)};font-weight:600">${esc(r.spec)} ${esc(r.class)}</span> <span style="color:#9be7b4">· rotation matches benchmark ✓</span></span>`).join("")+`</div>`;
     }
-    h+=`</tbody></table></div>`;
+    for(const r of diverge){
+      body+=`<div style="margin:0 0 16px"><h4 style="color:${cc(r.class)};margin:0 0 6px">${esc(r.spec)} ${esc(r.class)}</h4>
+        <table><thead><tr><th>Ability</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ share</th></tr></thead><tbody>`;
+      for(const a of rowsOf(r.abilities)){
+        body+=`<tr><td style="font-weight:600">${esc(a.name)}</td>
+          <td class="num" style="color:var(--ours)">${a.ours}%</td>
+          <td class="num" style="color:var(--theirs)">${a.theirs}%</td>
+          <td class="num">${a.diff>0?"+":""}${a.diff} pts</td></tr>`;
+      }
+      body+=`</tbody></table></div>`;
+    }
+    if(!body) body=`<p class="num" style="padding:6px 2px">No comparable ${esc(lbl)} specs both raids fielded.</p>`;
+    h+=`<div class="bsub ${k===first?'active':''}" data-rtab="${k}">${body}</div>`;
   }
   return h;
 }
@@ -823,27 +920,23 @@ function focusFireView(d){
   }
   return h+`</tbody></table>`;
 }
-// Enemy targets — per boss, every named target (the BOSS, flagged, plus its adds): when it first appeared
-// (first hit ≈ spawn) and how long it was engaged/survived (median, first hit→last), ours vs benchmark.
-// DESCRIPTIVE (a long-lived add can be intentional — e.g. holding Al'ar's embers until called), so the Δ is
-// neutral, like Dispels. Surfaces things like "when the Kael'thas weapons spawn" and how each raid cleared
-// them; the boss row anchors the timeline (and on multi-phase bosses, engaged span < kill time is telling).
+// Add Control — Kill Speed. For each non-boss add BOTH raids engaged on a multi-target fight, how long it
+// survived (median first-hit→last) ours vs benchmark, ranked by how much slower we are. A slower add kill
+// prolongs its damage and the fight — so an add the benchmark kills faster is a focus/CC/assignment target.
+// DESCRIPTIVE (some adds are held intentionally), but the benchmark sets the pace; lower lifespan is better.
 function targetEngagementView(d){
   const bosses=rowsOf(d.deep&&d.deep.targetEngagement).filter(b=>rowsOf(b.targets).length);
   if(!bosses.length) return "";
-  let h=`<h2 class="section">Enemy Targets — Engagement &amp; Survival<span class="hint">For each fight with more than one target, every enemy by name — the <b>boss</b> (tagged) and its <b>adds</b>: <b>first seen</b> (time of first damage — a proxy for spawn, since true spawn times aren't exposed) and how long it was <b>engaged / survived</b> (median, first hit → last), ours vs the benchmark, with counts. Reads top-to-bottom as the fight's target timeline. <b>Descriptive, not scored</b> — a longer-lived add is sometimes intentional (holding it until called), and a boss's engaged span can be shorter than kill time when it's untargetable in phases; read it against your plan. Single-target fights are omitted (the boss's span just restates kill time).</span></h2>`;
+  let h=`<h2 class="section">Add Control — Kill Speed<span class="hint">On multi-target fights, how long each <b>add</b> stayed alive (median, first hit → last) ours vs the benchmark — for adds both raids engaged, ranked by where you're <b>slowest vs the benchmark</b>. A slower add kill prolongs the add's damage and the fight, so an add the benchmark kills faster is a focus / CC / assignment target. <b>Read against your plan</b> — some adds are held on purpose — but the benchmark sets the pace. Lower survival time is better; a red Δ means the add lived longer for you.</span></h2>`;
   for(const b of bosses){
     h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>
-      <table><thead><tr><th>Target</th><th>First seen</th><th>Engaged · ${esc(d.ours.title)}</th><th>· ${esc(d.theirs.title)}</th><th>Δ</th><th class="role">count (you vs bench)</th></tr></thead><tbody>`;
+      <table><thead><tr><th>Add</th><th>Survived · ${esc(d.ours.title)}</th><th>· ${esc(d.theirs.title)}</th><th>Δ</th><th class="role">count (you vs bench)</th></tr></thead><tbody>`;
     for(const a of rowsOf(b.targets)){
-      const both=a.oursLife!=null&&a.theirsLife!=null;
-      const dtxt=both?((a.oursLife-a.theirsLife>0?"+":(a.oursLife-a.theirsLife<0?"−":""))+Math.abs(Math.round((a.oursLife-a.theirsLife)*10)/10)+"s"):"—";
-      const tag=a.isBoss?` <span class="role" style="color:var(--theirs)">boss</span>`:"";
-      h+=`<tr><td style="font-weight:600">${esc(a.name)}${tag}</td>
-        <td class="num">${a.firstSec!=null?fmtTime(a.firstSec*1000):"—"}</td>
-        <td class="num" style="color:var(--ours);font-weight:600">${a.oursLife!=null?a.oursLife+"s":"—"}</td>
-        <td class="num" style="color:var(--theirs);font-weight:600">${a.theirsLife!=null?a.theirsLife+"s":"—"}</td>
-        <td class="num">${dtxt}</td>
+      const dl=deltaLow(a.oursLife,a.theirsLife); // lower survival time is better
+      h+=`<tr><td style="font-weight:600">${esc(a.name)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${a.oursLife}s</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${a.theirsLife}s</td>
+        <td class="delta ${dl.cls}">${dl.txt}s</td>
         <td class="num role">${a.oursCount} vs ${a.theirsCount}</td></tr>`;
     }
     h+=`</tbody></table></div>`;
@@ -988,10 +1081,17 @@ function mountBosses(){
   const el=document.getElementById("p-bosses");
   el.innerHTML=renderBosses(DATA);
   el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; mountBosses(); } }));
-  el.querySelectorAll(".btab").forEach(t=>t.addEventListener("click",()=>{
+  // Per-boss execution sub-tabs (scoped to those carrying data-boss, so the Rotation DPS/Healer tabs below don't collide).
+  el.querySelectorAll(".btab[data-boss]").forEach(t=>t.addEventListener("click",()=>{
     const boss=t.dataset.boss, bp=t.dataset.bp; bossTab[boss]=bp;
     el.querySelectorAll(`.btab[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.bp===bp));
     el.querySelectorAll(`.bsub[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.bp===bp));
+  }));
+  // Rotation — Ability Mix DPS/Healer toggle (native, no re-render).
+  el.querySelectorAll(".btab[data-rtab]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.rtab;
+    el.querySelectorAll(".btab[data-rtab]").forEach(x=>x.classList.toggle("on",x.dataset.rtab===k));
+    el.querySelectorAll(".bsub[data-rtab]").forEach(x=>x.classList.toggle("active",x.dataset.rtab===k));
   }));
 }
 /* ---------- TRASH ---------- */
@@ -1010,11 +1110,12 @@ function renderTrash(d){
     <div class="card"><div class="label">Trash Deaths</div><div class="vals"><span class="v ours">${go.deaths}</span><span class="v theirs">${gt.deaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
   </div>`;
 
-  /* What's killing us on trash — same idea as the boss view, scoped to trash. */
+  /* What's killing us on trash — same idea as the boss view, scoped to trash. Each named killing
+     blow now carries the source mob in parens, so the fix (CC/kite/position that mob) is explicit. */
   const dc=rowsOf(tr.deathCauses);
   if(dc.length){
-    h+=`<h2 class="section">What's Killing Us on Trash<span class="hint">Player deaths on trash by killing blow, tallied across every pull, ours vs the benchmark. A cause the benchmark takes 0 of is a mechanic to interrupt, CC, or position around. "Melee" usually means overpulling or sitting in a caster pack's melee. Lower is better.</span></h2>
-    <table><thead><tr><th>Killing blow</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+    h+=`<h2 class="section">What's Killing Us on Trash<span class="hint">Player deaths on trash by killing blow, tallied across every pull, ours vs the benchmark. The mob in parens is the one that landed the blow — CC, kite, or position around it. A cause the benchmark takes 0 of is a mechanic to solve. "Melee" is broken out by mob just below. Lower is better.</span></h2>
+    <table><thead><tr><th>Killing blow (mob)</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
     for(const r of dc){
       const dl=deltaLow(r.ours,r.theirs);
       h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
@@ -1023,6 +1124,38 @@ function renderTrash(d){
         <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
     }
     h+=`</tbody></table>`;
+    /* Melee deaths broken out by which mob's melee did the killing — a bare "Melee" is opaque; the
+       mob points straight at a CC / kite / tank-positioning fix. */
+    const mm=rowsOf(tr.meleeByMob);
+    if(mm.length){
+      h+=`<h4 style="margin:16px 0 6px">Melee deaths — by mob<span class="role" style="text-transform:none;letter-spacing:0;font-weight:400"> — which mobs' melee are doing the killing</span></h4>
+        <table><thead><tr><th>Mob</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+      for(const r of mm){
+        const dl=deltaLow(r.ours,r.theirs);
+        h+=`<tr><td class="pname">${esc(r.mob)}</td>
+          <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+          <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
+          <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
+      }
+      h+=`</tbody></table>`;
+    }
+  }
+
+  /* Chain-pulling — how many mobs each raid pulls at once. Descriptive efficiency lever. */
+  const cp=tr.chainPull;
+  if(cp&&cp.ours&&cp.theirs){
+    const co=cp.ours, ct=cp.theirs;
+    // More mobs/pull = more chain-pulling — not inherently good or bad, so the Δ is neutral (flat).
+    const avgDiff=Math.round((co.avg-ct.avg)*10)/10;
+    const avgD={cls:"flat",txt:avgDiff===0?"even":(avgDiff>0?"+":"")+avgDiff};
+    const biggest=(s,who)=>s&&s.biggest?`<p class="srcs" style="margin:4px 0 0"><span class="${who}">${who==='cours'?esc(d.ours.title):esc(d.theirs.title)}</span> biggest pull: <b>${s.biggest.mobs} mobs</b> <span class="num">(${esc(s.biggest.name)})</span>${asArr(s.biggest.roster).length?` — ${asArr(s.biggest.roster).map(m=>esc(m.name)+(m.count>1?` ×${m.count}`:'')).join(", ")}`:""}</p>`:"";
+    h+=`<h2 class="section">Chain-Pulling — Pull Size<span class="hint">How many mobs each raid pulls at once (a WCL trash segment is one pull). Bigger, fewer pulls = chain-pulling, a throughput lever — and a wipe risk. <b>Descriptive, not scored</b> — the benchmark sets the bar. We don't claim an exact "N packs merged" count: WCL exposes no pack object, so that can't be inferred cleanly.</span></h2>
+    <div class="cards">
+      <div class="card"><div class="label">Avg Mobs / Pull</div><div class="vals"><span class="v ours">${co.avg}</span><span class="v theirs">${ct.avg}</span><span class="delta ${avgD.cls}">${avgD.txt}</span></div></div>
+      <div class="card"><div class="label">Biggest Pull (mobs)</div><div class="vals"><span class="v ours">${co.max}</span><span class="v theirs">${ct.max}</span></div></div>
+      <div class="card"><div class="label">Large Pulls (≥${cp.bigThreshold} mobs)</div><div class="vals"><span class="v ours">${co.large}</span><span class="v theirs">${ct.large}</span></div></div>
+    </div>
+    ${biggest(co,'cours')}${biggest(ct,'cthe')}`;
   }
 
   // Lower Trash view, sub-tabbed to stay lean: Kill Order (default) | Crowd Control (drill-in).
@@ -1118,38 +1251,23 @@ function killSeq(seq,other){
     return `<span class="tkmob${div?' div':''}">${esc(m)}</span>`;
   }).join('<span class="tkarrow">→</span>');
 }
-// Crowd control on trash — DESCRIPTIVE (more isn't better; the benchmark sets the bar).
+// Crowd control on trash — DESCRIPTIVE (more isn't better; the benchmark sets the bar). Only the
+// by-mob breakdown is shown: it's the actionable view (which caster to CC). The old overall by-type
+// summary table was cut — its totals are implied by the per-mob rows and added no signal a leader acts on.
 function trashCcView(tr,d){
-  const rows=rowsOf(tr.cc);
-  if(!rows.length) return `<p class="num" style="padding:8px 2px">Neither raid used hard crowd control (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) on trash.</p>`;
-  const tot=tr.ccTotals||{ours:0,theirs:0};
-  let h=`<p class="srcs" style="margin:2px 0 12px">Hard CC applications (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, Seduction, Hibernate, Cyclone) that held a mob out of a pull, ours vs the benchmark. <b>Descriptive, not better/worse</b> — a raid that safely AoEs trash down may need little CC; the benchmark sets the bar. The by-mob breakdown below pinpoints which caster you should be CCing.</p>
-    <table><thead><tr><th>Crowd control</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th></tr></thead><tbody>`;
-  for(const r of rows){
-    h+=`<tr><td style="font-weight:600">${esc(r.label)}</td>
+  const byMob=rowsOf(tr.ccByMob);
+  if(!byMob.length) return `<p class="num" style="padding:8px 2px">Neither raid used hard crowd control (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, …) on trash.</p>`;
+  let h=`<p class="srcs" style="margin:2px 0 12px">Which mobs each raid neutralizes with hard CC (Polymorph, Banish, Sap, Shackle, Freezing Trap, Repentance, Seduction, Hibernate, Cyclone), by CC type and how often it was applied, ours vs the benchmark — grouped per mob, most-CC'd first. <b>Descriptive, not better/worse</b> — a raid that safely AoEs trash down may need little CC; the benchmark sets the bar. A mob the benchmark CCs heavily and you don't is a caster you should be neutralizing.</p>
+    <table><thead><tr><th>Mob</th><th>Crowd control</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th></tr></thead><tbody>`;
+  let prev=null;
+  for(const r of byMob){
+    const mobCell = r.mob!==prev ? `<td class="pname">${esc(r.mob)}</td>` : `<td></td>`;
+    prev=r.mob;
+    h+=`<tr>${mobCell}<td>${esc(r.cc)}</td>
       <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
       <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td></tr>`;
   }
-  h+=`<tr><td style="font-weight:700">Total CC applications</td>
-    <td class="num" style="color:var(--ours);font-weight:700">${tot.ours}</td>
-    <td class="num" style="color:var(--theirs);font-weight:700">${tot.theirs}</td></tr></tbody></table>`;
-
-  /* Which mobs are getting CC'd, by CC type and how often — grouped by mob, most-CC'd first. */
-  const byMob=rowsOf(tr.ccByMob);
-  if(byMob.length){
-    h+=`<h4 style="margin:18px 0 6px">By mob — what's getting crowd controlled<span class="role" style="text-transform:none;letter-spacing:0;font-weight:400"> — which mob, which CC, how many times applied</span></h4>
-      <table><thead><tr><th>Mob</th><th>Crowd control</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th></tr></thead><tbody>`;
-    let prev=null;
-    for(const r of byMob){
-      const mobCell = r.mob!==prev ? `<td class="pname">${esc(r.mob)}</td>` : `<td></td>`;
-      prev=r.mob;
-      h+=`<tr>${mobCell}<td>${esc(r.cc)}</td>
-        <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
-        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td></tr>`;
-    }
-    h+=`</tbody></table>`;
-  }
-  return h;
+  return h+`</tbody></table>`;
 }
 // Trash sub-tabs: outer Kill Order | Crowd Control (data-ttab), and the nested Same-Pack | Pairwise
 // inside Kill Order (data-ktab). Native toggle, no re-render. Both groups wired the same way.

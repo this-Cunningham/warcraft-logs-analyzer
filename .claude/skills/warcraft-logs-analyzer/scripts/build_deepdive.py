@@ -289,6 +289,13 @@ DRUM_NAMES = {"Drums of Battle", "Drums of War", "Drums of Restoration", "Drums 
 # — a top guild — carries the full set), with a name fallback for "Flask of …"/"Elixir of …" buffs.
 # Combat-potion buff spell ids (verified present in data: Haste/Destruction/Ironshield potions).
 POTION_IDS = {28507, 28508, 28515}
+# IN-COMBAT instant consumables (health/mana potion, healthstone) leave NO buff aura — verified live,
+# they don't appear in the Buffs table at all. They DO log in the **Casts** table under their effect name:
+# a mana potion casts "Restore Mana", a healthstone "Master Healthstone" (+ rank names containing
+# "Healthstone"), a health potion "Restore Health". So the in-combat matrix reads MP/HS/HP from Casts
+# (per-player), while the combat throughput potion (P) is the buff-sourced POTION category above.
+MANA_POTION_NAMES = {"Restore Mana"}
+HEALTH_POTION_NAMES = {"Restore Health"}
 # Effect-named flask buffs whose name doesn't start with "Flask of" (vanilla flasks still used in TBC).
 FLASK_IDS = {17627, 17628}  # Flask of Distilled Wisdom, Flask of Supreme Power
 # "...Elixir" names that aren't stat/battle elixirs — don't count them as raid prep.
@@ -356,36 +363,58 @@ def _consumable_cat(name, guid=None):
     return None
 
 
-def consumable_report(directory, enc_ids, roster_size):
-    """Raid consumable coverage averaged across the shared bosses. Flask/food counts are capped at
-    the roster size (a flasked player shows ~one application) — these are the clearest preparation
-    proxy. Drums is reported as fight uptime % rather than a user count (it's a short re-applied buff).
-    Elixirs/potions are deliberately NOT surfaced here: as raid-aggregate, denominator-less counts they
-    aren't a clean gap signal — the per-player consumables matrix carries the elixir/potion detail."""
+def consumable_report(directory, idx, enc_ids, roster_size):
+    """Raid consumable coverage averaged across the shared bosses. The "flask" count is the number of
+    raiders who showed up PREPARED — a flask OR a full battle + guardian elixir pair — read PER-PLAYER
+    from the consumes-<enc>.json buff auras (same `_cell_for` logic as the per-player matrix), so a
+    raider on an elixir pair counts exactly like a flasked one. (The aggregate Buffs table can't tell
+    flask-vs-pair apart, which is why a pair previously read as un-flasked here — a bug this fixes.)
+    Food is the number "Well Fed". Drums stays a fight uptime % from the aggregate Buffs table (a short
+    re-applied buff, not a per-player pre-pull consumable). Falls back to the aggregate Buffs flask/food
+    counts on any boss without a consumes file (older data folders), so it never regresses to empty.
+    Elixirs/potions aren't surfaced here as a raw count — the per-player matrix carries that detail."""
     fm = fight_map(directory)
-    cat_per_boss = {"flask": [], "food": []}
+    name_to_id = name_id_map(directory)
+    prepared_per_boss, fed_per_boss = [], []
     drum_upt = []
     for enc in enc_ids:
         rep = load_boss(directory, str(enc))
         if not rep:
             continue
         auras = _auras(rep, "buffs")
-        if not auras:
-            continue
         info = fm.get(str(enc), {})
         dur = info.get("end", 0) - info.get("start", 0)
-        per_cat = {"flask": 0, "food": 0}
+        # Drums uptime (aggregate Buffs table — a short re-applied raid buff, not per-player prep).
         best_drum = 0
         for a in auras:
-            cat = _consumable_cat(a.get("name", ""), a.get("guid"))
-            if cat == "drums":
-                if dur > 0:
-                    best_drum = max(best_drum, min(100, round(float(a.get("totalUptime", 0)) / dur * 100)))
-            elif cat in per_cat:
-                per_cat[cat] += int(a.get("totalUses", 0))
-        for c in per_cat:
-            cat_per_boss[c].append(per_cat[c])
+            if _consumable_cat(a.get("name", ""), a.get("guid")) == "drums" and dur > 0:
+                best_drum = max(best_drum, min(100, round(float(a.get("totalUptime", 0)) / dur * 100)))
         drum_upt.append(best_drum)
+
+        # Prepared/fed PER-PLAYER (flask OR battle+guardian pair) — needs the consumes file.
+        cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
+        present = (idx.get(enc) or {}).get("players") or []
+        if os.path.isfile(cons_path) and present:
+            per_player = read_json(cons_path).get("perPlayer") or {}
+            prepared = fed = 0
+            seen = set()
+            for pl in present:
+                nm = pl["name"]
+                if nm in seen:
+                    continue
+                seen.add(nm)
+                pid = name_to_id.get(nm)
+                cell = _cell_for(per_player.get(str(pid)) if pid is not None else None)
+                prepared += 1 if cell["consumed"] else 0
+                fed += 1 if cell["food"] else 0
+            prepared_per_boss.append(prepared)
+            fed_per_boss.append(fed)
+        elif auras:  # fallback: aggregate Buffs flask/food totals (counts a pair only partially — best effort)
+            flask = sum(int(a.get("totalUses", 0)) for a in auras
+                        if _consumable_cat(a.get("name", ""), a.get("guid")) == "flask")
+            food = sum(int(a.get("totalUses", 0)) for a in auras if a.get("name") == "Well Fed")
+            prepared_per_boss.append(flask)
+            fed_per_boss.append(food)
 
     def iavg(lst, cap=None):
         if not lst:
@@ -395,8 +424,8 @@ def consumable_report(directory, enc_ids, roster_size):
 
     return {
         "rosterSize": roster_size,
-        "flask": iavg(cat_per_boss["flask"], roster_size),
-        "food": iavg(cat_per_boss["food"], roster_size),
+        "flask": iavg(prepared_per_boss, roster_size),
+        "food": iavg(fed_per_boss, roster_size),
         "drumsUptime": iavg(drum_upt),
     }
 
@@ -506,6 +535,183 @@ def per_player_consumables(directory, idx, enc_ids):
                                 ratio(p["foodCount"], p["presentCount"]), p["name"]))
     return {"bosses": [{"encounterID": b["encounterID"], "name": b["name"]} for b in boss_meta],
             "players": players}
+
+
+def _is_healthstone(name):
+    return bool(name) and "Healthstone" in name
+
+
+def per_player_incombat(directory, idx, enc_ids, roster):
+    """Per-player IN-COMBAT consumable USAGE matrix (ours only) — the companion to the prep matrix, but
+    for the consumables you press DURING the fight: combat throughput potion (P), health potion (HP),
+    mana potion (MP), healthstone (HS). One row per raider × shared boss. **P** comes from the buff-sourced
+    POTION category (`consumes-<enc>.json`); **HP/MP/HS** come from the **Casts** table (`boss-<enc>.json`)
+    — instant items leave no buff aura (verified live), so they only show as casts. This is a USAGE view,
+    not a prep pass/fail: popping a mana pot or healthstone is situational, so a non-use is a faint dash,
+    never a red gap (that would falsely flag a warrior for not drinking mana). Healthstone is warlock-
+    dependent — if no warlock is in the raid, the HS column is flagged unavailable rather than empty.
+    Sorted by combat-potion (P) usage ascending, so raiders leaving throughput on the table surface first."""
+    name_to_id = name_id_map(directory)
+    has_warlock = any(p.get("class") == "Warlock" for p in roster)
+    prim = primary_spec_map(idx, enc_ids)
+    boss_meta = []
+    boss_data = {}     # enc(str) -> {name -> {"P","HP","MP","HS"}}
+    boss_present = {}  # enc(str) -> set(names)
+    info = {}
+    for enc in enc_ids:
+        present = (idx.get(enc) or {}).get("players") or []
+        if not present:
+            continue
+        cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
+        per_player = (read_json(cons_path).get("perPlayer") or {}) if os.path.isfile(cons_path) else {}
+        # In-combat instant items log as CASTS (per player, by name). Tally MP/HS/HP per player.
+        cast_mp, cast_hs, cast_hp = {}, {}, {}
+        rep = load_boss(directory, str(enc))
+        if rep:
+            for e in _entries(rep, "casts"):
+                nm = e.get("name")
+                if not nm:
+                    continue
+                for a in (e.get("abilities") or []):
+                    an, tot = a.get("name"), int(a.get("total", 0))
+                    if an in MANA_POTION_NAMES:
+                        cast_mp[nm] = cast_mp.get(nm, 0) + tot
+                    elif _is_healthstone(an):
+                        cast_hs[nm] = cast_hs.get(nm, 0) + tot
+                    elif an in HEALTH_POTION_NAMES:
+                        cast_hp[nm] = cast_hp.get(nm, 0) + tot
+        data, names, seen = {}, [], set()
+        for pl in present:
+            nm = pl["name"]
+            if nm in seen:
+                continue
+            seen.add(nm)
+            names.append(nm)
+            pid = name_to_id.get(nm)
+            P = sum(int(a.get("uses", 0)) for a in (per_player.get(str(pid)) or [])
+                    if _consumable_cat(a.get("name"), a.get("guid")) == "potion")
+            data[nm] = {"P": P, "HP": cast_hp.get(nm, 0), "MP": cast_mp.get(nm, 0), "HS": cast_hs.get(nm, 0)}
+            info.setdefault(nm, {"class": pl["class"], "role": pl["role"]})
+        boss_meta.append({"encounterID": int(enc), "name": idx[enc]["name"], "enc": enc})
+        boss_data[enc] = data
+        boss_present[enc] = set(names)
+
+    players = []
+    for nm, meta in info.items():
+        cells = {}
+        use_total = 0
+        for b in boss_meta:
+            enc = b["enc"]
+            if nm in boss_present.get(enc, set()):
+                d = boss_data[enc].get(nm) or {"P": 0, "HP": 0, "MP": 0, "HS": 0}
+                use_total += d["P"] + d["HP"] + d["MP"] + d["HS"]
+                cells[str(b["encounterID"])] = {"present": True, **d}
+            else:
+                cells[str(b["encounterID"])] = {"present": False}
+        players.append({"name": nm, "class": meta["class"], "role": meta["role"],
+                        "spec": prim.get(nm) or meta["role"], "cells": cells, "useTotal": use_total})
+    # Worst-first: the least in-combat consumable usage floats to the top (highest counts sink to the
+    # bottom), matching the prep matrix's worst-first convention so the leader's eye lands on the gap.
+    players.sort(key=lambda p: (p["useTotal"], p["name"]))
+    return {"bosses": [{"encounterID": b["encounterID"], "name": b["name"]} for b in boss_meta],
+            "players": players, "hasWarlock": has_warlock}
+
+
+# ---------- THROUGHPUT CONSUMABLE CHOICES (combat-potion gap by spec + which flasks/elixirs) ----------
+def potion_usage_by_spec(directory, idx, enc_ids, spec_map, role_map, class_map):
+    """Combat (throughput) potion activations pooled by (class, primary spec) across the shared bosses,
+    from the per-player POTION-category buff `uses`. Returns {key: {class, spec, role, total, players:set}}
+    — `total` is raid-wide activations for that spec (the "you popped N fewer pots" number), `players`
+    the distinct count for a per-player average."""
+    name_to_id = name_id_map(directory)
+    pool = {}
+    for enc in enc_ids:
+        path = os.path.join(directory, "consumes-{}.json".format(enc))
+        present = (idx.get(enc) or {}).get("players") or []
+        if not (os.path.isfile(path) and present):
+            continue
+        per_player = read_json(path).get("perPlayer") or {}
+        seen = set()
+        for pl in present:
+            nm = pl["name"]
+            spec = spec_map.get(nm)
+            if not spec or nm in seen:
+                continue
+            seen.add(nm)
+            pid = name_to_id.get(nm)
+            cls = class_map.get(nm) or pl["class"]
+            b = pool.setdefault("{}|{}".format(cls, spec),
+                                {"class": cls, "spec": spec, "role": role_map.get(nm) or pl["role"],
+                                 "total": 0, "players": set(), "pots": {}})
+            for a in (per_player.get(str(pid)) or []):
+                if _consumable_cat(a.get("name"), a.get("guid")) != "potion":
+                    continue
+                u = int(a.get("uses", 0))
+                b["total"] += u
+                pn = a.get("name") or "Combat Potion"  # which specific potion (Haste / Destruction / …)
+                b["pots"][pn] = b["pots"].get(pn, 0) + u
+            b["players"].add(nm)
+    return pool
+
+
+def _pot_names(pots):
+    """A spec's potion-name breakdown as a sorted "Haste ×12, Destruction ×3" list (most-used first)."""
+    return [{"name": n, "count": c} for n, c in sorted((pots or {}).items(), key=lambda kv: -kv[1]) if c > 0]
+
+
+def potion_gap(o_pool, t_pool):
+    """Per-spec combat-potion activation gap, ours vs benchmark, ranked by where the benchmark popped the
+    most more (the biggest throughput-potion deficit). Reports raid-wide total + per-player average per
+    spec (so the gap reads both as "N fewer pots" and normalized for roster size) plus WHICH specific
+    potions each side used (Haste / Destruction / Ironshield). Restricted to specs BOTH raids fielded —
+    a spec only one raid runs is a roster question (Composition tab), not a potion-usage gap."""
+    rows = []
+    for key in set(o_pool) & set(t_pool):  # overlap only: both raids fielded this spec
+        o, t = o_pool[key], t_pool[key]
+        o_n, t_n = len(o["players"]), len(t["players"])
+        rows.append({"class": o["class"], "spec": o["spec"], "role": o["role"],
+                     "ours": o["total"], "theirs": t["total"], "oursPlayers": o_n, "theirsPlayers": t_n,
+                     "oursAvg": round(o["total"] / o_n, 1) if o_n else 0,
+                     "theirsAvg": round(t["total"] / t_n, 1) if t_n else 0,
+                     "oursPots": _pot_names(o["pots"]), "theirsPots": _pot_names(t["pots"]),
+                     "deficit": t["total"] - o["total"]})
+    rows.sort(key=lambda r: -r["deficit"])
+    return rows
+
+
+def throughput_choices(o_dir, t_dir, o_idx, t_idx, enc_ids):
+    """Which specific throughput consumables each raid runs — the meta, discovered from the benchmark
+    (a top guild) rather than hardcoded. Per category (Flask / Battle Elixir), the specific buff names
+    and how many distinct raiders used each, ours vs benchmark. Surfaces e.g. casters on a survival flask
+    vs a spell-damage one, or which battle elixir the top guild favors. Descriptive (a roster story)."""
+    def collect(directory, idx):
+        name_to_id = name_id_map(directory)
+        agg = {}  # (cat, name) -> set(players)
+        for enc in enc_ids:
+            path = os.path.join(directory, "consumes-{}.json".format(enc))
+            present = (idx.get(enc) or {}).get("players") or []
+            if not (os.path.isfile(path) and present):
+                continue
+            per_player = read_json(path).get("perPlayer") or {}
+            for pl in present:
+                pid = name_to_id.get(pl["name"])
+                for a in (per_player.get(str(pid)) or []):
+                    nm, guid = a.get("name"), a.get("guid")
+                    cat = _consumable_cat(nm, guid)
+                    if cat == "flask":
+                        label = "Flask"
+                    elif cat == "elixir" and _elixir_type(nm, guid) == "battle":
+                        label = "Battle Elixir"
+                    else:
+                        continue
+                    agg.setdefault((label, nm or "?"), set()).add(pl["name"])
+        return {k: len(v) for k, v in agg.items()}
+    o_counts, t_counts = collect(o_dir, o_idx), collect(t_dir, t_idx)
+    rows = [{"cat": cat, "name": nm, "ours": o_counts.get((cat, nm), 0), "theirs": t_counts.get((cat, nm), 0)}
+            for (cat, nm) in set(o_counts) | set(t_counts)]
+    # Group by category (Flask first), then most-used within it.
+    rows.sort(key=lambda r: (r["cat"] != "Flask", r["cat"], -max(r["ours"], r["theirs"]), r["name"]))
+    return rows
 
 
 # ---------- PER-BOSS BUFF/DEBUFF UPTIME + LUST TIMING ----------
@@ -681,30 +887,28 @@ def _targets_by_name(tl, npc_map, boss_name):
 
 
 def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
-    """Per enemy TYPE (by name) — the boss AND its adds: when each first appeared (first-damage time, a
-    spawn proxy — true spawn times aren't exposed) and how long it was engaged / survived (median
-    first-hit→last), ours vs benchmark, with counts + an `isBoss` flag. DESCRIPTIVE, not scored — a
-    longer-lived add can be intentional (e.g. holding Al'ar's embers until called), so the leader reads it
-    against their plan, like the Dispels view. Sorted by first-appearance, so it reads as the fight's
-    target timeline (e.g. Kael'thas: advisors → all 7 weapons at ~2:20 → Phoenix). Returns [] for a
-    lone-boss (single-target) fight — there the boss's engaged span just restates the kill time shown
-    elsewhere, so there's nothing extra to say."""
+    """ADD KILL SPEED — the actionable read of the per-target spans (the old "engagement & survival"
+    timeline was descriptive-but-inert; this reworks it into a ranked gap). For each non-boss ADD that
+    BOTH raids engaged on a multi-target fight, how long it survived (median first-hit→last) ours vs the
+    benchmark, ranked by how much SLOWER we are (our median − theirs). A slower add kill prolongs the
+    add's damage and the fight, so an add the benchmark consistently kills faster is a focus / CC /
+    assignment target. DESCRIPTIVE — some adds are held intentionally until called — but the benchmark
+    sets the pace, so read it against your plan. The BOSS row is dropped (its engaged span just restates
+    kill time) and so is the pure first-appearance timeline (not actionable on its own). Returns [] when
+    no add was engaged by BOTH raids (nothing comparable to rank)."""
     oa = _targets_by_name(o_tl, o_npc, boss_name)
     ta = _targets_by_name(t_tl, t_npc, boss_name)
-    names = set(oa) | set(ta)
-    if len(names) < 2:  # lone boss → nothing beyond kill time
-        return []
     rows = []
-    for nm in names:
+    for nm in set(oa) | set(ta):
         o, t = oa.get(nm), ta.get(nm)
-        first = (o or {}).get("firstSec")
-        if first is None:
-            first = (t or {}).get("firstSec")
-        rows.append({"name": nm, "isBoss": bool((o or {}).get("isBoss") or (t or {}).get("isBoss")),
-                     "firstSec": first,
-                     "oursLife": o["medLife"] if o else None, "theirsLife": t["medLife"] if t else None,
-                     "oursCount": o["count"] if o else 0, "theirsCount": t["count"] if t else 0})
-    rows.sort(key=lambda r: (r["firstSec"] if r["firstSec"] is not None else 1e9))
+        if (o and o.get("isBoss")) or (t and t.get("isBoss")):
+            continue  # the boss itself — its span just restates kill time
+        if not o or not t:
+            continue  # need both sides to compare kill speed (one-sided adds aren't a clean gap)
+        rows.append({"name": nm, "oursLife": o["medLife"], "theirsLife": t["medLife"],
+                     "deficit": round(o["medLife"] - t["medLife"], 1),
+                     "oursCount": o["count"], "theirsCount": t["count"]})
+    rows.sort(key=lambda r: -r["deficit"])  # adds we're slowest on (vs benchmark) first
     return rows
 
 
@@ -1025,16 +1229,19 @@ def tier_cd_usage(o_pool, t_pool):
 
 
 def rotation_buckets(report, spec_map, role_map, class_map):
-    """Per (class, primary spec): a name->total-casts tally pooled over every DPS player of that spec.
-    Raw material for the rotation/ability-mix comparison (cast SHARE per ability vs benchmark)."""
+    """Per (class, primary spec): a name->total-casts tally pooled over every DPS *or HEALER* player of
+    that spec, tagged with the role. Raw material for the rotation/ability-mix comparison (cast SHARE per
+    ability vs benchmark) — healers are included so the view can split into DPS and Healer tabs."""
     out = {}
     for e in _entries(report, "casts"):
         nm = e.get("name")
         spec = spec_map.get(nm)
-        if not spec or role_map.get(nm) != "dps":
+        role = role_map.get(nm)
+        if not spec or role not in ("dps", "healer"):
             continue
         cls = class_map.get(nm) or e.get("type") or "Unknown"
-        b = out.setdefault("{}|{}".format(cls, spec), {"class": cls, "spec": spec, "abilities": {}})
+        b = out.setdefault("{}|{}".format(cls, spec),
+                           {"class": cls, "spec": spec, "role": role, "abilities": {}})
         for a in (e.get("abilities") or []):
             an = a.get("name")
             if an:
@@ -1042,12 +1249,15 @@ def rotation_buckets(report, spec_map, role_map, class_map):
     return out
 
 
-def tier_rotation(o_pool, t_pool, top=6, min_share=3.0):
+def tier_rotation(o_pool, t_pool, top=8, min_share=3.0, collapse_diff=5.0):
     """Rotation/ability-mix comparison, per spec BOTH raids fielded: each ability's SHARE of the spec's
-    total casts, ours vs the benchmark, surfacing the abilities whose share differs most. Descriptive,
-    NOT scored good/bad — a different cast mix can be gear/talent/fight-driven, not strictly "worse", so
-    the soul's Dispels-view rule applies (neutral diff, let the leader read it). Stays at the SPEC grain
-    (no per-player breakdown). `min_share` drops trivial abilities so the backbone shows, not noise."""
+    total casts, ours vs the benchmark, surfacing the abilities whose share differs most. Every shared
+    spec (DPS and healer) is returned, tagged with its role so the view can tab between them, and with a
+    `matches` flag when the spec's biggest cast-share divergence is within `collapse_diff` points — those
+    collapse to a green "rotation matches benchmark" chip so a leader sees at a glance which specs are
+    fine and focuses on the ones that aren't. Descriptive, NOT scored good/bad — a different cast mix can
+    be gear/talent/fight-driven (the soul's Dispels-view rule). SPEC grain (no per-player breakdown).
+    `min_share` drops trivial fillers so the rotation's backbone shows, not noise."""
     rows = []
     for key in set(o_pool) & set(t_pool):
         o, t = o_pool[key], t_pool[key]
@@ -1065,8 +1275,9 @@ def tier_rotation(o_pool, t_pool, top=6, min_share=3.0):
         ab.sort(key=lambda x: -abs(x["diff"]))
         ab = ab[:top]
         if ab:
-            rows.append({"class": o["class"], "spec": o["spec"],
-                         "maxDiff": max(abs(a["diff"]) for a in ab), "abilities": ab})
+            max_diff = max(abs(a["diff"]) for a in ab)
+            rows.append({"class": o["class"], "spec": o["spec"], "role": o.get("role", "dps"),
+                         "maxDiff": max_diff, "matches": max_diff <= collapse_diff, "abilities": ab})
     rows.sort(key=lambda r: -r["maxDiff"])
     return rows
 
@@ -1092,46 +1303,44 @@ def dmg_compare(o_report, o_tank, t_report, t_tank, n):
 
 
 def int_break(report, spec_map):
-    """Interrupts breakdown: which enemy casts got interrupted, and by which class."""
+    """Interrupts breakdown, ability-first: per interrupted enemy ability, the total kicks AND a
+    per-(spec, class) tally of WHO kicked it. `details[]` on each Interrupts entry carries the per-player
+    kick counts; we bucket them by primary spec. Returns {ability: {"total": int, "specs": {(spec,cls): n}}}."""
     abil = {}
-    grp = {}
     for ab in _inner_entries(report, "intr"):
         if not ab or not ab.get("name"):
             continue
-        an = str(ab["name"])
+        rec = abil.setdefault(str(ab["name"]), {"total": 0, "specs": {}})
         for d in (ab.get("details") or []):
             if not d:
                 continue
             c = int(d.get("total", 0))
-            abil[an] = abil.get(an, 0) + c
+            rec["total"] += c
             cls = str(d["type"]) if d.get("type") else "Unknown"
             spec = str(spec_map.get(str(d.get("name")), "")) if d.get("name") else ""
-            key = "{}|{}".format(spec, cls)
-            if key not in grp:
-                grp[key] = {"spec": spec, "class": cls, "count": 0}
-            grp[key]["count"] += c
-    return {"abilities": abil, "groups": grp}
+            key = (spec, cls)
+            rec["specs"][key] = rec["specs"].get(key, 0) + c
+    return abil
 
 
 def int_compare(o_report, t_report, o_spec, t_spec):
+    """Ability-first interrupts: one row per interrupted ability with ours/theirs totals AND the kicking
+    specs nested under it, ours vs benchmark side by side ("benchmark kicked it with Fire Mages, you used
+    Ele Shaman"). Descriptive — a different spec assignment isn't better/worse, it reveals strategy."""
     o = int_break(o_report, o_spec)
     t = int_break(t_report, t_spec)
-    ab_names = sorted(set(o["abilities"]) | set(t["abilities"]))
-    abilities = [{"name": n, "ours": int(o["abilities"].get(n, 0)), "theirs": int(t["abilities"].get(n, 0))}
-                 for n in ab_names]
-    abilities.sort(key=lambda r: max(r["ours"], r["theirs"]), reverse=True)
-    keys = sorted(set(o["groups"]) | set(t["groups"]))
-    interrupters = []
-    for k in keys:
-        og = o["groups"].get(k)
-        tg = t["groups"].get(k)
-        ref = og if og else tg
-        interrupters.append({
-            "spec": ref["spec"], "class": ref["class"],
-            "ours": int(og["count"]) if og else 0, "theirs": int(tg["count"]) if tg else 0,
-        })
-    interrupters.sort(key=lambda r: max(r["ours"], r["theirs"]), reverse=True)
-    return {"abilities": abilities, "interrupters": interrupters}
+    rows = []
+    for name in set(o) | set(t):
+        orec = o.get(name, {"total": 0, "specs": {}})
+        trec = t.get(name, {"total": 0, "specs": {}})
+        specs = [{"spec": spec, "class": cls,
+                  "ours": int(orec["specs"].get((spec, cls), 0)),
+                  "theirs": int(trec["specs"].get((spec, cls), 0))}
+                 for (spec, cls) in set(orec["specs"]) | set(trec["specs"])]
+        specs.sort(key=lambda s: (-max(s["ours"], s["theirs"]), s["class"], s["spec"]))
+        rows.append({"name": name, "ours": int(orec["total"]), "theirs": int(trec["total"]), "specs": specs})
+    rows.sort(key=lambda r: max(r["ours"], r["theirs"]), reverse=True)
+    return {"abilities": rows}
 
 
 def death_list(report, fight_start):
@@ -1363,13 +1572,22 @@ def phase_compare(o_info, t_info, names=None):
 
 
 # ---------- CLEAR EFFICIENCY (wall-clock vs in-combat) ----------
-def efficiency(directory):
+def efficiency(directory, enc_ids):
+    """Clear efficiency SCOPED TO THE SHARED BOSSES (the BUG fix). Wall-clock = first pull to last kill
+    spanning only the shared encounters on this side — so a benchmark that also cleared another zone the
+    same night isn't compared on its whole-report clock (which made the old full-report span meaningless
+    when the two reports covered different content). In-combat = sum of the shared-boss kill durations;
+    downtime = the rest of that window (trash + wipes between the shared bosses). Each side is scoped to
+    its OWN shared-boss window, so the comparison stays apples-to-apples. Falls back to all kills only if
+    none of the shared encounters are present (shouldn't happen via the normal flow)."""
+    enc_set = {str(e) for e in enc_ids}
     fights = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]["fights"]
-    first = min(int(f["startTime"]) for f in fights)
-    last = max(int(f["endTime"]) for f in fights)
-    combat = ssum([int(f["endTime"]) - int(f["startTime"]) for f in fights])
+    shared = [f for f in fights if str(f["encounterID"]) in enc_set] or fights
+    first = min(int(f["startTime"]) for f in shared)
+    last = max(int(f["endTime"]) for f in shared)
+    combat = ssum([int(f["endTime"]) - int(f["startTime"]) for f in shared])
     span = last - first
-    return {"spanMs": span, "combatMs": combat, "downtimeMs": span - combat, "kills": len(fights)}
+    return {"spanMs": span, "combatMs": combat, "downtimeMs": span - combat, "kills": len(shared)}
 
 
 # ---------- ITEM LEVEL BY ROLE ----------
@@ -1828,38 +2046,99 @@ def _cc_id_labels(t):
             for a in (t["cc"].get("auras") or []) if a.get("guid") is not None}
 
 
-def trash_death_causes(o, t, n=15):
+def _death_source_mob(death, npc_map):
+    """Resolve which MOB landed the killing blow on a player. Prefer the killing-blow EVENT's source
+    (the actual fatal hit — the death entry carries its death-window `events`, each with a `sourceID`),
+    falling back to the top hostile damage source on the entry. Returns the mob NAME, or None for an
+    environment / fall / self death where no enemy actor is credited."""
+    kb = death.get("killingBlow") or {}
+    kb_guid = kb.get("guid")
+    evs = [e for e in (death.get("events") or [])
+           if e.get("type") == "damage" and (e.get("ability") or {}).get("guid") == kb_guid]
+    if evs:
+        src = npc_map.get((max(evs, key=lambda e: e.get("timestamp", 0))).get("sourceID"))
+        if src and src != "Environment":
+            return src
+    for s in (((death.get("damage") or {}).get("sources")) or []):
+        if s.get("type") in ("NPC", "Boss") and s.get("name"):
+            return s["name"]
+    return None
+
+
+def trash_death_causes(o, t, n=15, o_npc=None, t_npc=None):
     """Player trash deaths aggregated by killing blow, ranked by the biggest IMPROVABLE delta
-    (our deaths − theirs), ours vs benchmark. Mob/ability killing blows align across guilds, so
-    this is a clean comparison. Ranking by delta floats the blows the benchmark has solved and we
-    haven't — the fix-it list — above blows both raids take equally."""
-    def agg(side):
+    (our deaths − theirs), ours vs benchmark. Each NAMED killing blow now carries the SOURCE MOB in
+    parens ("Fragmentation Bomb (Tempest-Smith)") — the mob is the actionable half (CC/kite/position
+    that mob), resolved from the death's killing-blow event. "Melee" is kept as one aggregate row here
+    (mob varies) and broken out by mob in `trash_melee_by_mob`. Ability+mob align across guilds, so the
+    comparison stays clean; ranking by delta floats the blows the benchmark has solved and we haven't."""
+    o_npc = o_npc if o_npc is not None else o["npc"]
+    t_npc = t_npc if t_npc is not None else t["npc"]
+
+    def agg(side, npc):
         m = {}
         for d in side["friendly"]:
-            kb = (d.get("killingBlow") or {}).get("name") or "Unknown"
-            m[kb] = m.get(kb, 0) + 1
+            cause = (d.get("killingBlow") or {}).get("name") or "Unknown"
+            if cause == "Melee":
+                label = "Melee"  # mob varies — see the melee-by-mob sub-breakdown
+            else:
+                mob = _death_source_mob(d, npc)
+                label = "{} ({})".format(cause, mob) if mob else cause
+            m[label] = m.get(label, 0) + 1
         return m
-    oa, ta = agg(o), agg(t)
+    oa, ta = agg(o, o_npc), agg(t, t_npc)
     rows = [{"cause": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in set(oa) | set(ta)]
     # Biggest improvable delta first (a death the benchmark avoids); ties → raw ours, then theirs.
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows[:n]
 
 
-def trash_cc_compare(o, t):
-    """Hard-CC applications by type, ours vs benchmark (descriptive — more CC isn't better or
-    worse, the benchmark sets the bar). Count = landed applications (applydebuff events)."""
-    def agg(side):
-        labels = _cc_id_labels(side)
+def trash_melee_by_mob(o, t):
+    """"Melee" killing blows broken out by the MOB whose melee did the killing, ours vs benchmark,
+    biggest improvable delta first. A bare "Melee" death is opaque; naming the mob points straight at a
+    CC, kite, or tank-positioning fix. Mob names align across guilds, so the comparison is clean."""
+    def agg(side, npc):
         m = {}
-        for gid, evs in (side["cc"].get("events") or {}).items():
-            lab = labels.get(int(gid)) or "CC"
-            m[lab] = m.get(lab, 0) + len(evs)
+        for d in side["friendly"]:
+            if ((d.get("killingBlow") or {}).get("name")) != "Melee":
+                continue
+            mob = _death_source_mob(d, npc) or "Unknown"
+            m[mob] = m.get(mob, 0) + 1
         return m
-    oa, ta = agg(o), agg(t)
-    rows = [{"label": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in set(oa) | set(ta)]
-    rows.sort(key=lambda r: -max(r["ours"], r["theirs"]))
-    return rows, {"ours": sum(oa.values()), "theirs": sum(ta.values())}
+    oa, ta = agg(o, o["npc"]), agg(t, t["npc"])
+    rows = [{"mob": mb, "ours": oa.get(mb, 0), "theirs": ta.get(mb, 0)} for mb in set(oa) | set(ta)]
+    rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
+    return rows
+
+
+def trash_chain_pull(o, t, big=10):
+    """Pull-size / chain-pull comparison: how many mobs each raid pulls at once, ours vs benchmark.
+    WCL exposes no 'pack' object — a trash segment IS one pull — so we can't directly count how many
+    packs were merged, and a single-pack baseline per zone isn't exposed (a 16-mob pull could be two
+    big packs or four small ones), so we deliberately do NOT claim "they merged N packs." What IS clean:
+    a segment with far more mobs than typical is a chain-pull. Reports avg + max mobs per pull and the
+    count of LARGE pulls (>= `big` mobs), plus each side's single biggest pull (segment + roster) as a
+    concrete example. Descriptive — aggressive chain-pulling is a throughput lever and a wipe risk both;
+    the benchmark sets the bar."""
+    def stats(side):
+        sizes, biggest = [], None
+        for f in side["fights"]:
+            ncs = f.get("enemyNPCs") or []
+            total = sum(int(x.get("instanceCount") or 1) for x in ncs)
+            if total <= 0:
+                continue
+            sizes.append(total)
+            if biggest is None or total > biggest["mobs"]:
+                roster = sorted(({"name": side["npc"].get(int(x["id"]), "Unknown"),
+                                  "count": int(x.get("instanceCount") or 1)}
+                                 for x in ncs if side["npc"].get(int(x["id"])) not in (None, "Environment")),
+                                key=lambda r: -r["count"])
+                biggest = {"name": f.get("name"), "mobs": total, "roster": roster}
+        if not sizes:
+            return None
+        return {"avg": round(sum(sizes) / len(sizes), 1), "max": max(sizes),
+                "large": sum(1 for s in sizes if s >= big), "pulls": len(sizes), "biggest": biggest}
+    return {"ours": stats(o), "theirs": stats(t), "bigThreshold": big}
 
 
 def trash_cc_by_mob(o, t):
@@ -2100,18 +2379,20 @@ def build_trash(ours_dir, theirs_dir):
     if not o["fights"] and not t["fights"]:
         return {"present": False}
 
-    cc_rows, cc_tot = trash_cc_compare(o, t)
     o_pulls, t_pulls = _trash_pull_records(o), _trash_pull_records(t)
     return {
         "present": True,
         "zones": zone_names,
         "glance": {"ours": _trash_glance(o), "theirs": _trash_glance(t)},
-        "deathCauses": trash_death_causes(o, t),
+        "chainPull": trash_chain_pull(o, t),
+        "deathCauses": trash_death_causes(o, t, o_npc=o["npc"], t_npc=t["npc"]),
+        "meleeByMob": trash_melee_by_mob(o, t),
         # Kill order — two lenses: exact-roster 1:1 packs (primary), and broad pairwise (sub-tab).
         "identicalPacks": trash_identical_packs(o_pulls, t_pulls),
         "killPriority": trash_kill_priority(o, t),
         "pairwisePriority": trash_pairwise_priority(o_pulls, t_pulls),
-        "cc": cc_rows, "ccTotals": cc_tot, "ccByMob": trash_cc_by_mob(o, t),
+        # CC is the per-mob breakdown only (the by-type summary table was cut as redundant).
+        "ccByMob": trash_cc_by_mob(o, t),
     }
 
 
@@ -2229,11 +2510,18 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     # Consumable coverage (flask/food/elixir/drums/potions) from the per-boss Buffs tables.
     consumables = {
-        "ours": consumable_report(ours_dir, common_ids, len(ours_roster)),
-        "theirs": consumable_report(theirs_dir, common_ids, len(theirs_roster)),
+        "ours": consumable_report(ours_dir, ours_idx, common_ids, len(ours_roster)),
+        "theirs": consumable_report(theirs_dir, theirs_idx, common_ids, len(theirs_roster)),
     }
     # Per-player consumable participation (ours only — a coaching view of your own raid).
     per_player_consumes = per_player_consumables(ours_dir, ours_idx, common_ids)
+    # Per-player IN-COMBAT consumable usage (ours only): combat potion / health pot / mana pot / healthstone.
+    per_player_incombat_ours = per_player_incombat(ours_dir, ours_idx, common_ids, ours_roster)
+    # Throughput consumables: combat-potion activations by spec (ours vs benchmark) + which flasks/elixirs.
+    potion_spec_gap = potion_gap(
+        potion_usage_by_spec(ours_dir, ours_idx, common_ids, ours_spec, ours_role, ours_cls),
+        potion_usage_by_spec(theirs_dir, theirs_idx, common_ids, theirs_spec, theirs_role, theirs_cls))
+    throughput_picks = throughput_choices(ours_dir, theirs_dir, ours_idx, theirs_idx, common_ids)
 
     # Per-boss
     ours_fights = fight_map(ours_dir)
@@ -2306,7 +2594,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         for rot_pool, rep, sp, ro, cl in ((tier_o_rot, o_b, ours_spec, ours_role, ours_cls),
                                           (tier_t_rot, t_b, theirs_spec, theirs_role, theirs_cls)):
             for key, bucket in rotation_buckets(rep, sp, ro, cl).items():
-                ent = rot_pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "abilities": {}})
+                ent = rot_pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
+                                                "role": bucket["role"], "abilities": {}})
                 for an, c in bucket["abilities"].items():
                     ent["abilities"][an] = ent["abilities"].get(an, 0) + c
         # Sample buff/debuff uptimes for the tier-wide coverage rollup.
@@ -2434,13 +2723,15 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     did_well = strengths(summary, quality, consumables, audit, gaps,
                          tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash)
 
-    eff = {"ours": efficiency(ours_dir), "theirs": efficiency(theirs_dir)}
+    eff = {"ours": efficiency(ours_dir, common_ids), "theirs": efficiency(theirs_dir, common_ids)}
 
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
-                 "perPlayerConsumes": per_player_consumes, "outputBreakdown": output_breakdown,
+                 "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
+                 "potionGap": potion_spec_gap, "throughputChoices": throughput_picks,
+                 "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,

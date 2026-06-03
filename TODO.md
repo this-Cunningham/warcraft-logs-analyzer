@@ -15,6 +15,14 @@ gap, the Clear Efficiency shared-zone scoping fix, trash killing-blow mob names 
 melee breakdown, the chain-pull view, the Crowd Control summary-table cut, the
 flask/elixir-pair coverage fix, and the cloud startup script._
 
+## TODO: In-Combat consumables matrix — gray "✕" for empty slots
+
+> In Per-Player Consumables — In Combat, in that matrix — any slot that's not filled with a number, can we fill with a gray "✕" like in the matrix above?
+
+Empty cells currently read as ambiguous — is that zero uses, or a slot that doesn't apply? A gray ✕ makes the absence explicit, matching the visual language already used in the Prep matrix above. Consistent empty-state treatment lets a leader scan the full row and immediately see the gaps without wondering if a blank means "fine" or "missing."
+
+---
+
 ## TODO: Fix Flasked / Elixir Pair display in Per-Player Consumables — Prep
 
 > something wrong with Flasked / Elixir Pair section when compared to this matrix Per-Player Consumables — Prep

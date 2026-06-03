@@ -599,19 +599,20 @@ def per_player_incombat(directory, idx, enc_ids, roster):
     players = []
     for nm, meta in info.items():
         cells = {}
-        p_total = 0
+        use_total = 0
         for b in boss_meta:
             enc = b["enc"]
             if nm in boss_present.get(enc, set()):
                 d = boss_data[enc].get(nm) or {"P": 0, "HP": 0, "MP": 0, "HS": 0}
-                p_total += d["P"]
+                use_total += d["P"] + d["HP"] + d["MP"] + d["HS"]
                 cells[str(b["encounterID"])] = {"present": True, **d}
             else:
                 cells[str(b["encounterID"])] = {"present": False}
         players.append({"name": nm, "class": meta["class"], "role": meta["role"],
-                        "spec": prim.get(nm) or meta["role"], "cells": cells, "pTotal": p_total})
-    # Least throughput-potion usage first — those leaving the cheapest throughput on the table surface.
-    players.sort(key=lambda p: (p["pTotal"], p["name"]))
+                        "spec": prim.get(nm) or meta["role"], "cells": cells, "useTotal": use_total})
+    # Worst-first: the least in-combat consumable usage floats to the top (highest counts sink to the
+    # bottom), matching the prep matrix's worst-first convention so the leader's eye lands on the gap.
+    players.sort(key=lambda p: (p["useTotal"], p["name"]))
     return {"bosses": [{"encounterID": b["encounterID"], "name": b["name"]} for b in boss_meta],
             "players": players, "hasWarlock": has_warlock}
 

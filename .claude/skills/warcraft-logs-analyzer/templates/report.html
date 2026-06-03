@@ -296,8 +296,9 @@ function inCombatMatrix(ic){
       row+=keys.map((k,i)=>{
         const unavail=(k==="HS"&&!hasWarlock);
         const v=c[k]||0;
+        // Green NUMBER when used (the count itself signals "good" — no separate ✓), faint dash when not.
         const cls=unavail?"cna":(v>0?"cyes":"cna");
-        const glyph=unavail?"–":(v>0?("✓"+(v>1?(" "+v):"")):"✗");
+        const glyph=unavail?"–":(v>0?String(v):"·");
         return `<td class="cc${i===0?' cbsep':''}"><span class="${cls}">${glyph}</span></td>`;
       }).join("");
     }

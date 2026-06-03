@@ -47,7 +47,7 @@ If it doesn't reveal an actionable gap it fails the soul's first test. Evaluate 
 
 ---
 
-## TODO: Raid Composition & Buff Coverage — "Provided by" as first column
+## ✅ DONE: Raid Composition & Buff Coverage — "Provided by" as first column
 
 > In the Raid Composition & Buff Coverage table, put "Provided by" as the first column.
 

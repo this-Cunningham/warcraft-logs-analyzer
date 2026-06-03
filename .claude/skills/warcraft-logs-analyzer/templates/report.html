@@ -463,14 +463,15 @@ function renderComposition(d){
     <div><h4 class="theirs">${esc(d.theirs.title)} · ${comp.theirsSize} players</h4><div class="complist">${chips(comp.theirsClasses,"theirs")}</div></div>
   </div>`;
 
-  h+=`<table><thead><tr><th>Raid contribution</th><th>Provided by</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Status</th><th>Why it matters</th></tr></thead><tbody>`;
+  h+=`<table><thead><tr><th>Provided by</th><th>Raid contribution</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Status</th><th>Why it matters</th></tr></thead><tbody>`;
   for(const g of asArr(comp.gaps)){
     const isgap=g.theirs&&!g.ours, edge=g.ours&&!g.theirs;
     let tag = isgap?`<span class="tag2 gap">missing</span>`:(g.ours&&g.theirs?`<span class="tag2 ok">both</span>`:(edge?`<span class="tag2 edge">your edge</span>`:`<span class="tag2">neither</span>`));
     // Which class/spec carries this buff. Empty spec = any spec of the class (e.g. Bloodlust from any Shaman).
     const prov = g.spec?`${esc(g.spec)} ${esc(g.class)}`:`Any ${esc(g.class)}`;
-    h+=`<tr class="gaprow ${isgap?'isgap':''}"><td>${esc(g.buff)}</td>
-      <td class="prov" style="color:${cc(g.class)}">${prov}</td>
+    // "Provided by" leads — it's the actionable lever (which class/spec to slot for a missing buff).
+    h+=`<tr class="gaprow ${isgap?'isgap':''}"><td class="prov" style="color:${cc(g.class)}">${prov}</td>
+      <td>${esc(g.buff)}</td>
       <td class="${g.ours?'yes':'no'}">${g.ours?'✓':'✗'}</td>
       <td class="${g.theirs?'yes':'no'}">${g.theirs?'✓':'✗'}</td>
       <td>${tag}</td><td class="num">${esc(g.impact)}</td></tr>`;

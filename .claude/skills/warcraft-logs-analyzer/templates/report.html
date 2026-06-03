@@ -1247,19 +1247,16 @@ function renderTrash(d){
        mob points straight at a CC / kite / tank-positioning fix. */
     const mm=rowsOf(tr.meleeByMob);
     if(mm.length){
-      h+=`<h4 style="margin:16px 0 6px">Melee deaths — by mob<span class="role" style="text-transform:none;letter-spacing:0;font-weight:400"> — which mobs' melee are doing the killing</span></h4>`;
-      const mmMax=Math.max(1,...mm.map(r=>Math.max(r.ours,r.theirs)));
-      const mmW=v=>Math.max(2,Math.round(v/mmMax*100));
-      h+=`<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Melee deaths by mob</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+      h+=`<h4 style="margin:16px 0 6px">Melee deaths — by mob<span class="role" style="text-transform:none;letter-spacing:0;font-weight:400"> — which mobs' melee are doing the killing</span></h4>
+        <table><thead><tr><th>Mob</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
       for(const r of mm){
         const dl=deltaLow(r.ours,r.theirs);
-        h+=`<div class="dval lo">${r.ours}</div>
-          <div class="dbarL"><div class="f ours" style="width:${mmW(r.ours)}%"></div></div>
-          <div class="dmid">${esc(r.mob)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
-          <div class="dbarR"><div class="f theirs" style="width:${mmW(r.theirs)}%"></div></div>
-          <div class="dval ro">${r.theirs}</div>`;
+        h+=`<tr><td class="pname">${esc(r.mob)}</td>
+          <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+          <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
+          <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
       }
-      h+=`</div></div>`;
+      h+=`</tbody></table>`;
     }
   }
 

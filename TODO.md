@@ -113,3 +113,11 @@ The current flat layout puts both raids' full spec lists in a single cell per ro
 This supersedes/generalizes the Rotation — Ability Mix item above. The delta is the signal; the name is the anchor — they belong together. Placing the delta beside the name means a leader reads the gap at the same moment they identify what it's for, without tracking to a far-right column. Apply consistently to every mirrored-bar table in the report so the pattern is uniform. The sort order (by delta) stays unchanged; this is a column-position change only.
 
 Examples of tables with this layout: Boss Debuffs, Raid Buffs, Avg DPS / player by spec, and many more across the report. The *only* thing that changes is the location of the delta column (move it to the center next to the name) — nothing else about these tables changes.
+
+---
+
+## TODO: Per-spec DPS and HPS timeline tabs inside each boss panel
+
+> In each boss panel under "Timeline": keep the existing "Raid DPS Timeline" as the first sub-tab (unchanged). Add additional sub-tabs named after each class/spec combo present in our raid — clicking one shows the same timeline graph but with our spec's DPS vs. the benchmark's same spec. Do the same for healing ("Raid HPS over time"). Color the tabs by class color.
+
+The existing raid-level DPS/HPS timeline shows the full-raid aggregate, which obscures whether individual specs are running at benchmark pace through each phase. A per-spec tab lets a leader click e.g. "Fire Mage" and see immediately whether their Mage's output curve matches the benchmark Mage's — revealing ramp timing gaps, phase drop-offs, or sustained throughput deficits that the aggregate buries. The spec-tab coloring by class type makes the tab bar scannable at a glance.

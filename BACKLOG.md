@@ -66,3 +66,19 @@ client-credentials path.
 
 > Go through the Trash tab and audit layout/organization. Does it make sense? Should things be moved
 > around? Should explanations be simplified or trimmed? Are there things that aren't clear enough?
+
+---
+
+## BACKLOG: Output format — static HTML vs React/Next vs something else
+
+> Do we need to refactor this from a static HTML generated report to a React/Next app? Is it too
+> complicated as a static HTML doc? I like the portability of the HTML doc. If not HTML and not
+> React/Next then what?
+
+The soul defines the product as the **report** — self-contained, portable, openable cold by any raid
+leader. Static HTML is a direct expression of that value: zero dependencies, zero deploys, works offline,
+shareable as a single file. React/Next would add complexity and a hosting dependency without adding
+insight. The question worth flagging: is there a *capability ceiling* the current static approach
+actually can't clear — something a leader needs that pure HTML+JS can't deliver? If not, portability
+wins. The right moment to revisit is when a specific planned feature genuinely can't be built cleanly
+in the current format — not before.

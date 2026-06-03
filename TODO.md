@@ -28,3 +28,11 @@ Empty cells currently read as ambiguous — is that zero uses, or a slot that do
 > something wrong with Flasked / Elixir Pair section when compared to this matrix Per-Player Consumables — Prep
 
 The Flasked / Elixir Pair columns in the Per-Player Consumables — Prep section appear to disagree with or duplicate data from the consumables matrix. Gap: if a player shows as flasked in one view but not the other, a raid leader can't trust either. Investigate whether the two views are drawing from the same data pass and whether the battle+guardian elixir pairing logic is consistently applied in both places.
+
+---
+
+## TODO: Throughput Potions — By Spec: restrict comparison to overlapping specs only
+
+> Throughput Potions — By Spec — does this compare against specs that were not overlapping in our raids? If so we can't be doing this.
+
+Data-integrity issue. If the By Spec view compares potion usage rates for specs that appear in the benchmark but not in our raid (or vice versa), the delta is meaningless — apples to oranges. The comparison must be gated to specs present in *both* raids. Any spec unique to one side should be omitted from the comparison entirely rather than shown as a misleading gap. Audit whether the current implementation already enforces this; if not, it's a silent integrity violation the soul explicitly prohibits.

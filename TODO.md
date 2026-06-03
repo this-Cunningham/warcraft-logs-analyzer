@@ -82,7 +82,7 @@ Visual upgrade that puts the gap where the eye lands. The ability name is the na
 
 ---
 
-## TODO: Fix font style on "Abilities Interrupted — by spec" explanatory copy
+## ✅ DONE: Fix font style on "Abilities Interrupted — by spec" explanatory copy
 
 > This copy doesn't match the other font styles for "additional explanation context" — Abilities Interrupted — by spec: "Each interrupted enemy cast and which specs kicked it, ours vs the benchmark — so you can see e.g. 'benchmark kicked it with Fire Mages, you used Ele Shaman.' Descriptive: a different kick assignment isn't better or worse, it reveals how each raid covers interrupts."
 
@@ -90,7 +90,7 @@ Consistency fix. The explanatory/context copy under this section is rendering in
 
 ---
 
-## TODO: Fix font style on "Interrupt Success — Kicked vs Leaked" explanatory copy
+## ✅ DONE: Fix font style on "Interrupt Success — Kicked vs Leaked" explanatory copy
 
 > Same as above — "Interrupt Success — Kicked vs Leaked": "Per ability: kicked = interrupts you landed; leaked = interruptible casts that still went off un-kicked. A highlighted leaked count is a miss — lower is better, 0 leaked is ideal."
 

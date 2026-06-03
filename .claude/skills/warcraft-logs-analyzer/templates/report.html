@@ -50,7 +50,10 @@
     margin:34px 0 14px;border-top:1px solid var(--line);padding-top:22px}
   /* First section in a panel sits right under the tab bar — drop the divider/top gap. */
   .panel > h2.section:first-child{border-top:none;padding-top:0;margin-top:8px}
-  .section .hint{text-transform:none;letter-spacing:0;font-weight:400;display:block;color:var(--muted);font-size:12.5px;margin-top:4px}
+  /* `.hint` is the standard "additional context" copy under a section title. It also appears inside an
+     <h4> (e.g. the Interrupts sub-section headers), where the `.section` ancestor selector wouldn't
+     reach it — so `h4 .hint` is included to give that copy the identical muted styling everywhere. */
+  .section .hint, h4 .hint{text-transform:none;letter-spacing:0;font-weight:400;display:block;color:var(--muted);font-size:12.5px;margin-top:4px}
 
   .boss{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:18px}
   .boss h3{margin:0 0 14px;font-size:19px;display:flex;align-items:center;gap:10px}

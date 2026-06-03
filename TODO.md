@@ -68,3 +68,14 @@ Layout robustness. Long guild names break column widths and delta labels, making
 > Clear concise description for "rotation matches benchmark."
 
 The label surfaces in the report but a raid leader reading it cold needs to know immediately what "matches" means and what they should do if it doesn't. Write a short, plain-language description — what the metric measures, what the benchmark is, and what a gap implies for the player's rotation. Self-explanatory is a soul requirement; an unlabeled or poorly-explained metric is a failure of that standard.
+
+---
+
+## TODO: Rotation — Ability Mix: add horizontal bars, delta in the middle
+
+> Rotation — Ability Mix tables for each class/spec should render horizontal bars in this layout:
+> `our value → our bar → ability name → delta value → benchmark bar → benchmark value`
+> (maintain existing sort). I want to see what it's like putting the delta value in the middle
+> next to the ability name.
+
+Visual upgrade that puts the gap where the eye lands. The ability name is the natural anchor — placing the delta right beside it means a leader scanning row-by-row sees the gap at the same moment they read the ability, without having to track across to a far-right column. The mirrored bar layout (our bar left, benchmark bar right, meeting at the name) also makes magnitude comparison immediate. Maintain existing sort order; this is a layout/rendering change only.

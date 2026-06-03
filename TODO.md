@@ -147,3 +147,11 @@ Layout fix. These headline stats are the first thing a leader sees on each boss 
 > Per-Boss Execution — move this to a new top-level tab next to "Trash."
 
 Navigation architecture change. Per-boss execution is high-signal, boss-specific analysis — it deserves top-level real estate alongside the other main tabs rather than being buried inside another tab. Elevating it to the nav bar makes it immediately accessible and signals to a leader that per-boss breakdown is a first-class lens, not a drill-down afterthought.
+
+---
+
+## TODO: Move "Boss-by-Boss" section from Overview into the new "Bosses" tab
+
+> The "Boss-by-Boss — Pick a boss to see its kill time, raid DPS/HPS, parse, deaths, attempts, and both rosters side by side" section currently under Overview should move to the new top-level tab (see previous TODO). Name that tab "Bosses."
+
+Consolidation to go with the tab promotion above. All boss-specific content — the picker/summary and the per-boss execution panels — lives in one place under "Bosses," so a leader who wants to dig into a specific fight goes to one tab. Overview slims down to the raid-level summary it's meant to be; Bosses becomes the dedicated per-fight lens.

@@ -1233,19 +1233,16 @@ function renderTrash(d){
      blow now carries the source mob in parens, so the fix (CC/kite/position that mob) is explicit. */
   const dc=rowsOf(tr.deathCauses);
   if(dc.length){
-    h+=`<h2 class="section">What's Killing Us on Trash<span class="hint">Player deaths on trash by killing blow, across every pull, ours vs the benchmark. The mob in parens landed the blow — CC, kite, or position around it. A cause the benchmark takes 0 of is a mechanic to solve. "Melee" is broken out by mob below. Lower is better.</span></h2>`;
-    const dcMax=Math.max(1,...dc.map(r=>Math.max(r.ours,r.theirs)));
-    const dcW=v=>Math.max(2,Math.round(v/dcMax*100));
-    h+=`<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Trash deaths by killing blow (mob)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+    h+=`<h2 class="section">What's Killing Us on Trash<span class="hint">Player deaths on trash by killing blow, across every pull, ours vs the benchmark. The mob in parens landed the blow — CC, kite, or position around it. A cause the benchmark takes 0 of is a mechanic to solve. "Melee" is broken out by mob below. Lower is better.</span></h2>
+    <table><thead><tr><th>Killing blow (mob)</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
     for(const r of dc){
       const dl=deltaLow(r.ours,r.theirs);
-      h+=`<div class="dval lo">${r.ours}</div>
-        <div class="dbarL"><div class="f ours" style="width:${dcW(r.ours)}%"></div></div>
-        <div class="dmid">${esc(r.cause)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
-        <div class="dbarR"><div class="f theirs" style="width:${dcW(r.theirs)}%"></div></div>
-        <div class="dval ro">${r.theirs}</div>`;
+      h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
+        <td class="delta ${dl.cls}">${dl.txt}</td></tr>`;
     }
-    h+=`</div></div>`;
+    h+=`</tbody></table>`;
     /* Melee deaths broken out by which mob's melee did the killing — a bare "Melee" is opaque; the
        mob points straight at a CC / kite / tank-positioning fix. */
     const mm=rowsOf(tr.meleeByMob);

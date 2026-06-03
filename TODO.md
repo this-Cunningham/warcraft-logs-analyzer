@@ -60,3 +60,11 @@ A scan-order fix. Leaders read left-to-right; the provider (which class/spec cov
 > Any references to the guild names across the report should truncate the guild name past 13 chars with ...
 
 Layout robustness. Long guild names break column widths and delta labels, making the report harder to scan. A consistent 13-char truncation with an ellipsis keeps the layout stable for any guild pairing without losing recognizability. Apply uniformly — headers, table column labels, inline references — so no part of the report wraps or overflows unexpectedly.
+
+---
+
+## TODO: Write a clear, concise description for the "Rotation Matches Benchmark" metric
+
+> Clear concise description for "rotation matches benchmark."
+
+The label surfaces in the report but a raid leader reading it cold needs to know immediately what "matches" means and what they should do if it doesn't. Write a short, plain-language description — what the metric measures, what the benchmark is, and what a gap implies for the player's rotation. Self-explanatory is a soul requirement; an unlabeled or poorly-explained metric is a failure of that standard.

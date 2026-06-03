@@ -142,6 +142,14 @@ Visual regression fix. The fade/shadow applied to the left and right edges of ho
 
 ---
 
+## TODO: Raid Summary "total kill time" — clarify label + audit Clear Efficiency apples-to-apples
+
+> in raid summary total kill time, make it clearer labelled what that is, boss kill times?  Also double check CLEAR EFFICIENCY numbers are comparing apples to apples
+
+Two integrity items in the same section. First: the "total kill time" label is ambiguous — a leader reading cold can't tell whether it's summed boss-combat time, wall-clock raid duration, or something else. Rename or subtitle it to make explicit what's being measured (e.g. "Total boss combat time" if that's what it is). Second: Clear Efficiency is a comparison metric, so the delta is only honest if both sides are measured over the same set of bosses. If one raid killed bosses the other didn't, summing kill times across unequal boss sets produces a meaningless gap. Verify the implementation scopes both sides to shared bosses only — the soul's data-integrity bar ("cut it unless it's clean") makes this non-negotiable.
+
+---
+
 ## TODO: Convert remaining sections to mirrored-bar layout — delta in center, context columns on the right
 
 > plz convert these tables to horizontal mirror bar tables with label and delta in middle, any tables mentioned with an extra context table, just maintain that all the way on the right

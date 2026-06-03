@@ -111,3 +111,5 @@ The current flat layout puts both raids' full spec lists in a single cell per ro
 > For all tables with the layout `value — bar — name — bar — value — delta (sorted)`, move the delta to be right next to the name in the center. Apply to ALL tables of this type.
 
 This supersedes/generalizes the Rotation — Ability Mix item above. The delta is the signal; the name is the anchor — they belong together. Placing the delta beside the name means a leader reads the gap at the same moment they identify what it's for, without tracking to a far-right column. Apply consistently to every mirrored-bar table in the report so the pattern is uniform. The sort order (by delta) stays unchanged; this is a column-position change only.
+
+Examples of tables with this layout: Boss Debuffs, Raid Buffs, Avg DPS / player by spec, and many more across the report. The *only* thing that changes is the location of the delta column (move it to the center next to the name) — nothing else about these tables changes.

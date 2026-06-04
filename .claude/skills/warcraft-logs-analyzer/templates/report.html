@@ -120,11 +120,13 @@
   .tltab{color:var(--tlc,var(--muted))}
   .tltab.on{color:#06101f;background:var(--tlc,var(--ours))}
   .bsub{display:none}.bsub.active{display:block}
-  /* Optimize tab — two nested tab levels (class -> spec), then per-player rotation tables. */
+  /* Optimize tab — three nested tab levels (class -> spec -> boss), then per-player rotation tables. */
   .osub{display:none}.osub.active{display:block}
   .ossub{display:none}.ossub.active{display:block}
+  .obsub{display:none}.obsub.active{display:block}
   .btabs.ospecs{margin:2px 0 14px}
   .btabs.ospecs .btab.on{background:var(--theirs);color:#06101f}
+  .btabs.obosses{margin:2px 0 12px}
   .optbench{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:13px;color:var(--muted)}
   .optbench b{color:var(--txt)}
   .optlabel{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);margin-right:4px}
@@ -311,11 +313,15 @@ function consumeMatrix(ppc){
       const c=p.cells?p.cells[String(b.encounterID)]:null;
       if(!c||!c.present){ row+=SUB.map((_,i)=>`<td class="cc${i===0?' cbsep':''}">${na}</td>`).join(""); continue; }
       // Decide flask/battle/guardian states by which route prepped them (don't flag the unused one).
+      const isDps=p.role==="dps";
       let fS,bS,gS;
       if(c.flask){ fS="good"; bS="na"; gS="na"; }                 // flask covers it — elixirs not needed
       else if(c.battle&&c.guardian){ fS="na"; bS="good"; gS="good"; } // full elixir pair
       else { fS=(!c.battle&&!c.guardian)?"miss":"na";              // nothing at all → flask is a miss too
-             bS=c.battle?"good":"miss"; gS=c.guardian?"good":"miss"; } // partial → flag the missing half
+             bS=c.battle?"good":"miss";
+             // For a DPS only the BATTLE elixir is throughput — a missing guardian is a defensive/utility
+             // choice, not a prep failure, so render it faint (na) not red. Healers/tanks still need both.
+             gS=c.guardian?"good":((isDps&&c.battle)?"na":"miss"); }
       const fdS=c.food?"good":"miss";
       const td=(s,glyph,first)=>`<td class="cc${first?" cbsep":""}${s==="miss"?" cmiss":""}">${glyph}</td>`;
       row+=td(fS,gly(fS),true)+td(bS,gly(bS))+td(gS,gly(gS))+td(fdS,gly(fdS));
@@ -326,14 +332,15 @@ function consumeMatrix(ppc){
   const legend=`<div class="clegend">${SUB.map(([s,full])=>`<span class="ckey"><b>${s}</b>${esc(full)}</span>`).join("")}</div>`;
   return `${legend}<div class="cmwrap"><table class="cmatrix"><thead>${h1}${h2}</thead><tbody>${body}</tbody></table></div>`;
 }
-// In-combat consumable USAGE matrix (ours only): P combat potion · HP health pot · MP mana pot · HS
-// healthstone, per player × boss. ✓count = used, faint dash = not used (NOT red — usage is situational).
-// HS is warlock-dependent: no warlock → the column is shown unavailable rather than implying a gap.
+// In-combat consumable USAGE matrix (ours only): P combat potion · MP mana pot · HS healthstone, per
+// player × boss. ✓count = used, faint dash = not used (NOT red — usage is situational). Counts come from
+// cast EVENTS (the Casts table caps each player at 5 abilities, which hid the consumables). Health potions
+// are not tracked (unused in TBC raids). HS is warlock-dependent: no warlock → the column shows unavailable.
 function inCombatMatrix(ic){
   const bosses=rowsOf(ic.bosses), players=rowsOf(ic.players);
   if(!bosses.length||!players.length) return '<p class="num" style="padding:8px 2px">No in-combat consumable data.</p>';
   const hasWarlock=ic.hasWarlock!==false;
-  const SUB=[["P","Combat Potion"],["HP","Health Potion"],["MP","Mana Potion"],["HS","Healthstone"]];
+  const SUB=[["P","Combat Potion"],["MP","Mana Potion"],["HS","Healthstone"]];
   const na='<span class="cna">·</span>';
   let h1=`<tr><th class="cmname" rowspan="2">Player</th>`, h2=`<tr>`;
   for(const b of bosses){
@@ -341,7 +348,7 @@ function inCombatMatrix(ic){
     h2+=SUB.map(([s,full],i)=>`<th class="csub2${i===0?' cbsep':''}" title="${full}">${s}</th>`).join("");
   }
   h1+=`</tr>`; h2+=`</tr>`;
-  const keys=["P","HP","MP","HS"];
+  const keys=["P","MP","HS"];
   let body="";
   for(const p of players){
     let row=`<tr><td class="cmname pname" style="color:${cc(p.class)}">${esc(p.name)} <span class="role">${esc(p.spec||p.role)}</span></td>`;
@@ -804,15 +811,15 @@ function phasesView(b){
 function deathCausesView(d){
   const rows=rowsOf(d.deep&&d.deep.deathCauses).slice(0,15);
   if(!rows.length) return "";
-  let h=`<h2 class="section">What's Killing Us<span class="hint">Killing blows tallied across every shared boss. A recurring cause is a mechanic the raid keeps failing; the benchmark column shows how avoidable it is (their 0 = they don't die to it). "Melee" on a non-tank usually means a death while already in trouble. Lower is better.</span></h2>
-    <table><thead><tr><th>Killing blow</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th>Bosses</th></tr></thead><tbody>`;
+  let h=`<h2 class="section">What's Killing Us<span class="hint">Killing blows on <b>kill pulls only</b> — wipe-pull deaths are excluded (they'd swamp the list with progression noise), so this is what killed you on the fights you cleared. One row <b>per boss</b>: a recurring cause is a mechanic the raid keeps failing, and the benchmark column shows how avoidable it is (their 0 = they don't die to it). When an <b>add</b> (not the boss) landed the blow, the mob is named in parens. "Melee" on a non-tank usually means a death while already in trouble. Lower is better.</span></h2>
+    <table><thead><tr><th>Killing blow</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th>Boss</th></tr></thead><tbody>`;
   for(const r of rows){
     const dl=deltaLow(r.ours,r.theirs);
     h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
       <td class="num" style="color:var(--ours);font-weight:600">${r.ours}</td>
       <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}</td>
       <td class="delta ${dl.cls}">${dl.txt}</td>
-      <td class="num" style="font-size:11.5px">${asArr(r.bosses).map(esc).join(", ")}</td></tr>`;
+      <td class="num" style="font-size:11.5px">${esc(r.boss||"")}</td></tr>`;
   }
   return h+`</tbody></table>`;
 }
@@ -1224,19 +1231,20 @@ function wireBosses(){
 }
 /* ---------- OPTIMIZE (per-raider rotation vs same-faction world best) ---------- */
 const optMetricLbl=m=>m==="hps"?"HPS":"DPS";
-// One spec's body: the world-best benchmark line + each of our raiders' cast-mix table (or a green
-// "matches world best" chip when they're within 5 points on every tracked ability).
-function optSpecBody(d,cls,s){
+// One boss's body for a spec: the world-best benchmark line (the top same-faction player ON THIS BOSS) +
+// each of our raiders' cast-mix table (or a green "matches world best" chip when within 5 points on every
+// tracked ability). Only raiders who actually played this spec's ROLE on this boss appear (form-aware).
+function optBossBody(d,cls,s,b){
   const col=cc(cls), fac=esc((d.deep.optimize&&d.deep.optimize.factionName)||"same-faction");
-  if(!s.benchmark){
-    return `<p class="num" style="padding:6px 2px">No ${fac} world ranking found for ${esc(s.spec)} ${esc(cls)} on the shared bosses — nothing to benchmark against.</p>`;
+  const bm=b.benchmark;
+  if(!bm||!bm.name){
+    return `<p class="num" style="padding:6px 2px">No ${fac} world ranking found for ${esc(s.spec)} ${esc(cls)} on ${esc(b.name||"this boss")} — nothing to benchmark against.</p>`;
   }
-  const b=s.benchmark, boss=s.boss||{};
-  const amt=b.amount!=null?` · ${fmtR(b.amount)} ${optMetricLbl(b.metric)}`:"";
-  const guild=b.guild?` · ${esc(b.guild)}`:"", reg=b.region?` (${esc(b.region)})`:"";
-  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(b.name)}</b>${guild}${reg} — World #${b.globalRank} ${fac} ${esc(s.spec)} ${esc(cls)} on <b>${esc(boss.name||"")}</b>${amt}</div>`;
-  const players=rowsOf(s.players);
-  if(!players.length) return h+`<p class="num" style="padding:6px 2px">None of your ${esc(s.spec)} ${esc(cls)} raiders have casts on ${esc(boss.name||"this boss")}.</p>`;
+  const amt=bm.amount!=null?` · ${fmtR(bm.amount)} ${optMetricLbl(bm.metric)}`:"";
+  const guild=bm.guild?` · ${esc(bm.guild)}`:"", reg=bm.region?` (${esc(bm.region)})`:"";
+  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — World #${bm.globalRank} ${fac} ${esc(s.spec)} ${esc(cls)} on <b>${esc(b.name||"")}</b>${amt}</div>`;
+  const players=rowsOf(b.players);
+  if(!players.length) return h+`<p class="num" style="padding:6px 2px">None of your ${esc(s.spec)} ${esc(cls)} raiders played that role/form on ${esc(b.name||"this boss")} — nobody to compare like-for-like (e.g. a Feral who tanked in bear isn't matched to a cat-DPS best).</p>`;
   const parseTag=p=>p.parse!=null?` <span class="parse" style="background:${parseColor(p.parse)}">${p.parse}</span>`:"";
   const match=players.filter(p=>p.matches), diverge=players.filter(p=>!p.matches);
   if(match.length){
@@ -1249,7 +1257,7 @@ function optSpecBody(d,cls,s){
     const max=Math.max(1,...abil.map(a=>Math.max(a.ours,a.theirs)));
     const w=v=>Math.max(2,Math.round(v/max*100));
     h+=`<div style="margin:0 0 18px"><div class="optpname"><span style="color:${col}">${esc(p.name)}</span>${parseTag(p)}</div>
-      <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(p.name)}</span><span>Cast share by ability</span><span class="cthe">${esc(b.name)}</span></div><div class="ugrid">`;
+      <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(p.name)}</span><span>Cast share by ability</span><span class="cthe">${esc(bm.name)}</span></div><div class="ugrid">`;
     for(const a of abil){
       h+=`<div class="dval lo">${a.ours}%</div>
         <div class="dbarL"><div class="f ours" style="width:${w(a.ours)}%"></div></div>
@@ -1267,21 +1275,33 @@ function renderOptimize(d){
   const classes=rowsOf(o.classes);
   if(!classes.length) return `<h2 class="section">Optimize</h2><p class="num" style="padding:8px 2px">No DPS or healer specs to benchmark.</p>`;
   const fac=o.factionName?esc(o.factionName):"same-faction";
-  let h=`<h2 class="section">Optimize — Rotation vs World Best<span class="hint">Every raider's cast mix benchmarked against a <b>${fac}</b> world-best player of their exact class &amp; spec — the top ${fac} parse on a boss your raid also killed, measured on that <b>same encounter</b> so it's apples-to-apples. Pick a <b>class</b>, then a <b>spec</b>; each raider shows the share of casts spent on each ability, theirs vs the world best. Raiders already within <b>5 points</b> on every ability collapse to a green chip. <b>Descriptive, not scored</b> — a different mix can be gear/talent/fight-driven; read it against the spec's playbook.</span></h2>`;
+  let h=`<h2 class="section">Optimize — Rotation vs World Best<span class="hint">Every raider's cast mix benchmarked <b>per boss</b> against the <b>${fac}</b> world-best player of their exact class &amp; spec on <b>that same boss</b> — apples-to-apples, measured on the same encounter. Pick a <b>class</b>, a <b>spec</b>, then a <b>boss</b>; each raider shows the share of casts spent on each ability, theirs vs the world best. A raider only appears on a boss where they actually played that spec's role (so a Feral who bear-tanked a fight isn't compared to a cat-DPS best). Raiders within <b>5 points</b> on every ability collapse to a green chip. <b>Descriptive, not scored</b> — a different mix can be gear/talent/fight-driven; read it against the spec's playbook.</span></h2>`;
   h+=`<div class="btabs">`+classes.map((c,i)=>`<button class="btab ${i===0?"on":""}" data-octab="${esc(c.class)}">${esc(c.class)}</button>`).join("")+`</div>`;
   classes.forEach((c,ci)=>{
     const specs=rowsOf(c.specs);
     h+=`<div class="osub ${ci===0?"active":""}" data-octab="${esc(c.class)}">`;
     h+=`<div class="btabs ospecs">`+specs.map((s,j)=>`<button class="btab ${j===0?"on":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}" data-ocls="${esc(c.class)}">${esc(s.spec)}</button>`).join("")+`</div>`;
     specs.forEach((s,si)=>{
-      h+=`<div class="ossub ${si===0?"active":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}">`+optSpecBody(d,c.class,s)+`</div>`;
+      const skey=`${esc(c.class)}|${esc(s.spec)}`;
+      h+=`<div class="ossub ${si===0?"active":""}" data-ospec="${skey}">`;
+      const bosses=rowsOf(s.bosses);
+      if(!bosses.length){
+        h+=`<p class="num" style="padding:6px 2px">No ${fac} world ranking found for ${esc(s.spec)} ${esc(c.class)} on any shared boss — nothing to benchmark against.</p>`;
+      }else{
+        // Inner boss tabs, scoped per class|spec so distinct specs don't collide.
+        h+=`<div class="btabs obosses">`+bosses.map((b,k)=>`<button class="btab ${k===0?"on":""}" data-obtab="${skey}|${b.encounterID}" data-obkey="${skey}">${esc(b.name)}</button>`).join("")+`</div>`;
+        bosses.forEach((b,bi)=>{
+          h+=`<div class="obsub ${bi===0?"active":""}" data-obtab="${skey}|${b.encounterID}">`+optBossBody(d,c.class,s,b)+`</div>`;
+        });
+      }
+      h+=`</div>`;
     });
     h+=`</div>`;
   });
   return h;
 }
-// Two nested tab levels: class selector (outer) toggles class panels; spec selector (inner, scoped per
-// class so distinct classes don't collide) toggles spec panels — mirrors the Bosses-tab wiring.
+// Three nested tab levels: class (outer) -> spec (mid, scoped per class) -> boss (inner, scoped per
+// class|spec so distinct specs don't collide) — mirrors the Bosses-tab wiring, one level deeper.
 function mountOptimize(){
   const el=document.getElementById("p-optimize");
   if(!el) return;
@@ -1294,6 +1314,11 @@ function mountOptimize(){
     const k=t.dataset.ospec, cls=t.dataset.ocls;
     el.querySelectorAll(`.btab[data-ospec][data-ocls="${cls}"]`).forEach(x=>x.classList.toggle("on",x.dataset.ospec===k));
     el.querySelectorAll(`.ossub[data-ospec^="${cls}|"]`).forEach(x=>x.classList.toggle("active",x.dataset.ospec===k));
+  }));
+  el.querySelectorAll(".btab[data-obtab]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.obtab, key=t.dataset.obkey;
+    el.querySelectorAll(`.btab[data-obtab][data-obkey="${key}"]`).forEach(x=>x.classList.toggle("on",x.dataset.obtab===k));
+    el.querySelectorAll(`.obsub[data-obtab^="${key}|"]`).forEach(x=>x.classList.toggle("active",x.dataset.obtab===k));
   }));
 }
 /* ---------- TRASH ---------- */

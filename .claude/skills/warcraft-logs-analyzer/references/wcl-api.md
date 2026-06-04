@@ -59,14 +59,21 @@ Reusable queries live in `queries/`:
   combat throughput potions**) DO appear as **auras in the `Buffs` table** with a
   `totalUses` count (combat potions = Haste/Destruction/Ironshield, `POTION_IDS`).
 - **In-combat INSTANT items leave NO buff aura — they log as CASTS (verified live).**
-  A health potion, mana potion, and healthstone are instant, so they do **not**
-  appear in the Buffs table. They DO show in the **Casts** table under their effect
-  name: a mana potion casts **"Restore Mana"**, a healthstone **"Master
-  Healthstone"** (rank names contain "Healthstone"), a health potion **"Restore
-  Health"**. So the in-combat consumables matrix reads MP/HS/HP from Casts
-  (`MANA_POTION_NAMES`/`HEALTH_POTION_NAMES`/`_is_healthstone`), per-player by cast
-  name — never from buffs. (Healthstones are warlock-dependent — flag "no warlock"
-  instead of marking the whole column a gap.)
+  A mana potion and a healthstone are instant, so they do **not** appear in the Buffs
+  table. They log under their effect name: a mana potion casts **"Restore Mana"**
+  (multiple item ranks share that one name), a healthstone **"… Healthstone"** (rank
+  names contain "Healthstone"). **CRITICAL CAVEAT — the `table(dataType:Casts)` caps
+  each player at their TOP 5 abilities.** For almost every healer/DPS the 5 most-cast
+  abilities are all rotational/heal spells, so these low-count consumable casts get
+  truncated off the bottom and are invisible in the Casts *table* — which silently
+  zeroed the in-combat matrix for nearly the whole raid. **Read them from cast EVENTS
+  instead** (`events(dataType:Casts)`, untruncated): `fetch_report._incombat_casts`
+  sweeps the fight, resolves each event's `abilityGameID` to a name via
+  `masterData.abilities`, and buckets MP/HS per `sourceID` into `incombat-<enc>.json`;
+  `per_player_incombat` reads that. **`Replenish Mana`** (id 27103) is the Mage **Mana
+  Gem**, a class ability — it is NOT a potion and stays excluded (name ≠ "Restore
+  Mana"). Health potions are not tracked (unused in TBC raids). (Healthstones are
+  warlock-dependent — flag "no warlock" instead of marking the whole column a gap.)
 - **Cooldowns log as BUFFS, not casts, in TBC (verified).** The marquee off-GCD DPS
   cooldowns (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane Power, Icy
   Veins, …) generate **no cast events** — they appear only in the `Buffs` table with

@@ -12,6 +12,8 @@ Writes:
                                             Consumables table — flask/elixir/food/potion presence)
     <out_dir>/timeline-<encounterID>.json  (shared bosses only: exact DPS/HPS-over-time curves,
                                             event-binned into N equal buckets across the fight)
+    <out_dir>/incombat-<encounterID>.json  (shared bosses only: per-source mana-potion/healthstone cast
+                                            counts from cast EVENTS — the Casts table caps at 5 abilities)
     <out_dir>/trash.json           (trash pull segments + NPC name master data, for the Trash tab)
     <out_dir>/trash-deaths.json    (enemy kill-order events + player death entries on trash)
     <out_dir>/trash-cc.json        (hard-CC aura table + per-mob CC apply events on trash)
@@ -173,6 +175,60 @@ def _binned_curves(code, fid, start, end, n=40):
             "dpsBySource": dps_src, "hpsBySource": hps_src}
 
 
+# IN-COMBAT instant consumables (super mana potion, healthstone) log as CASTS, not buffs. The Casts
+# TABLE caps each player at their top-5 abilities — which truncates these low-count casts off the bottom
+# for almost everyone — so we read them from cast EVENTS (untruncated) instead. Classified by ability
+# NAME (rank-proof): a mana potion casts "Restore Mana" (multiple item ranks share that one name), a
+# healthstone "… Healthstone". "Replenish Mana" (the Mage Mana Gem) is a class ability and stays excluded
+# by name. Events carry only an abilityGameID, so we resolve it to a name via masterData.abilities.
+INCOMBAT_MANA_NAMES = {"Restore Mana"}
+ABILITIES_Q = "query AB($code:String!){reportData{report(code:$code){masterData{abilities{gameID name}}}}}"
+
+
+def _ability_names(code):
+    """{abilityGameID(int) -> name} for the report, from masterData. Lets us classify cast EVENTS (which
+    carry only the numeric abilityGameID) by ability name. One cheap call per report."""
+    ab = (((lib.invoke_query(ABILITIES_Q, {"code": code}).get("reportData") or {}).get("report") or {})
+          .get("masterData") or {}).get("abilities") or []
+    return {int(a["gameID"]): a.get("name") for a in ab if a.get("gameID") is not None}
+
+
+def _incombat_casts(code, fid, start, end, ability_names, cap_pages=20):
+    """Per-source IN-COMBAT consumable cast counts {sourceID(str): {"MP","HS"}} for one shared boss, from
+    cast EVENTS (sweeping the whole fight, paginated). Buckets each cast's abilityGameID->name: a mana
+    potion's "Restore Mana" -> MP, any "Healthstone" -> HS, by sourceID. Untruncated, unlike the 5-ability
+    Casts TABLE that hid these. Health potions are deliberately NOT tracked (unused in TBC raids)."""
+    out = {}
+    cur = int(start)
+    q = ("query IC($c:String!,$f:[Int]!,$s:Float!,$e:Float!){reportData{report(code:$c){"
+         "events(dataType:Casts,fightIDs:$f,startTime:$s,endTime:$e,limit:10000){data nextPageTimestamp}}}}")
+    for _ in range(cap_pages):
+        ev = lib.invoke_query(q, {"c": code, "f": [fid], "s": cur, "e": int(end)})["reportData"]["report"]["events"]
+        for e in (ev.get("data") or []):
+            g = e.get("abilityGameID")
+            if g is None:
+                continue
+            nm = ability_names.get(int(g))
+            if not nm:
+                continue
+            if nm in INCOMBAT_MANA_NAMES:
+                key = "MP"
+            elif "Healthstone" in nm:
+                key = "HS"
+            else:
+                continue
+            sid = e.get("sourceID")
+            if sid is None:
+                continue
+            rec = out.setdefault(str(sid), {"MP": 0, "HS": 0})
+            rec[key] += 1
+        nxt = ev.get("nextPageTimestamp")
+        if not nxt or nxt <= cur:
+            break
+        cur = int(nxt)
+    return out
+
+
 # Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,
 # in one cheap call. WCL already splits trash into discrete pulls; enemyNPCs carries the report
 # actor id + game id + how many of each mob, and masterData resolves those ids to names.
@@ -270,7 +326,7 @@ def fetch(code, out_dir, full_encounters=None):
     kills_q = (
         "query K($code:String!){reportData{report(code:$code){title "
         "fights(killType:Kills){id name encounterID difficulty startTime endTime "
-        "size averageItemLevel phaseTransitions{id startTime}} "
+        "size averageItemLevel gameZone{id name} phaseTransitions{id startTime}} "  # gameZone: which zone each kill was in (Trash zone filter)
         "phases{encounterID separatesWipes phases{id name isIntermission}} "
         "masterData{npcs: actors(type:\"NPC\"){id gameID name} "
         "pets: actors(type:\"Pet\"){id petOwner}}}}}"  # pet->owner: fold pet damage into the owner's spec
@@ -309,6 +365,10 @@ def fetch(code, out_dir, full_encounters=None):
         for p in (pdd.get(rn) or []):
             player_ids.append(p["id"])
 
+    # Ability id -> name map (for classifying in-combat consumable cast EVENTS on the shared bosses).
+    #    Fetched once per report, only when there are heavy bosses to sweep.
+    ability_names = _ability_names(code) if full_encounters else {}
+
     # 3) Per-boss tables (one call per boss via aliases). Shared bosses also pull the
     #    heavy output tables for the Dive Deeper modules.
     for fight in fights:
@@ -324,6 +384,10 @@ def fetch(code, out_dir, full_encounters=None):
             _save({"perPlayer": ppb}, os.path.join(out_dir, "consumes-{}.json".format(enc)))
             timeline = _binned_curves(code, fid, fight["startTime"], fight["endTime"])
             _save(timeline, os.path.join(out_dir, "timeline-{}.json".format(enc)))
+            # In-combat mana-potion / healthstone usage, per source actor id, from cast EVENTS (untruncated;
+            # the Casts table caps each player at 5 abilities, hiding these). Read by per_player_incombat.
+            incombat = _incombat_casts(code, fid, fight["startTime"], fight["endTime"], ability_names)
+            _save({"perSource": incombat}, os.path.join(out_dir, "incombat-{}.json".format(enc)))
 
     # 4) Trash analysis (on by default — cheap, ~7-9 calls). Self-contained so it can also run alone.
     fetch_trash(code, out_dir)

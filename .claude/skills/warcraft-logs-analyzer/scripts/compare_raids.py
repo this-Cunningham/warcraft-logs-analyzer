@@ -143,6 +143,13 @@ def main(argv=None):
                    help="re-fetch from the API even if cached data for these report codes exists")
     args = p.parse_args(argv)
 
+    # Guild/report/ranking names carry accents; on a cp1252 Windows console or a non-UTF-8 pipe a plain
+    # print() of one raises UnicodeEncodeError. Make stdout lossy-but-safe so logging can't sink the run.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
     ours_code = get_code(args.ours_url)
     theirs_code = get_code(args.theirs_url)
 

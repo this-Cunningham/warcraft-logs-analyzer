@@ -171,6 +171,33 @@ min-pull threshold and doesn't require hardcoding zone IDs.
 Either way: the Trash section should only name zones that represent real raid content
 both guilds cleared, not WCL's outdoor-area zone tags bleeding in.
 
+## TODO: Prep matrix — don't flag missing guardian elixir as red for DPS specs
+
+> Don't count it against a DPS if they are missing a guardian elixir — Per-Player
+> Consumables — Prep.
+
+Confirmed over-flagging. The prep matrix currently marks the **G** (Guardian Elixir)
+cell red for any player who brought a battle elixir but no guardian, regardless of role
+(JS line ~317 in report.html: `gS=c.guardian?"good":"miss"`). For DPS specs a guardian
+elixir is a defensive/utility choice (HP, stamina, spell crit) — not a throughput
+requirement. Only the **battle** elixir directly affects DPS output. Flagging a DPS's
+missing guardian red implies a gap that isn't there, which muddies the signal for
+leaders scanning for real prep failures.
+
+**Fix (two places):**
+1. `_cell_for` in `build_deepdive.py`: expose the player's **role** in the cell so the
+   matrix can distinguish DPS from healers/tanks. Or pass role separately.
+2. JS `consumeMatrix` in `report.html`: when computing `gS` for the cell, if the
+   player's role is `dps` and they have a battle elixir, render `gS="na"` (faint,
+   not needed) instead of `gS="miss"` (red). Healers and tanks still require the full
+   pair — a healer's guardian elixir (e.g. Elixir of Draenic Wisdom) is throughput.
+   Also: the `consumed` definition in `_cell_for` should count a DPS with a battle
+   elixir as prepared (not require guardian to pass the threshold).
+
+Per the soul: a false red is *falsely precise* — it reads as a prep failure when it
+isn't one, crowding out real failures. The actionable Prep gap for a DPS is missing a
+battle elixir or flask, not a missing guardian.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

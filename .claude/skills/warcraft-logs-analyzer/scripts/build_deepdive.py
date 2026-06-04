@@ -64,10 +64,31 @@ def primary_spec_map(idx, enc_ids):
     return {name: max(c, key=c.get) for name, c in counts.items()}
 
 
+def primary_role_map(idx, enc_ids):
+    """Per player across the shared bosses: their most-frequent (primary) ROLE. Mirrors
+    primary_spec_map so role is derived the SAME way as spec — by majority, not by whichever
+    fight was iterated first. A player who healed one boss but DPS'd the other four reads as
+    'dps' (consistent with their primary spec), so the prep audit, consumable labels, and
+    healer/DPS table splits don't mislabel a one-off role as the player's role."""
+    counts = {}
+    for enc in enc_ids:
+        if enc not in idx:
+            continue
+        for p in idx[enc]["players"]:
+            if p["role"]:
+                counts.setdefault(p["name"], {})
+                counts[p["name"]][p["role"]] = counts[p["name"]].get(p["role"], 0) + 1
+    # max by count; ties fall to the first role seen (dict is insertion-ordered)
+    return {name: max(c, key=c.get) for name, c in counts.items()}
+
+
 def get_roster(idx, enc_ids):
     """Roster restricted to the given encounters (the shared bosses), unique by name.
-    Spec is the player's PRIMARY (most-frequent) spec; first-seen role wins."""
+    Spec is the player's PRIMARY (most-frequent) spec; role is likewise the PRIMARY
+    (most-frequent) role — both order-independent, so spec and role stay consistent for a
+    role/spec switcher (a Feral who bear-tanks one fight reads Feral/dps if she DPS'd the rest)."""
     primary = primary_spec_map(idx, enc_ids)
+    primary_role = primary_role_map(idx, enc_ids)
     by_name = {}
     for enc in enc_ids:
         if enc not in idx:
@@ -75,7 +96,8 @@ def get_roster(idx, enc_ids):
         for p in idx[enc]["players"]:
             if p["name"] not in by_name:
                 by_name[p["name"]] = {"name": p["name"], "class": p["class"],
-                                      "spec": primary.get(p["name"], p["spec"]), "role": p["role"]}
+                                      "spec": primary.get(p["name"], p["spec"]),
+                                      "role": primary_role.get(p["name"], p["role"])}
     return list(by_name.values())
 
 
@@ -380,6 +402,7 @@ def consumable_report(directory, idx, enc_ids, roster_size):
     never regresses to empty. Elixirs/potions aren't surfaced here — the matrix carries that detail."""
     fm = fight_map(directory)
     name_to_id = name_id_map(directory)
+    role_map = primary_role_map(idx, enc_ids)  # majority role, so a DPS's battle-only prep counts (matrix-consistent)
     drum_upt = []
     # Per-raider tallies across the shared bosses (same _cell_for pass as the matrix).
     present_cnt, prepared_cnt, fed_cnt = {}, {}, {}
@@ -413,7 +436,7 @@ def consumable_report(directory, idx, enc_ids, roster_size):
                     continue
                 seen.add(nm)
                 pid = name_to_id.get(nm)
-                cell = _cell_for(per_player.get(str(pid)) if pid is not None else None)
+                cell = _cell_for(per_player.get(str(pid)) if pid is not None else None, role_map.get(nm))
                 present_cnt[nm] = present_cnt.get(nm, 0) + 1
                 if cell["consumed"]:
                     prepared_cnt[nm] = prepared_cnt.get(nm, 0) + 1
@@ -460,8 +483,14 @@ def name_id_map(directory):
     return m
 
 
-def _cell_for(auras):
-    """Reduce one player's pull auras on one boss to a consumable cell."""
+def _cell_for(auras, role=None):
+    """Reduce one player's pull auras on one boss to a consumable cell.
+
+    `role` (dps/healer/tank) tunes the prep bar: for a **DPS**, only the BATTLE (offensive) elixir
+    affects throughput — a guardian elixir is a defensive/utility choice, so a DPS with a battle elixir
+    counts as prepared even without a guardian (and the matrix renders the missing guardian as faint,
+    not red). Healers/tanks still need the full flask-or-pair (their guardian elixir IS throughput, e.g.
+    Draenic Wisdom). When role is unknown, the strict flask-or-pair rule applies (back-compat)."""
     flask, battle, guardian, other, food, potions = False, 0, 0, 0, False, 0
     for a in (auras or []):
         nm = a.get("name")
@@ -484,6 +513,9 @@ def _cell_for(auras):
     total_elixirs = battle + guardian + other
     # Consumed = a flask, OR a battle+guardian pair (two distinct elixirs == the pair in TBC).
     consumed = flask or (battle >= 1 and guardian >= 1) or total_elixirs >= 2
+    # A DPS is prepared on throughput with just a battle elixir — guardian is optional for them.
+    if role == "dps" and battle >= 1:
+        consumed = True
     return {"present": True, "flask": flask, "battle": battle >= 1, "guardian": guardian >= 1,
             "food": food, "potions": potions, "consumed": consumed}
 
@@ -522,10 +554,11 @@ def per_player_consumables(directory, idx, enc_ids):
     # leader scanning offenders can tell the Holy Priest from the Disc Priest), and the same map
     # the rest of the report uses, so the labels stay consistent.
     prim = primary_spec_map(idx, enc_ids)
+    role_map = primary_role_map(idx, enc_ids)  # majority role (consistent with spec; feeds the DPS guardian-elixir rule)
     info = {}
     for enc in enc_ids:
         for pl in ((idx.get(enc) or {}).get("players") or []):
-            info.setdefault(pl["name"], {"class": pl["class"], "role": pl["role"]})
+            info.setdefault(pl["name"], {"class": pl["class"], "role": role_map.get(pl["name"], pl["role"])})
 
     players = []
     for nm, meta in info.items():
@@ -534,7 +567,7 @@ def per_player_consumables(directory, idx, enc_ids):
         for b in boss_meta:
             enc = b["enc"]
             if nm in boss_present.get(enc, set()):
-                cell = _cell_for(boss_auras[enc].get(nm))
+                cell = _cell_for(boss_auras[enc].get(nm), meta["role"])
                 present_n += 1
                 consumed_n += 1 if cell["consumed"] else 0
                 food_n += 1 if cell["food"] else 0
@@ -560,21 +593,40 @@ def _is_healthstone(name):
     return bool(name) and "Healthstone" in name
 
 
+def _incombat_casts_by_id(directory, enc):
+    """Per-source in-combat consumable CAST counts {sourceId(str): {"MP","HS"}} for one shared boss,
+    from `incombat-<enc>.json` (written by fetch_report from cast EVENTS). Returns None when the file is
+    absent — older data folders predate the events-based fetch and fall back to the (truncated) Casts table.
+
+    WHY events, not the Casts table: WCL's `table(dataType:Casts)` returns only each player's TOP 5
+    abilities. For most players the 5 most-cast abilities are all rotational/heal spells, so low-count
+    consumable casts (a super mana potion's "Restore Mana", a "Master Healthstone") are truncated off the
+    bottom and never seen — silently zeroing the matrix for nearly every healer/DPS. Cast EVENTS are not
+    capped, so fetch_report sweeps them and buckets MP/HS by sourceID; this reads that pre-bucketed file."""
+    path = os.path.join(directory, "incombat-{}.json".format(enc))
+    if not os.path.isfile(path):
+        return None
+    return read_json(path).get("perSource") or {}
+
+
 def per_player_incombat(directory, idx, enc_ids, roster):
     """Per-player IN-COMBAT consumable USAGE matrix (ours only) — the companion to the prep matrix, but
-    for the consumables you press DURING the fight: combat throughput potion (P), health potion (HP),
-    mana potion (MP), healthstone (HS). One row per raider × shared boss. **P** comes from the buff-sourced
-    POTION category (`consumes-<enc>.json`); **HP/MP/HS** come from the **Casts** table (`boss-<enc>.json`)
-    — instant items leave no buff aura (verified live), so they only show as casts. This is a USAGE view,
-    not a prep pass/fail: popping a mana pot or healthstone is situational, so a non-use is a faint dash,
-    never a red gap (that would falsely flag a warrior for not drinking mana). Healthstone is warlock-
-    dependent — if no warlock is in the raid, the HS column is flagged unavailable rather than empty.
-    Sorted by combat-potion (P) usage ascending, so raiders leaving throughput on the table surface first."""
+    for the consumables you press DURING the fight: combat throughput potion (P), mana potion (MP),
+    healthstone (HS). One row per raider × shared boss. **P** comes from the buff-sourced POTION category
+    (`consumes-<enc>.json`); **MP/HS** come from cast EVENTS, pre-bucketed per-source in `incombat-<enc>.json`
+    (instant items leave no buff aura, and the Casts TABLE caps each player at 5 abilities — which hid the
+    consumables; see `_incombat_casts_by_id`). This is a USAGE view, not a prep pass/fail: popping a mana
+    pot or healthstone is situational, so a non-use is a faint dash, never a red gap (that would falsely
+    flag a warrior for not drinking mana). Healthstone is warlock-dependent — if no warlock is in the raid,
+    the HS column is flagged unavailable rather than empty. (Health potions are not tracked — nobody runs
+    them in TBC raids.) Sorted by total in-combat usage ascending, so raiders leaving throughput on the
+    table surface first."""
     name_to_id = name_id_map(directory)
     has_warlock = any(p.get("class") == "Warlock" for p in roster)
     prim = primary_spec_map(idx, enc_ids)
+    role_map = primary_role_map(idx, enc_ids)  # majority role, consistent with spec
     boss_meta = []
-    boss_data = {}     # enc(str) -> {name -> {"P","HP","MP","HS"}}
+    boss_data = {}     # enc(str) -> {name -> {"P","MP","HS"}}
     boss_present = {}  # enc(str) -> set(names)
     info = {}
     for enc in enc_ids:
@@ -583,11 +635,13 @@ def per_player_incombat(directory, idx, enc_ids, roster):
             continue
         cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
         per_player = (read_json(cons_path).get("perPlayer") or {}) if os.path.isfile(cons_path) else {}
-        # In-combat instant items log as CASTS (per player, by name). Tally MP/HS/HP per player.
-        cast_mp, cast_hs, cast_hp = {}, {}, {}
-        rep = load_boss(directory, str(enc))
-        if rep:
-            for e in _entries(rep, "casts"):
+        # MP/HS from cast EVENTS (untruncated), keyed by source actor id. Fall back to the (capped) Casts
+        # table only on older data folders without an incombat file, so a stale folder still shows something.
+        per_source = _incombat_casts_by_id(directory, enc)
+        cast_mp, cast_hs = {}, {}  # name -> count, used only by the legacy Casts-table fallback
+        if per_source is None:
+            rep = load_boss(directory, str(enc))
+            for e in (_entries(rep, "casts") if rep else []):
                 nm = e.get("name")
                 if not nm:
                     continue
@@ -597,8 +651,6 @@ def per_player_incombat(directory, idx, enc_ids, roster):
                         cast_mp[nm] = cast_mp.get(nm, 0) + tot
                     elif _is_healthstone(an):
                         cast_hs[nm] = cast_hs.get(nm, 0) + tot
-                    elif an in HEALTH_POTION_NAMES:
-                        cast_hp[nm] = cast_hp.get(nm, 0) + tot
         data, names, seen = {}, [], set()
         for pl in present:
             nm = pl["name"]
@@ -609,8 +661,13 @@ def per_player_incombat(directory, idx, enc_ids, roster):
             pid = name_to_id.get(nm)
             P = sum(int(a.get("uses", 0)) for a in (per_player.get(str(pid)) or [])
                     if _consumable_cat(a.get("name"), a.get("guid")) == "potion")
-            data[nm] = {"P": P, "HP": cast_hp.get(nm, 0), "MP": cast_mp.get(nm, 0), "HS": cast_hs.get(nm, 0)}
-            info.setdefault(nm, {"class": pl["class"], "role": pl["role"]})
+            if per_source is not None:
+                src = per_source.get(str(pid)) or {}
+                mp, hs = int(src.get("MP", 0)), int(src.get("HS", 0))
+            else:
+                mp, hs = cast_mp.get(nm, 0), cast_hs.get(nm, 0)
+            data[nm] = {"P": P, "MP": mp, "HS": hs}
+            info.setdefault(nm, {"class": pl["class"], "role": role_map.get(nm, pl["role"])})
         boss_meta.append({"encounterID": int(enc), "name": idx[enc]["name"], "enc": enc})
         boss_data[enc] = data
         boss_present[enc] = set(names)
@@ -622,8 +679,8 @@ def per_player_incombat(directory, idx, enc_ids, roster):
         for b in boss_meta:
             enc = b["enc"]
             if nm in boss_present.get(enc, set()):
-                d = boss_data[enc].get(nm) or {"P": 0, "HP": 0, "MP": 0, "HS": 0}
-                use_total += d["P"] + d["HP"] + d["MP"] + d["HS"]
+                d = boss_data[enc].get(nm) or {"P": 0, "MP": 0, "HS": 0}
+                use_total += d["P"] + d["MP"] + d["HS"]
                 cells[str(b["encounterID"])] = {"present": True, **d}
             else:
                 cells[str(b["encounterID"])] = {"present": False}
@@ -1135,34 +1192,40 @@ def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o
 
 
 # ---------- DEATH CAUSES (aggregate killing blows across the shared bosses) ----------
+def _death_cause_label(d, boss_name):
+    """Killing-blow label for the tier-wide death table. Appends the SOURCE MOB in parens when an ADD
+    (not the boss) landed the blow — 'Arcing Smash (Coilfang Guardian)' on Lurker vs a bare 'Arcing Smash'
+    on Maulgar — turning a shared ability name into an actionable 'kill the add' assignment. Mirrors the
+    Trash 'What's Killing Us' labelling. Bare cause when the boss itself (or no enemy actor) landed it."""
+    cause = d.get("killedBy") or "Unknown"
+    mob = d.get("srcMob")
+    return "{} ({})".format(cause, mob) if mob and mob != boss_name else cause
+
+
 def death_causes(per_boss, side):
-    """Aggregate killing-blow names across every shared boss for one side. A blow that recurs
-    is a mechanic the raid repeatedly fails. Returns {cause: {count, bosses:set}}."""
+    """Per (killing-blow label, boss): how many of `side`'s deaths it caused. One entry PER BOSS (not
+    pooled across bosses), so the tier table can split e.g. 'Melee on Vashj' from 'Melee on Maulgar'
+    instead of burying both in one total. Returns {(label, boss): count}."""
     agg = {}
     for pb in per_boss:
         for d in pb["deaths"][side]:
-            cause = d.get("killedBy") or "Unknown"
-            rec = agg.setdefault(cause, {"count": 0, "bosses": set()})
-            rec["count"] += 1
-            rec["bosses"].add(pb["name"])
+            key = (_death_cause_label(d, pb["name"]), pb["name"])
+            agg[key] = agg.get(key, 0) + 1
     return agg
 
 
 def death_cause_compare(per_boss):
-    """Ranked ours-vs-theirs death-cause table across the whole shared clear."""
+    """Ranked ours-vs-theirs death-cause table, ONE ROW PER (killing blow, boss), biggest improvable
+    delta first. Splitting by boss (vs pooling a cause across the clear) makes the gap actionable: '7
+    Melee deaths on Vashj vs 0' points at one fight to fix, where a pooled '11 Melee across 4 bosses'
+    hides where to look. Ranked by payoff: biggest IMPROVABLE delta first (a death the benchmark avoids
+    and we don't), then raw ours, then theirs — mirrors the trash death-cause sort."""
     o = death_causes(per_boss, "ours")
     t = death_causes(per_boss, "theirs")
     rows = []
-    for cause in set(o) | set(t):
-        oc = o.get(cause, {"count": 0, "bosses": set()})
-        tc = t.get(cause, {"count": 0, "bosses": set()})
-        rows.append({
-            "cause": cause, "ours": oc["count"], "theirs": tc["count"],
-            "bosses": sorted(oc["bosses"] or tc["bosses"]),
-        })
-    # Ranked by payoff: biggest IMPROVABLE delta first (a death the benchmark avoids and we don't —
-    # the mechanic they've solved that we haven't), then raw ours, then theirs. Mirrors the
-    # trash death-cause sort, and matches the soul's "gaps ranked by what's worth fixing first."
+    for key in set(o) | set(t):
+        label, boss = key
+        rows.append({"cause": label, "boss": boss, "ours": o.get(key, 0), "theirs": t.get(key, 0)})
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows
 
@@ -1413,70 +1476,118 @@ def _rotation_diff(p_abil, w_abil, min_share, top):
     return rows[:top]
 
 
-def build_optimize(ours_dir, ours_idx, ours_spec, ours_role, ours_cls,
+# TBC Feral druid is ONE spec for TWO forms/roles (cat DPS vs bear tank/threat). WCL's role label can
+# disagree with what a player actually did on a fight — a Feral logged as "dps" may have been in BEAR form
+# (parsing low on the DPS metric while threat-tanking). Their casts are the ground truth: bear abilities
+# (Lacerate/Maul/Swipe) vs cat (Shred/Rake/Mangle-Cat). We use this to keep the Optimize comparison
+# like-for-like — a bear Feral must NOT be benchmarked against a cat-DPS world best, or the form mismatch
+# reads as a huge phantom rotation gap (Lacerate 55% vs Shred 55%). Mangle is form-suffixed in the log.
+_DRUID_BEAR_ABILITIES = {"Maul", "Lacerate", "Swipe", "Mangle (Bear)", "Demoralizing Roar",
+                         "Bear Form", "Dire Bear Form", "Frenzied Regeneration", "Enrage"}
+_DRUID_CAT_ABILITIES = {"Shred", "Rake", "Mangle (Cat)", "Claw", "Ferocious Bite", "Rip",
+                        "Tiger's Fury", "Cat Form", "Ravage", "Pounce"}
+
+
+def _druid_form(abil):
+    """A Feral druid's FORM from their cast mix: 'bear' vs 'cat' (None if neither's abilities appear).
+    Counts cast TOTALS (not ability variety), so a few stray Cat Form shifts don't flip a tanking bear."""
+    bear = sum(v for k, v in abil.items() if k in _DRUID_BEAR_ABILITIES)
+    cat = sum(v for k, v in abil.items() if k in _DRUID_CAT_ABILITIES)
+    if bear == 0 and cat == 0:
+        return None
+    return "bear" if bear > cat else "cat"
+
+
+def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
                    min_share=3.0, top=10, collapse_diff=5.0):
-    """Optimize tab payload: per class -> per spec -> each of OUR raiders' rotation benchmarked against a
-    same-faction WORLD-BEST player of that exact class/spec. Reads `worldbest.json` (written in the fetch
-    stage by fetch_worldbest); pure/deterministic here. Graceful {"present": False} when the file is
-    absent (older data folders) or no guild faction was resolvable. Each spec is benchmarked on ONE shared
-    boss (the boss the world-best player parsed, which our raiders also killed), so our-player and
-    world-best cast shares are measured on the SAME encounter — an apples-to-apples rotation read."""
+    """Optimize tab payload: per class -> per spec -> PER SHARED BOSS, each of OUR raiders' rotation
+    benchmarked against the same-faction WORLD-BEST player of that exact class/spec ON THAT BOSS. Reads
+    `worldbest.json` (written in the fetch stage by fetch_worldbest, now per boss); pure/deterministic
+    here. Graceful {"present": False} when the file is absent (older data folders) or no guild faction was
+    resolvable.
+
+    Two integrity rules make every gap a real one:
+      • PER BOSS, not pooled — our raider's casts and the world-best's casts are summed on the SAME
+        encounter and compared there, so the gap is a true per-boss rotation read (the user wants the
+        breakdown for EACH boss, not one tier-wide average that blends fights).
+      • FORM/ROLE-AWARE — a raider is compared on a boss only if the role they ACTUALLY played there (from
+        that boss's parse rankings) matches the benchmark's role. A Feral who bear-TANKED Al'ar is excluded
+        from Al'ar's cat-DPS benchmark (a bear-vs-cat 'gap' is a role mismatch, not a rotation gap), but
+        still compared on the bosses where she DPS'd. Spec/class still match the roster's primary."""
     wb = read_json(os.path.join(ours_dir, "worldbest.json")) if \
         os.path.isfile(os.path.join(ours_dir, "worldbest.json")) else None
     if not wb or not wb.get("present"):
         return {"present": False}
 
-    # Cache per-boss casts-by-name so multiple specs sharing a benchmark boss load it once.
-    boss_casts = {}
+    # Cache per-boss casts-by-name + per-boss player role/parse so multiple specs reuse one load per boss.
+    boss_casts, boss_meta = {}, {}
 
-    def _casts_for(enc):
+    def _casts_for(enc):  # enc: str
         if enc not in boss_casts:
             rep = load_boss(ours_dir, enc)
             boss_casts[enc] = _casts_by_name(rep) if rep else {}
         return boss_casts[enc]
 
+    def _meta_for(enc):  # enc: str -> {name: {"role","parse"}} from THIS boss's parse rankings
+        if enc not in boss_meta:
+            m = {}
+            for p in (ours_idx.get(enc, {}).get("players") or []):
+                m.setdefault(p["name"], {"role": p.get("role"), "parse": p.get("parse")})
+            boss_meta[enc] = m
+        return boss_meta[enc]
+
     by_class = {}
     for sp in (wb.get("specs") or []):
         cls, spec, role = sp.get("class"), sp.get("spec"), sp.get("role")
+        metric = sp.get("metric")
         slot = by_class.setdefault(cls, [])
-        player = sp.get("player")
-        if not player:
-            # No same-faction world ranking for this spec — surface it honestly, no comparison.
-            slot.append({"spec": spec, "role": role, "benchmark": None, "players": [], "worstDiff": -1})
-            continue
-        enc = (sp.get("boss") or {}).get("encounterID")
-        w_abil = sp.get("abilities") or {}
-        casts = _casts_for(enc)
-        # Per-boss parse for context (the player's percentile on the benchmark boss).
-        parse_by_name = {p["name"]: p.get("parse") for p in (ours_idx.get(str(enc), {}).get("players") or [])}
-        players = []
-        for nm, p_abil in casts.items():
-            if ours_spec.get(nm) != spec or ours_cls.get(nm) != cls or ours_role.get(nm) != role:
-                continue
-            abil = _rotation_diff(p_abil, w_abil, min_share, top)
-            if not abil:
-                continue
-            max_diff = max((abs(a["diff"]) for a in abil), default=0.0)
-            players.append({"name": nm, "parse": parse_by_name.get(nm),
-                            "matches": max_diff <= collapse_diff, "maxDiff": round(max_diff, 1),
-                            "abilities": abil})
-        # Most-divergent raider first (most to coach), so a leader reads top-down.
-        players.sort(key=lambda p: -p["maxDiff"])
-        slot.append({
-            "spec": spec, "role": role, "metric": sp.get("metric"),
-            "boss": sp.get("boss"),
-            "benchmark": {"name": player.get("name"), "guild": player.get("guild"),
-                          "server": player.get("server"), "region": player.get("region"),
-                          "amount": player.get("amount"), "globalRank": player.get("globalRank"),
-                          "metric": sp.get("metric")},
-            "players": players,
-            "worstDiff": max((p["maxDiff"] for p in players), default=0.0),
-        })
+        spec_bosses = []
+        for bn in (sp.get("bosses") or []):
+            enc = bn.get("encounterID")
+            player = bn.get("player") or {}
+            w_abil = bn.get("abilities") or {}
+            casts = _casts_for(str(enc))
+            meta = _meta_for(str(enc))
+            # For a Feral spec, the benchmark's own form on THIS boss (cat for a DPS world best) — our
+            # raiders must match it, so a bear isn't compared to a cat rotation.
+            bench_form = _druid_form(w_abil) if (cls == "Druid" and spec == "Feral") else None
+            players = []
+            for nm, p_abil in casts.items():
+                mm = meta.get(nm)
+                if not mm:
+                    continue
+                # Same class + roster primary spec, AND the raider played THIS role on THIS boss
+                # (form/role-aware — excludes a bear-tank from the cat-DPS benchmark).
+                if ours_cls.get(nm) != cls or ours_spec.get(nm) != spec or mm.get("role") != role:
+                    continue
+                # Feral form check from CASTS: even when WCL labels a bear "dps", their bear cast mix
+                # (Lacerate/Maul) must not be benchmarked against a cat-DPS world best (Shred/Rake).
+                if bench_form is not None and _druid_form(p_abil) not in (None, bench_form):
+                    continue
+                abil = _rotation_diff(p_abil, w_abil, min_share, top)
+                if not abil:
+                    continue
+                max_diff = max((abs(a["diff"]) for a in abil), default=0.0)
+                players.append({"name": nm, "parse": mm.get("parse"),
+                                "matches": max_diff <= collapse_diff, "maxDiff": round(max_diff, 1),
+                                "abilities": abil})
+            players.sort(key=lambda p: -p["maxDiff"])  # most-divergent raider first (most to coach)
+            spec_bosses.append({
+                "encounterID": enc, "name": bn.get("name"), "metric": metric,
+                "benchmark": {"name": player.get("name"), "guild": player.get("guild"),
+                              "server": player.get("server"), "region": player.get("region"),
+                              "amount": player.get("amount"), "globalRank": player.get("globalRank"),
+                              "metric": metric} if player.get("name") else None,
+                "players": players,
+                "worstDiff": max((p["maxDiff"] for p in players), default=0.0),
+            })
+        slot.append({"spec": spec, "role": role, "metric": metric, "bosses": spec_bosses,
+                     "worstDiff": max((b["worstDiff"] for b in spec_bosses), default=-1)})
 
     classes = []
     for cls in sorted(by_class):
         specs = by_class[cls]
-        # Within a class, the spec with the biggest rotation gap floats up.
+        # Within a class, the spec with the biggest rotation gap (across its bosses) floats up.
         specs.sort(key=lambda s: -s.get("worstDiff", 0))
         classes.append({"class": cls, "specs": specs})
     return {"present": True, "factionName": wb.get("factionName"), "region": wb.get("region"),
@@ -1544,18 +1655,24 @@ def int_compare(o_report, t_report, o_spec, t_spec):
     return {"abilities": rows}
 
 
-def death_list(report, fight_start):
-    """Deaths: name + spec (from icon) + killing blow + when (sec into fight)."""
+def death_list(report, fight_start, npc_map=None):
+    """Deaths: name + spec (from icon) + killing blow + the SOURCE MOB that landed it + when (sec into
+    fight). The source mob (`srcMob`) disambiguates a killing blow shared by the boss and an add — e.g.
+    'Arcing Smash' is Maulgar's cleave on one boss but a Coilfang Guardian add's on Lurker. Resolved from
+    the death's killing-blow event via `_death_source_mob` (no extra API call). None for a boss/self/
+    environment death where the boss itself or no enemy actor landed the blow (caller compares vs boss name)."""
     out = []
     if not report.get("deaths"):
         return out
+    npc_map = npc_map or {}
     for d in _entries(report, "deaths"):
         if not d or not d.get("name"):
             continue
         kb = str(d["killingBlow"]["name"]) if d.get("killingBlow") and d["killingBlow"].get("name") else "Unknown"
         t = round((int(d["timestamp"]) - int(fight_start)) / 1000)
         out.append({"name": str(d["name"]), "class": str(d.get("type")),
-                    "icon": str(d.get("icon")), "killedBy": kb, "tSec": int(t)})
+                    "icon": str(d.get("icon")), "killedBy": kb, "tSec": int(t),
+                    "srcMob": _death_source_mob(d, npc_map)})
     out.sort(key=lambda x: x["tSec"])
     return out
 
@@ -1672,18 +1789,45 @@ def disp_compare(o_report, t_report):
     return rows
 
 
+# Auto-attacks are never interruptible — a backstop to the CC discount below. A ranged "Shoot" auto-shot
+# can be incidentally stopped by a Polymorph, which would otherwise fake-prove it kickable; name-block the
+# handful of auto-attack labels so they can never enter the interrupt views regardless of CC noise.
+AUTO_ATTACK_NAMES = {"Shoot", "Auto Attack", "Auto Shot", "Melee", "Attack"}
+
+
+def _real_interrupt_kicks(entry):
+    """Count interrupts on this Interrupts-table entry whose INTERRUPTING ability is a real interrupt
+    (Counterspell, Kick, Pummel, Shield Bash, Earth Shock, Spell Lock, …) — NOT a hard CC. WCL credits a
+    cast as 'interrupted' even when a Polymorph/Banish merely CC'd the caster mid-cast, but that is not
+    proof the cast is kickable. `details[].abilities[]` carries the interrupting abilities; we sum only
+    those that aren't hard CC (`cc_label` is None). Zero ⇒ the cast was only ever stopped by CC, so it is
+    NOT proven interruptible (this is what was fake-proving auto-attacks like 'Shoot' interruptible)."""
+    n = 0
+    for d in (entry.get("details") or []):
+        for ab in (d.get("abilities") or []):
+            if cc_label(ab.get("name")) is None:
+                n += int(ab.get("total", 0))
+    return n
+
+
 def unkicked_list(report):
-    """Interruptible casts that went off un-kicked (raid failed to interrupt).
-    Keep only abilities whose un-interrupted casts (missedCasts) have a hostile caster."""
+    """Interruptible casts that went off un-kicked (raid failed to interrupt). An ability is only
+    'interruptible' once the raid has kicked it with a REAL interrupt (not a CC that incidentally
+    stopped a cast) — see `_real_interrupt_kicks`. Keep only abilities whose un-interrupted casts
+    (missedCasts) have a hostile caster."""
     rows = []
     for a in _inner_entries(report, "intr"):
         if not a:
             continue
+        if a.get("name") in AUTO_ATTACK_NAMES:
+            continue  # auto-attacks are never interruptible (backstop to the CC discount)
         missed = a.get("missedCasts") or []
         hostile = [m for m in missed if m.get("type") in ("NPC", "Boss")]
         if len(missed) > 0 and len(hostile) == 0:
             continue  # friendly-ability noise
-        kicked = int(a.get("spellsInterrupted", 0))
+        kicked = _real_interrupt_kicks(a)
+        if kicked <= 0:
+            continue  # only ever CC-stopped, never truly kicked → not proven interruptible
         went_off = len(hostile) if len(missed) > 0 else int(a.get("spellsCompleted", 0))
         if (kicked + went_off) <= 0:
             continue
@@ -1712,19 +1856,23 @@ def leaked_casts(report):
     """Per ability: (kicked, leaked) for the tier-wide leaked-interrupts view.
 
     The WCL public API exposes NO 'is interruptible' flag, and the Interrupts table only ever lists
-    abilities the raid interrupted at least once — so `spellsInterrupted >= 1` is our PROOF the ability
-    is interruptible (we never assume). `leaked` counts only HOSTILE (NPC/Boss) casts that went off
-    un-interrupted (`missedCasts`); friendly casts (e.g. a raider's own Regrowth that took an incidental
-    interrupt) are excluded. Known blind spot: an interruptible ability the raid NEVER kicked is absent
-    from the table entirely, so a total interrupt failure is invisible — this UNDER-counts, never over-
-    counts. We deliberately do NOT fall back to `spellsCompleted` (it carries no caster-type proof)."""
+    abilities the raid interrupted at least once — so a kick is our PROOF the ability is interruptible (we
+    never assume). But the table credits a cast as 'interrupted' even when a hard CC (Polymorph, Banish, …)
+    merely stopped it mid-cast, which is NOT proof it's kickable — so we count only REAL interrupt kicks
+    (`_real_interrupt_kicks`, which discounts CC) and require ≥1 of them. `leaked` counts only HOSTILE
+    (NPC/Boss) casts that went off un-interrupted (`missedCasts`); friendly casts (e.g. a raider's own
+    Regrowth that took an incidental interrupt) are excluded. Known blind spot: an interruptible ability the
+    raid NEVER kicked is absent from the table entirely, so a total interrupt failure is invisible — this
+    UNDER-counts, never over-counts. We deliberately do NOT fall back to `spellsCompleted` (no caster proof)."""
     out = {}
     for a in _inner_entries(report, "intr"):
         if not a or not a.get("name"):
             continue
-        kicked = int(a.get("spellsInterrupted", 0))
+        if a.get("name") in AUTO_ATTACK_NAMES:
+            continue  # auto-attacks are never interruptible (a Poly can incidentally stop "Shoot")
+        kicked = _real_interrupt_kicks(a)
         if kicked <= 0:
-            continue  # not proven interruptible — never assume
+            continue  # only ever CC-stopped, never truly kicked → not proven interruptible
         leaked = sum(1 for m in (a.get("missedCasts") or []) if m.get("type") in ("NPC", "Boss"))
         out[str(a["name"])] = {"kicked": kicked, "leaked": leaked}
     return out
@@ -1970,10 +2118,11 @@ def biggest_gaps(summary, quality, consumables, audit, comp_gaps, tier_spec=None
     if death_causes:
         worst = next((r for r in death_causes if r["ours"] - r["theirs"] > 0), None)
         if worst:
+            where = " on {}".format(worst["boss"]) if worst.get("boss") else ""
             add((worst["ours"] - worst["theirs"]) / 6.0, "A killing blow keeps getting you",
-                "You die to {} {}× vs {}× for the benchmark — a recurring killing blow they "
+                "You die to {}{} {}× vs {}× for the benchmark — a recurring killing blow they "
                 "largely avoid. Interrupt, CC, or position around it."
-                .format(worst["cause"], worst["ours"], worst["theirs"]))
+                .format(worst["cause"], where, worst["ours"], worst["theirs"]))
 
     # Worst leaked interrupt: an interruptible cast (proven by >=1 kick) you let through more than the
     # benchmark. High-leverage — assigning a kick is a cheap, repeatable fix.
@@ -2261,8 +2410,8 @@ def _death_source_mob(death, npc_map):
         if src and src != "Environment":
             return src
     for s in (((death.get("damage") or {}).get("sources")) or []):
-        if s.get("type") in ("NPC", "Boss") and s.get("name"):
-            return s["name"]
+        if s.get("type") in ("NPC", "Boss") and s.get("name") and s["name"] != "Environment":
+            return s["name"]  # "Environment" (ground effects/fall) is not a nameable mob — leave it bare
     return None
 
 
@@ -2562,6 +2711,19 @@ def trash_pairwise_priority(o_pulls, t_pulls, min_pulls=2):
     return rows
 
 
+def boss_kill_zones(directory):
+    """Set of gameZone ids the report's BOSS KILLS happened in, from fights.json. A real raid zone is one
+    we actually downed a boss in; outdoor trash that WCL tags to a neighbouring zone (e.g. Zangarmarsh
+    trash outside SSC mislabelled 'Isle of Quel'Danas') has no boss kill there. Graceful empty set on
+    older data folders whose kills query predates the gameZone field (→ the boss-zone filter is skipped)."""
+    try:
+        fights = read_json(os.path.join(directory, "fights.json"))["reportData"]["report"]["fights"]
+    except (OSError, KeyError, ValueError):
+        return set()
+    return {(f.get("gameZone") or {}).get("id") for f in fights
+            if (f.get("gameZone") or {}).get("id") is not None}
+
+
 def build_trash(ours_dir, theirs_dir):
     """Assemble the Trash tab payload. Present only when both reports have trash data."""
     o, t = load_trash(ours_dir), load_trash(theirs_dir)
@@ -2574,6 +2736,14 @@ def build_trash(ours_dir, theirs_dir):
     # only compares shared encounters. Needs gameZone on trash fights (older data folders lack it →
     # _trash_zones is empty → no filtering, graceful).
     shared_zones = _trash_zones(o) & _trash_zones(t)
+    # Drop zones the raid never actually fought a BOSS in — WCL tags some outdoor trash (e.g. the
+    # Zangarmarsh pulls just outside the SSC entrance) to a neighbouring zone like "Isle of Quel'Danas",
+    # which then passes the shared-trash intersection and shows up as a zone the raid "cleared" though it
+    # never entered. Keep only trash zones that are also a boss-kill zone on at least one side. Graceful:
+    # if neither side carries boss-kill gameZone data (older folders), the union is empty → skip the filter.
+    boss_zones = boss_kill_zones(ours_dir) | boss_kill_zones(theirs_dir)
+    if boss_zones:
+        shared_zones = {z for z in shared_zones if z in boss_zones}
     zone_names = _zone_names(o, shared_zones) or _zone_names(t, shared_zones)
     if shared_zones:
         o, t = _filter_to_zones(o, shared_zones), _filter_to_zones(t, shared_zones)
@@ -2814,8 +2984,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
         o_lust = lust_sec(_auras(o_b, "buffs"), ours_fights[enc]["start"])
         t_lust = lust_sec(_auras(t_b, "buffs"), theirs_fights[enc]["start"])
-        o_deaths = death_list(o_b, ours_fights[enc]["start"])
-        t_deaths = death_list(t_b, theirs_fights[enc]["start"])
+        o_deaths = death_list(o_b, ours_fights[enc]["start"], ours_npc)
+        t_deaths = death_list(t_b, theirs_fights[enc]["start"], theirs_npc)
         o_tl = load_timeline(ours_dir, enc)
         t_tl = load_timeline(theirs_dir, enc)
         tl_payload = timeline_view(o_tl, t_tl, o_deaths, t_deaths, o_lust, t_lust,
@@ -2929,7 +3099,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     # Optimize tab — each raider's rotation vs a same-faction world-best player of their spec (reads
     # worldbest.json from the fetch stage; graceful {present:false} on older folders without it).
-    optimize = build_optimize(ours_dir, ours_idx, ours_spec, ours_role, ours_cls)
+    optimize = build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, common_ids)
 
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,

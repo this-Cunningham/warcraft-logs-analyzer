@@ -26,6 +26,29 @@ the "descriptive, not scored" framing; the sharper move is to make the compariso
 like-for-like (or drop it) so every gap the tab shows is a real rotational one.
 Inherited from the same blind spot in the existing Rotation — Ability Mix view.
 
+## TODO: In-Combat matrix — mana potion name coverage + WCL logging gap
+
+> i used a bunch of mana potions in this raid (madslippery) and i am not seeing it
+> in Per-Player Consumables — In Combat
+
+Two separate issues uncovered by investigation:
+
+1. **Code bug — `"Replenish Mana"` not matched.** The code only recognises
+   `"Restore Mana"` as a mana potion cast (`MANA_POTION_NAMES`). But at least one
+   player on this raid (Byrdman) had their Super Mana Potions log as
+   `"Replenish Mana"` instead — a different cast name WCL uses for some mana
+   potion variants. Fix: add `"Replenish Mana"` to `MANA_POTION_NAMES` in
+   `build_deepdive.py`. May be worth checking what other variants exist (Super
+   Mana Potion, Fel Mana Potion, Major Mana Potion all could differ).
+
+2. **WCL data gap — madslippery's pots never logged.** Madslippery (Holy Priest,
+   sourceID 23) has zero mana potion events of any kind in the Casts table, buff
+   events, or resource events across all 7 boss kills — WCL simply didn't record
+   the item usage for this player. The In-Combat matrix correctly shows nothing
+   because there's nothing to show; the gap is upstream, not in our code. Worth a
+   note in the UI ("missing doesn't always mean didn't use — WCL occasionally
+   misses instant-item casts") but not a code fix.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

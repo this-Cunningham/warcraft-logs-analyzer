@@ -1300,7 +1300,7 @@ def tier_uptime_gap(acc):
     return rows
 
 
-# ---------- CASTS: cooldown/trinket usage + rotation (ability mix) ----------
+# ---------- CASTS: cooldown/trinket usage ----------
 # Major on-demand DPS cooldowns, classified by NAME. **Sourced from BUFFS, not Casts:** verified live
 # in TBC, the marquee off-GCD cooldowns (Death Wish, Recklessness, Bestial Wrath, Rapid Fire, Arcane
 # Power, Icy Veins, ...) generate NO cast events — they log only as buffs, where the table carries a
@@ -1386,60 +1386,6 @@ def tier_cd_usage(o_pool, t_pool):
     return rows
 
 
-def rotation_buckets(report, spec_map, role_map, class_map):
-    """Per (class, primary spec): a name->total-casts tally pooled over every DPS *or HEALER* player of
-    that spec, tagged with the role. Raw material for the rotation/ability-mix comparison (cast SHARE per
-    ability vs benchmark) — healers are included so the view can split into DPS and Healer tabs."""
-    out = {}
-    for e in _entries(report, "casts"):
-        nm = e.get("name")
-        spec = spec_map.get(nm)
-        role = role_map.get(nm)
-        if not spec or role not in ("dps", "healer"):
-            continue
-        cls = class_map.get(nm) or e.get("type") or "Unknown"
-        b = out.setdefault("{}|{}".format(cls, spec),
-                           {"class": cls, "spec": spec, "role": role, "abilities": {}})
-        for a in (e.get("abilities") or []):
-            an = a.get("name")
-            if an:
-                b["abilities"][an] = b["abilities"].get(an, 0) + int(a.get("total", 0))
-    return out
-
-
-def tier_rotation(o_pool, t_pool, top=8, min_share=3.0, collapse_diff=5.0):
-    """Rotation/ability-mix comparison, per spec BOTH raids fielded: each ability's SHARE of the spec's
-    total casts, ours vs the benchmark, surfacing the abilities whose share differs most. Every shared
-    spec (DPS and healer) is returned, tagged with its role so the view can tab between them, and with a
-    `matches` flag when the spec's biggest cast-share divergence is within `collapse_diff` points — those
-    collapse to a green "rotation matches benchmark" chip so a leader sees at a glance which specs are
-    fine and focuses on the ones that aren't. Descriptive, NOT scored good/bad — a different cast mix can
-    be gear/talent/fight-driven (the soul's Dispels-view rule). SPEC grain (no per-player breakdown).
-    `min_share` drops trivial fillers so the rotation's backbone shows, not noise."""
-    rows = []
-    for key in set(o_pool) & set(t_pool):
-        o, t = o_pool[key], t_pool[key]
-        o_tot, t_tot = sum(o["abilities"].values()), sum(t["abilities"].values())
-        if o_tot <= 0 or t_tot <= 0:
-            continue
-        ab = []
-        for an in set(o["abilities"]) | set(t["abilities"]):
-            o_pct = 100.0 * o["abilities"].get(an, 0) / o_tot
-            t_pct = 100.0 * t["abilities"].get(an, 0) / t_tot
-            if max(o_pct, t_pct) < min_share:
-                continue  # ignore trivial fillers / incidental casts
-            ab.append({"name": an, "ours": round(o_pct, 1), "theirs": round(t_pct, 1),
-                       "diff": round(o_pct - t_pct, 1)})
-        ab.sort(key=lambda x: -abs(x["diff"]))
-        ab = ab[:top]
-        if ab:
-            max_diff = max(abs(a["diff"]) for a in ab)
-            rows.append({"class": o["class"], "spec": o["spec"], "role": o.get("role", "dps"),
-                         "maxDiff": max_diff, "matches": max_diff <= collapse_diff, "abilities": ab})
-    rows.sort(key=lambda r: -r["maxDiff"])
-    return rows
-
-
 def _casts_by_name(report):
     """{player name -> {ability name -> total casts}} for one boss report's Casts table. Powers the
     Optimize tab, which compares each of OUR raiders' cast mix to a world-best player on the same boss."""
@@ -1458,9 +1404,9 @@ def _casts_by_name(report):
 
 def _rotation_diff(p_abil, w_abil, min_share, top):
     """One raider's cast mix vs the world-best player's, as ability cast-SHARE rows (ours%, theirs%, Δ),
-    biggest divergence first. Same share math as the tier Rotation view, but per-individual-player vs a
-    single world-best benchmark instead of spec-pooled vs the other guild. None if either side has no
-    casts. `min_share` drops trivial fillers so the rotation's backbone shows, not noise."""
+    biggest divergence first — per-individual-player vs a single same-faction world-best benchmark. Powers
+    the Optimize tab. None if either side has no casts. `min_share` drops trivial fillers so the rotation's
+    backbone shows, not noise."""
     p_tot, w_tot = sum(p_abil.values()), sum(w_abil.values())
     if p_tot <= 0 or w_tot <= 0:
         return None
@@ -2908,7 +2854,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_o_spec, tier_t_spec = {}, {}
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
-    tier_o_rot, tier_t_rot = {}, {}  # per-spec ability-cast tallies, pooled across bosses (rotation)
     per_boss = []
     for b in bosses:
         enc = str(b["encounterID"])
@@ -2964,15 +2909,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             for key, bucket in spec_dps_buckets(rep, sp, ro, cl, dur).items():
                 ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "dps": []})
                 ent["dps"].extend(p["dps"] for p in bucket["players"])
-        # Pool rotation (ability cast tallies) per spec across bosses. Cooldown usage is a separate
-        # buff-sourced pass after the loop (cd_usage_pool) — TBC logs most CDs only as buffs, not casts.
-        for rot_pool, rep, sp, ro, cl in ((tier_o_rot, o_b, ours_spec, ours_role, ours_cls),
-                                          (tier_t_rot, t_b, theirs_spec, theirs_role, theirs_cls)):
-            for key, bucket in rotation_buckets(rep, sp, ro, cl).items():
-                ent = rot_pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
-                                                "role": bucket["role"], "abilities": {}})
-                for an, c in bucket["abilities"].items():
-                    ent["abilities"][an] = ent["abilities"].get(an, 0) + c
         # Sample buff/debuff uptimes for the tier-wide coverage rollup.
         for kind, rows_ in (("buff", buff_rows), ("debuff", debuff_rows)):
             for r in rows_:
@@ -3066,12 +3002,11 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_uptime = tier_uptime_gap(tier_upt)
     # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
     leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
-    # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced) + rotation/ability-mix
-    # (descriptive; cast-sourced). cd_usage_pool reads the per-player buff `uses` + trinket casts per side.
+    # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced). cd_usage_pool reads the
+    # per-player buff `uses` + trinket casts per side.
     tier_cd = tier_cd_usage(
         cd_usage_pool(ours_dir, ours_idx, common_ids, ours_spec, ours_role, ours_cls, ours_fights),
         cd_usage_pool(theirs_dir, theirs_idx, common_ids, theirs_spec, theirs_role, theirs_cls, theirs_fights))
-    tier_rot = tier_rotation(tier_o_rot, tier_t_rot)
     # Tier-wide early-aggro (threat pulls) + focus-fire concentration, rolled up from the per-boss data.
     threat_rows = []
     for p in per_boss:
@@ -3119,7 +3054,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "potionGap": potion_spec_gap,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
-                 "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
+                 "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,
                  "optimize": optimize},

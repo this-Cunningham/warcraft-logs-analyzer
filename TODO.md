@@ -144,6 +144,33 @@ Per the soul: a single-boss sample on a side-fight is *falsely precise* — it r
 someone who happened to top-parse Maulgar." Pooling across the tier's main content
 gives the honest, representative rotation benchmark.
 
+## TODO: Trash zone filter — exclude incidental outdoor pulls mislabeled as wrong zones
+
+> Bug: the Trash hint says "Restricted to Isle of Quel'Danas, Serpentshrine Cavern,
+> Gruul's Lair" but we only raided SSC + Gruul. We didn't set foot in Quel'Danas.
+
+Confirmed in data: both reports have 5 trash pulls tagged `gameZone {id:530, name:"Isle
+of Quel'Danas"}` — but these are outdoor Zangarmarsh trash right outside the SSC
+entrance (Umbrafen Oracle, Withered Bog Lord, etc.) that WCL assigns to zone 530
+instead of 548 (SSC). Because both sides have zone 530, it passes the shared-zone
+intersection (`_trash_zones` + `_filter_to_zones` in `build_deepdive.py`) and appears
+in the hint as if it's a real zone the raid cleared. Per the soul, labeling a zone the
+raid didn't actually enter is *falsely precise* — a leader reads "Quel'Danas" and
+wonders why Sun's Reach is in their SSC report.
+
+**Preferred fix — match trash zones against the zones our boss kills came from.** We
+already have boss-kill zone data (`fights.json` carries the kills; we could add
+`gameZone` to the kills query). Only include a trash zone in the hint and filter if it
+also appears as a boss-kill zone on at least one side. Outdoor trash in a zone with no
+boss kills is incidental and should be silently dropped. This is more principled than a
+min-pull threshold and doesn't require hardcoding zone IDs.
+
+**Alternative fix — min-pull threshold.** Drop any zone with fewer than N trash pulls
+(e.g. N=10) from the shared-zone intersection. Simple but picks an arbitrary cutoff.
+
+Either way: the Trash section should only name zones that represent real raid content
+both guilds cleared, not WCL's outdoor-area zone tags bleeding in.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

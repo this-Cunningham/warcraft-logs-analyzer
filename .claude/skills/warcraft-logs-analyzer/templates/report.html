@@ -726,14 +726,18 @@ function renderExecution(d){
   /* 1b. Time lost to deaths (EXPERIMENTAL) — the output-time companion to the count above. */
   h+=deathTimeView(d);
 
+  /* 1c. Avoidable damage by mechanic (EXPERIMENTAL) — the LEADING indicator before the deaths. */
+  h+=avoidableDamageView(d);
+
   /* 2. Lowest-hanging DPS — per-spec gap pooled across every shared boss. */
   h+=tierSpecGapView(d);
 
   /* 2b. Activity by spec (EXPERIMENTAL) — the uptime decomposition of the DPS gap above. */
   h+=activityGapView(d);
 
-  /* 2c. DPS ramp (EXPERIMENTAL) — how fast each raid reached cruising DPS, per boss. */
-  h+=dpsRampView(d);
+  /* (DPS Ramp cut in the /audit pass: low leverage + an honesty wobble — it's normalized to each raid's
+     OWN median, so a weak raid can read a "fast ramp" while its absolute opener DPS trails. The DPS
+     timelines on the Bosses tab + the Prep prepot check already cover "ramp faster" more honestly.) */
 
   /* 3. Buff & debuff coverage gaps — uptime averaged across bosses, biggest deficit first. */
   h+=tierUptimeGapView(d);
@@ -750,9 +754,10 @@ function renderExecution(d){
   /* 3c-ii. Bloodlust timing + window payoff (EXPERIMENTAL) — when you burst and how much you got. */
   h+=bloodlustView(d);
 
-  /* 3d. Early aggro (threat pulls), focus concentration, and per-target engagement — new modalities. */
+  /* 3d. Early aggro (threat pulls) + per-target engagement. (Target Focus cut in the /audit pass: a
+     raid-wide concentration scalar — "78% vs 82%" — with no lever; the actionable version is Add Control
+     below, which names the add to focus/CC.) */
   h+=threatPullsView(d);
-  h+=focusFireView(d);
   h+=targetEngagementView(d);
 
   /* 4. Output quality (activity / overheal / damage taken / raid output) */
@@ -764,7 +769,7 @@ function renderExecution(d){
     const dmFmt=persec?(x=>x.toLocaleString()):fmtM;
     const dmDiff=Math.round(dmO-dmT);
     const dmD={cls:dmDiff===0?"flat":(dmDiff<0?"good":"bad"),txt:dmDiff===0?"even":((dmDiff>0?"+":"−")+dmFmt(Math.abs(dmDiff)))};
-    h+=`<h2 class="section">Output Quality<span class="hint">Averaged across shared bosses. Activity = time actively casting (dead GCDs cost DPS). Overheal = healing wasted. Damage taken (ex-tanks) approximates avoidable damage — toggle per-second (normalizes for kill time) vs total.</span></h2>
+    h+=`<h2 class="section">Output Quality<span class="hint">Averaged across shared bosses. <b>Activity</b> = active-casting time ÷ fight duration, measured <i>inside each boss fight only</i> — between-pull breaks and trash don't affect it (dead GCDs from movement/range during the fight do). <b>Overheal</b> = healing landed on full health bars (wasted). <b>Damage taken</b> excludes tanks (soaking is their job) → approximates avoidable damage; toggle per-second (normalizes for kill time) vs total.</span></h2>
     <div class="segwrap"><span class="lbl">Damage taken</span><div class="seg">
       <button class="dmgbtn ${persec?'on':''}" data-mode="persec">Per second</button>
       <button class="dmgbtn ${persec?'':'on'}" data-mode="total">Overall</button>
@@ -779,8 +784,8 @@ function renderExecution(d){
     if(q.dpsDiagnosis) h+=`<p class="srcs" style="margin:10px 0 0;line-height:1.5"><b>DPS gap diagnosis:</b> ${esc(q.dpsDiagnosis)} <span style="opacity:.8">(an estimate from the Raid DPS and Activity figures above — activity is the DPS core's, raid DPS is whole-raid.)</span></p>`;
   }
 
-  /* 4b. Healing efficiency by spec (EXPERIMENTAL) — the per-healer-spec decomposition of Overheal above. */
-  h+=healEfficiencyView(d);
+  /* (Healing Efficiency by Spec cut in the /audit pass: overheal % rarely the kill constraint and thin
+     on same-spec overlap — not a lever a leader acts on.) */
 
   /* 5. Clear efficiency — wall-clock vs in-combat (where time leaks between pulls). */
   const e=dp.efficiency;
@@ -795,8 +800,7 @@ function renderExecution(d){
     </div>`;
   }
 
-  /* 6. Wipe recovery (EXPERIMENTAL) — how fast the raid reset between wipes (progression pacing). */
-  h+=wipeRecoveryView(d);
+  /* (Wipe Recovery moved to the Wipes tab in the /audit pass — it's wipe-pacing, now thematically home.) */
 
   return h;
 }
@@ -966,7 +970,7 @@ function deathTimeView(d){
   const lostD=deltaLow(dt.oursMin,dt.theirsMin);                 // fewer minutes lost is better
   const upD=deltaHigh(100-dt.oursPct,100-dt.theirsPct);          // higher effective uptime is better
   const vc=(v,side,lab)=>`<span class="vcol"><span class="v ${side}">${v}</span><span class="vlab ${side}">${lab}</span></span>`;
-  let h=`<h2 class="section">Time Lost to Deaths<span class="xp">Experimental</span><span class="hint">The TIME companion to “What's Killing Us”: each death costs the output from when it happened to the kill, summed across the clear into <b>player-minutes</b> of lost throughput — and as a share of total player-combat-time (→ effective uptime). A death at 90% boss HP costs far more than one at 2%, so this ranks the mechanic burning the most output-time, not just the most frequent. <b>Upper bound</b> — assumes a downed raider stays down; a battle-res reduces it. <b>Experimental.</b></span></h2>
+  let h=`<h2 class="section">Time Lost to Deaths<span class="xp">Experimental</span><span class="hint">The TIME companion to “What's Killing Us”: each death costs the output from when it happened to the kill, summed across the clear into <b>player-minutes</b> of lost throughput. <b>Effective uptime</b> = 100 − (those lost minutes ÷ total player-combat-time, where the base is your roster × total shared-boss fight time) — i.e. the share of your raid's potential output that actually happened; deaths drag it down (that's the point — a dead raider is 0 DPS until the kill). A death at 90% boss HP costs far more than one at 2%, so this ranks the mechanic burning the most output-time, not just the most frequent. <b>Upper bound</b> — assumes a downed raider stays down; a battle-res reduces it. <b>Experimental.</b></span></h2>
     <div class="cards">
       <div class="card"><div class="label">Output Time Lost</div><div class="vals">${vc(dt.oursMin+"m","ours",oT)}${vc(dt.theirsMin+"m","theirs",tT)}<span class="delta ${lostD.cls}">${lostD.txt}m</span></div></div>
       <div class="card"><div class="label">Effective Uptime</div><div class="vals">${vc((100-dt.oursPct).toFixed(1)+"%","ours",oT)}${vc((100-dt.theirsPct).toFixed(1)+"%","theirs",tT)}<span class="delta ${upD.cls}">${upD.txt}</span></div></div>
@@ -983,6 +987,27 @@ function deathTimeView(d){
     h+=`</tbody></table>`;
   }
   return h;
+}
+// Avoidable Damage by Mechanic (EXPERIMENTAL): the damage analog of What's Killing Us — non-tank
+// damage-taken per ability, per-second (fight-length-normalized), tier-wide, where we take the most more.
+function avoidableDamageView(d){
+  const rows=rowsOf(d.deep&&d.deep.avoidableDamage);
+  if(!rows.length) return "";
+  const worse=rows.filter(r=>r.deficit>0);
+  if(!worse.length) return ""; // nothing where we take MORE than the benchmark — no gap to surface
+  const max=Math.max(1,...worse.map(r=>Math.max(r.ours,r.theirs)));
+  const w=v=>Math.max(2,Math.round(v/max*100));
+  let h=`<h2 class="section">Avoidable Damage by Mechanic<span class="xp">Experimental</span><span class="hint">The <i>leading</i> indicator before anyone dies: non-tank damage taken per ability, as a <b>per-second rate</b> (normalized for fight length, so it's not just "whose fights ran longer"), pooled across shared bosses — listed where <b>you take the most more</b> than the benchmark. Where "What's Killing Us" shows the blows that finished people, this shows the mechanics you're eating <i>chip damage</i> from — dodge these and deaths + healer strain both fall. Tanks excluded (soaking is their job). Same-named mechanic across bosses is pooled; roster sizes differ slightly (~25 vs 26). <b>Experimental.</b> Lower is better.</span></h2>
+    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Damage taken / sec, by mechanic (ex-tanks)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+  for(const r of worse){
+    const dl=deltaLow(r.ours,r.theirs); // lower damage taken better
+    h+=`<div class="dval lo">${fmtR(r.ours)}</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
+      <div class="dmid">${esc(r.name)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
+      <div class="dval ro">${fmtR(r.theirs)}</div>`;
+  }
+  return h+`</div></div>`;
 }
 // DPS gaps by spec: per-spec avg DPS pooled across all bosses, biggest deficit first.
 function tierSpecGapView(d){
@@ -1020,7 +1045,7 @@ function activityGapView(d){
   const both=rowsOf(d.deep&&d.deep.tierActivityGap).filter(r=>r.both);
   if(!both.length) return "";
   const w=v=>Math.max(2,Math.round(v)); // already a 0-100 %, honest absolute bar scale
-  let h=`<h2 class="section">Activity by Spec<span class="xp">Experimental</span><span class="hint">Each DPS spec's average per-player <b>activity</b> — the share of the fight spent actively dealing damage — pooled across shared bosses, ours vs the benchmark's same spec. Idle GCDs from movement, target swaps, or being out of range are throughput you recover <i>without</i> more gear, so a trailing spec (red) is high-leverage coaching. This breaks the raid-wide Activity figure down to the spec actually losing the uptime. <b>Experimental.</b></span></h2>
+  let h=`<h2 class="section">Activity by Spec<span class="xp">Experimental</span><span class="hint">Each DPS spec's average per-player <b>activity</b> — active-casting time ÷ fight duration — pooled across shared bosses, ours vs the benchmark's same spec. Idle GCDs are throughput recoverable <i>without</i> gear, so a trailing spec (red) names <b>who</b> to investigate. <b>What it can't tell you:</b> the <i>cause</i> of the idle time — the log sees the gap, not the reason. A trailing melee spec usually points at movement/positioning (mobs placed so they chase, or avoidable-damage dodging — cross-check Add Control and Damage Taken); a trailing caster, at range/LoS or target swaps. Use it to pick the spec to film, then diagnose the cause from the fight. <b>Experimental.</b></span></h2>
     <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg activity %, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
   for(const r of both){
     const dl=deltaHigh(r.ours,r.theirs); // higher activity better
@@ -1085,7 +1110,7 @@ function debuffTimingView(d){
   if(!rows.length) return "";
   const t=s=>fmtTime(s*1000);
   let h=`<h2 class="section">Debuff Ramp &amp; Continuity<span class="xp">Experimental</span><span class="hint">For each key raid debuff: <b>when it was first established</b> (time into the fight before it landed) and its <b>longest continuous gap</b> after that — the two time dimensions a flat uptime % hides. Averaged across shared bosses, slowest-to-establish first. Casters and melee lose damage until CoE / Sunder / Misery / Judgement are up. A phased fight delays the boss debuff on both sides, so the <b>Δ</b> (not the raw seconds) is the signal. <b>Experimental.</b></span></h2>
-  <table><thead><tr><th>Debuff</th><th>Established (you)</th><th>(bench)</th><th>Δ</th><th>Longest gap · you / bench</th></tr></thead><tbody>`;
+  <table><thead><tr><th>Debuff</th><th>Established (you)</th><th>(bench)</th><th>Δ</th><th>Longest gap<br>you vs bench</th></tr></thead><tbody>`;
   for(const r of rows){
     const dl=deltaLow(r.oursEst,r.theirsEst); // establishing sooner is better
     h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
@@ -1103,7 +1128,7 @@ function wipeRecoveryView(d){
   if(!rows.length) return "";
   const oT=esc(d.ours.title), tT=esc(d.theirs.title);
   const mmss=s=>s==null?"—":fmtTime(s*1000);
-  let h=`<h2 class="section">Wipe Recovery<span class="xp">Experimental</span><span class="hint">Average wall-clock time between a <b>wipe ending and the next pull starting</b> — how fast the raid resets, rebuffs, and re-pulls on progression. Includes any break/strategy talk, so it's directional (tighter = more attempts a night), not a pure mechanical reset. Largely a <b>first-party</b> pace check — a benchmark on farm wipes little, so its column is often “—”. <b>Experimental.</b></span></h2>`;
+  let h=`<h2 class="section">Wipe Recovery<span class="xp">Experimental</span><span class="hint">Average wall-clock time between a <b>wipe ending and the next pull starting</b> — how fast the raid resets, rebuffs, and re-pulls on progression. Includes any break/strategy talk, so it's directional (tighter = more attempts a night), not a pure mechanical reset. Largely a <b>first-party</b> pace check — a benchmark on farm wipes little, so its column is often “—”. Most useful <b>week-over-week against your own past raids</b> (are you resetting faster than last week?). <b>Experimental.</b></span></h2>`;
   if(wr.oursAvg!=null){
     const aggD=(wr.theirsAvg!=null)?deltaLow(wr.oursAvg,wr.theirsAvg):null;
     const bench=wr.theirsAvg!=null
@@ -1124,8 +1149,11 @@ function wipeRecoveryView(d){
 function tierUptimeGapView(d){
   const rows=rowsOf(d.deep&&d.deep.tierUptimeGap);
   if(!rows.length) return "";
-  const behind=rows.filter(r=>r.deficit>0);
-  let h=`<h2 class="section">Buff &amp; Debuff Coverage Gaps<span class="hint">Each raid buff and boss debuff's average uptime across all bosses, ours vs the benchmark. Auras you maintain less consistently are listed first — keeping persistent buffs/debuffs near 100% is free throughput. (Short cooldowns like Bloodlust naturally read low on both sides.)</span></h2>`;
+  // Drop fight-length-dependent auras: a short re-applied/cooldown buff's "uptime %" is an artifact of how
+  // long the fight ran, not a coverage gap you can act on (the /audit pass flagged Drums + Bloodlust).
+  const FIGHT_LEN_DEPENDENT=/^(Drums|Bloodlust|Heroism)/i;
+  const behind=rows.filter(r=>r.deficit>0 && !FIGHT_LEN_DEPENDENT.test(r.name));
+  let h=`<h2 class="section">Buff &amp; Debuff Coverage Gaps<span class="hint">Average uptime of each <b>persistent</b> raid buff and <b>boss debuff</b> across all bosses, ours vs the benchmark — the ones you're meant to keep near 100%. Boss debuffs are read on the boss (not its adds); raid buffs on your raid. Listed worst-maintained first — sustained uptime is free throughput. Short cooldown/re-applied buffs (Bloodlust, Drums) are excluded: their "uptime %" just tracks fight length, not coverage.</span></h2>`;
   if(!behind.length) return h+`<p class="num" style="padding:6px 2px">You match or beat the benchmark on every tracked buff/debuff uptime — no coverage gap.</p>`;
   // Uptime is already a 0-100 percentage, so the bar length is the literal uptime % (honest absolute scale).
   const w=v=>Math.max(2,Math.round(v));
@@ -1189,16 +1217,16 @@ function bloodlustView(d){
   const tsec=s=>s==null?"—":fmtTime(s*1000);          // seconds-into-fight → m:ss
   const mult=m=>m==null?'<span class="cna">—</span>':("×"+m);
   const cdp=p=>p==null?'<span class="cna">—</span>':(p+"%");
-  let h=`<h2 class="section">Bloodlust — Timing &amp; Payoff<span class="xp">Experimental</span><span class="hint">When each raid popped <b>Bloodlust / Heroism</b> (time into the fight), the <b>window payoff</b> — raid DPS in the 40s lust window ÷ the fight average, so &gt;1× means cooldowns and trinkets were stacked into the haste window — and <b>CDs in window</b>: the share of major DPS cooldowns that actually fired during that window (did your burst coincide with lust). Timing is <b>descriptive</b> (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target). <b>Experimental</b> — payoff is binned coarsely.</span></h2>
-  <table><thead><tr><th>Boss</th><th>${oT} lust</th><th>Payoff</th><th>${tT} lust</th><th>Payoff</th><th>CDs in window · you / bench</th></tr></thead><tbody>`;
+  let h=`<h2 class="section">Bloodlust — Are You Stacking Burst Into It?<span class="xp">Experimental</span><span class="hint">The actionable question: do your big DPS cooldowns and trinkets fire <b>inside</b> the Bloodlust/Heroism window, or get spent outside it? <b>CDs in window</b> = the share of major DPS cooldown types that fired during lust (higher = you save them for it; low = they're being burned off-window — the fixable habit). <b>Payoff</b> = raid DPS in the 40s lust window ÷ the fight average (&gt;1× = the stacking actually paid off). The benchmark column shows whether a better raid hoards cooldowns for lust more than you do. <b>Lust timing</b> (when it was popped) is just context — on-pull vs saved-for-a-phase is fight-dependent, not a target. <b>Experimental</b> — binned coarsely.</span></h2>
+  <table><thead><tr><th>Boss</th><th>CDs in window<br>you vs bench</th><th>${oT} payoff</th><th>${tT} payoff</th><th class="role">lust at (you / bench)</th></tr></thead><tbody>`;
   for(const r of rows){
     const dl=(r.oursMult!=null&&r.theirsMult!=null)?deltaHigh(r.oursMult,r.theirsMult):null; // higher payoff better
+    const cdl=(r.oursCdPct!=null&&r.theirsCdPct!=null)?deltaHigh(r.oursCdPct,r.theirsCdPct):null; // higher = more stacked into lust
     h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
-      <td class="num" style="color:var(--ours)">${tsec(r.oursSec)}</td>
+      <td class="num"><span style="color:var(--ours);font-weight:600">${cdp(r.oursCdPct)}</span> <span style="opacity:.55">vs ${cdp(r.theirsCdPct)}</span>${cdl?` <span class="delta ${cdl.cls}">${cdl.txt}</span>`:""}</td>
       <td>${mult(r.oursMult)}${dl?` <span class="delta ${dl.cls}">${dl.txt}</span>`:""}</td>
-      <td class="num" style="color:var(--theirs)">${tsec(r.theirsSec)}</td>
-      <td class="num">${mult(r.theirsMult)}</td>
-      <td class="num"><span style="color:var(--ours)">${cdp(r.oursCdPct)}</span> <span style="opacity:.6">/ ${cdp(r.theirsCdPct)}</span></td></tr>`;
+      <td class="num" style="color:var(--theirs)">${mult(r.theirsMult)}</td>
+      <td class="num role"><span style="color:var(--ours)">${tsec(r.oursSec)}</span> <span style="opacity:.55">/ ${tsec(r.theirsSec)}</span></td></tr>`;
   }
   return h+`</tbody></table>`;
 }
@@ -1208,7 +1236,7 @@ function threatPullsView(d){
   if(!rows.length) return ""; // no pulls on either side → nothing to coach
   const max=Math.max(1,...rows.map(r=>Math.max(r.oursTotal,r.theirsTotal)));
   const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a non-tank held the <b>boss's</b> aggro — a threat pull (open softer, use Misdirection / Tricks, or let the tank build threat first). Scoped to the named boss and to brief snaps, so it <b>under-counts, never over-counts</b>. Opener pulls (first 30s) are the most fixable. Lower is better.</span></h2>
+  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a <b>non-tank</b> held the <b>boss's</b> aggro — a threat pull (open softer, use Misdirection / Tricks, or let the tank build threat first). <b>Tanks are excluded</b>, so two tanks trading threat at the pull is NOT counted — only a DPS/healer snatching aggro is. Scoped to the named boss (not its adds) and to <b>brief snaps (≤15s)</b>, since a sustained hold is an intended off-tank — so it <b>under-counts, never over-counts</b>. Opener pulls (first 30s) are the most fixable. Lower is better.</span></h2>
     <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Threat pulls, by boss</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
   for(const r of rows){
     const dl=deltaLow(r.oursTotal,r.theirsTotal);
@@ -1818,6 +1846,9 @@ function renderWipes(d){
     }
     h+=`</div>`;
   }
+  /* Wipe Recovery (EXPERIMENTAL) — reset/rebuff/re-pull pace between a wipe and the next pull. Moved here
+     from Execution in the /audit pass: it's wipe-pacing, so it belongs on the Wipes tab. */
+  h+=wipeRecoveryView(d);
   return h;
 }
 function render(){

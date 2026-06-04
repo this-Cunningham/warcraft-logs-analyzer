@@ -1501,6 +1501,25 @@ def death_causes(per_boss, side):
     return agg
 
 
+def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
+    """Tier-wide avoidable damage by MECHANIC — the damage analog of What's Killing Us (which counts the
+    deaths). Pools each non-tank damage-taken ABILITY across the shared bosses, ours vs benchmark, as a
+    **per-second rate** (normalized for fight length — the honest frame, since the two raids' fights differ
+    in length, so raw totals would just track who fought longer), ranked by where WE take the most MORE.
+    Damage taken is the LEADING indicator *before* anyone dies, so a mechanic we eat far more of than the
+    benchmark is the next thing to dodge — actionable at the ability grain. EXPERIMENTAL. (Ex-tanks via
+    `ability_agg`; roster sizes differ slightly, an accepted minor caveat noted in the UI.)"""
+    rows = []
+    for nm in set(o_acc) | set(t_acc):
+        o_ps = round(o_acc.get(nm, 0) * 1000 / o_dur_ms) if o_dur_ms > 0 else 0
+        t_ps = round(t_acc.get(nm, 0) * 1000 / t_dur_ms) if t_dur_ms > 0 else 0
+        if o_ps <= 0 and t_ps <= 0:
+            continue
+        rows.append({"name": nm, "ours": o_ps, "theirs": t_ps, "deficit": o_ps - t_ps})
+    rows.sort(key=lambda r: -r["deficit"])  # where we take the most MORE than the benchmark, first
+    return rows[:n]
+
+
 def death_cause_compare(per_boss):
     """Ranked ours-vs-theirs death-cause table, ONE ROW PER (killing blow, boss), biggest improvable
     delta first. Splitting by boss (vs pooling a cause across the clear) makes the gap actionable: '7
@@ -3571,6 +3590,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_o_spec, tier_t_spec = {}, {}
     tier_o_act, tier_t_act = {}, {}  # per-spec activity (active-GCD uptime) pools — EXPERIMENTAL
     tier_o_heff, tier_t_heff = {}, {}  # per healer-spec overheal pools (eff/over sums) — EXPERIMENTAL
+    tier_o_dmg, tier_t_dmg = {}, {}  # avoidable damage by ability (ex-tanks), pooled tier-wide — EXPERIMENTAL
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     tier_dtime = {}  # debuff name -> {"o_est":[],"o_gap":[],"t_est":[],"t_gap":[]} — ramp/continuity, EXPERIMENTAL
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
@@ -3622,6 +3642,11 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
         o_dmg = dmg_taken_ex_tanks(o_b, ours_tank)
         t_dmg = dmg_taken_ex_tanks(t_b, theirs_tank)
+        # Pool non-tank damage-taken by ability tier-wide → Avoidable Damage by Mechanic (EXPERIMENTAL).
+        for _nm, _v in ability_agg(o_b, ours_tank).items():
+            tier_o_dmg[_nm] = tier_o_dmg.get(_nm, 0) + _v
+        for _nm, _v in ability_agg(t_b, theirs_tank).items():
+            tier_t_dmg[_nm] = tier_t_dmg.get(_nm, 0) + _v
 
         # Raid output for this boss (total damage/healing / duration).
         o_raid_dmg, t_raid_dmg = raid_sum(o_b, "dd"), raid_sum(t_b, "dd")
@@ -3753,6 +3778,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     }
     # "What's killing us" — death causes aggregated across the whole shared clear.
     death_causes_rows = death_cause_compare(per_boss)
+    # Avoidable Damage by Mechanic (EXPERIMENTAL) — the damage analog: non-tank damage-taken per ability,
+    # per-second (fight-length-normalized), tier-wide, where we take the most more than the benchmark.
+    avoidable_damage = avoidable_damage_gap(tier_o_dmg, tier_t_dmg, o_dur_sum, t_dur_sum)
     # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
     tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
     tier_uptime = tier_uptime_gap(tier_upt)
@@ -3853,7 +3881,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
                  "potionGap": potion_spec_gap, "prepot": prepot, "healEffGap": tier_heal_eff,
                  "outputBreakdown": output_breakdown,
-                 "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
+                 "deathCauses": death_causes_rows, "avoidableDamage": avoidable_damage,
+                 "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,
                  "deathTime": death_time, "bloodlust": bloodlust,
                  "dpsRamp": dps_ramp_rows, "debuffTiming": debuff_timing_rows, "wipeRecovery": wipe_rec,

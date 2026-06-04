@@ -49,6 +49,19 @@ Two separate issues uncovered by investigation:
    note in the UI ("missing doesn't always mean didn't use — WCL occasionally
    misses instant-item casts") but not a code fix.
 
+## TODO: "What's Killing Us" hint should state it's kill-pull deaths only
+
+> Is the "What's Killing Us" section counting deaths from fights we kill, or wipes too?
+
+Confirmed in code: the Deaths table is fetched with the **kill-fight IDs only**
+(`fights(killType:Kills)` → `fightIDs` → `table(dataType:Deaths, fightIDs:$f)`).
+Deaths on wipe pulls are intentionally excluded — they'd swamp the list with
+progression noise. This is the right call, but the current hint text doesn't say it,
+which leaves a leader wondering why their wipe-pull deaths don't appear. Fix: append
+"kill pulls only — wipe deaths excluded" (or equivalent) to the hint so the scope
+is honest at a glance. Per the soul: *never falsely precise* — scoped data must be
+labeled as exactly what it is.
+
 ## TODO: Roster role should follow the majority spec, not first-seen
 
 > In the Prep tab's per-player preparation audit, Papparadeli is labelled "healer"

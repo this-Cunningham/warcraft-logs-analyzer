@@ -136,20 +136,39 @@ def has_provider(pairs, cls, spec):
     return False
 
 
+def count_providers(pairs, cls, spec):
+    """How MANY (class, primary-spec) pairs satisfy this provider check — the one-level-deeper
+    companion to has_provider. The binary check goes silent once each side has ≥1; the COUNT is the
+    actual roster lever (how many of a class/spec to slot) and exposes single-points-of-failure (a
+    raid-wide buff carried by exactly one provider). Same matching logic as has_provider."""
+    n = 0
+    for c, s in pairs:
+        if c == cls and (not spec or (s and spec.lower() in s.lower())):
+            n += 1
+    return n
+
+
 # High-impact TBC raid contributions: class/spec -> buff/debuff + why it matters.
+# `scope` governs the honest reading of the provider COUNT (count_providers):
+#   • "raid"  — a boss debuff / raid-wide effect ONE provider delivers in full; extra copies are
+#               INSURANCE (count==1 = a single-point-of-failure), so a count delta is NOT better/worse
+#               — only the SPOF flag is.
+#   • "group" — a party-scoped buff (in TBC, Bloodlust / Windfury / Battle Shout / Trueshot / Ferocious
+#               Inspiration / Leader of the Pack land on the provider's own 5-man party), so more
+#               providers genuinely = more groups covered → a count delta IS a clean coverage signal.
 PROVIDER_CHECKS = [
-    {"buff": "Misery", "class": "Priest", "spec": "Shadow", "impact": "+3% spell damage taken by boss, plus a mana battery for casters"},
-    {"buff": "Improved Faerie Fire", "class": "Druid", "spec": "Balance", "impact": "+3% spell hit for the whole raid (huge for casters)"},
-    {"buff": "Ferocious Inspiration", "class": "Hunter", "spec": "Beast", "impact": "+3% damage to the raid"},
-    {"buff": "Trueshot Aura", "class": "Hunter", "spec": "Marksmanship", "impact": "Raid-wide attack power"},
-    {"buff": "Expose Weakness", "class": "Hunter", "spec": "Survival", "impact": "Raid-wide attack power from crits"},
-    {"buff": "Bloodlust / Heroism", "class": "Shaman", "spec": "", "impact": "+30% raid haste burst window"},
-    {"buff": "Windfury Totem", "class": "Shaman", "spec": "Enhancement", "impact": "Big melee damage boost"},
-    {"buff": "Improved Scorch (fire)", "class": "Mage", "spec": "Fire", "impact": "+15% fire damage taken by boss"},
-    {"buff": "Curse of the Elements", "class": "Warlock", "spec": "", "impact": "+10% spell damage taken by boss"},
-    {"buff": "Leader of the Pack", "class": "Druid", "spec": "Feral", "impact": "+5% melee/ranged crit for the raid"},
-    {"buff": "Judgement of Wisdom", "class": "Paladin", "spec": "", "impact": "Mana return for the raid"},
-    {"buff": "Battle Shout", "class": "Warrior", "spec": "", "impact": "Raid-wide attack power"},
+    {"buff": "Misery", "class": "Priest", "spec": "Shadow", "scope": "raid", "impact": "+3% spell damage taken by boss, plus a mana battery for casters"},
+    {"buff": "Improved Faerie Fire", "class": "Druid", "spec": "Balance", "scope": "raid", "impact": "+3% spell hit for the whole raid (huge for casters)"},
+    {"buff": "Ferocious Inspiration", "class": "Hunter", "spec": "Beast", "scope": "group", "impact": "+3% damage to the hunter's party"},
+    {"buff": "Trueshot Aura", "class": "Hunter", "spec": "Marksmanship", "scope": "group", "impact": "Attack power for the hunter's party"},
+    {"buff": "Expose Weakness", "class": "Hunter", "spec": "Survival", "scope": "raid", "impact": "Raid-wide attack power from crits"},
+    {"buff": "Bloodlust / Heroism", "class": "Shaman", "spec": "", "scope": "group", "impact": "+30% haste burst — lands on the shaman's party, so more shaman cover more groups"},
+    {"buff": "Windfury Totem", "class": "Shaman", "spec": "Enhancement", "scope": "group", "impact": "Big melee boost — party-scoped, needs one per melee group"},
+    {"buff": "Improved Scorch (fire)", "class": "Mage", "spec": "Fire", "scope": "raid", "impact": "+15% fire damage taken by boss"},
+    {"buff": "Curse of the Elements", "class": "Warlock", "spec": "", "scope": "raid", "impact": "+10% spell damage taken by boss"},
+    {"buff": "Leader of the Pack", "class": "Druid", "spec": "Feral", "scope": "group", "impact": "+5% melee/ranged crit — party-scoped aura"},
+    {"buff": "Judgement of Wisdom", "class": "Paladin", "spec": "", "scope": "raid", "impact": "Mana return for the raid (one judgement on the boss suffices)"},
+    {"buff": "Battle Shout", "class": "Warrior", "spec": "", "scope": "group", "impact": "Attack power — party-scoped, so more warriors cover more groups"},
 ]
 
 
@@ -1832,7 +1851,7 @@ def _druid_form(abil):
 
 
 def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
-                   min_share=3.0, top=10, collapse_diff=5.0):
+                   min_share=3.0, top=10, collapse_diff=5.0, hit_map=None):
     """Optimize tab payload: per class -> per spec -> PER SHARED BOSS, each of OUR raiders' rotation
     benchmarked against the same-faction WORLD-BEST player of that exact class/spec ON THAT BOSS. Reads
     `worldbest.json` (written in the fetch stage by fetch_worldbest, now per boss); pure/deterministic
@@ -1903,7 +1922,10 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
                 max_diff = max((abs(a["diff"]) for a in abil), default=0.0)
                 players.append({"name": nm, "parse": mm.get("parse"),
                                 "matches": max_diff <= collapse_diff, "maxDiff": round(max_diff, 1),
-                                "abilities": abil})
+                                "abilities": abil,
+                                # Prep hit/expertise flag (EXPERIMENTAL) — present only when this raider
+                                # is under their effective-hit cap, so the row can note the gear FIX.
+                                "hit": (hit_map or {}).get(nm)})
             players.sort(key=lambda p: -p["maxDiff"])  # most-divergent raider first (most to coach)
             spec_bosses.append({
                 "encounterID": enc, "name": bn.get("name"), "metric": metric,
@@ -3097,7 +3119,179 @@ def build_trash(ours_dir, theirs_dir):
         "pairwisePriority": trash_pairwise_priority(o_pulls, t_pulls),
         # CC is the per-mob breakdown only (the by-type summary table was cut as redundant).
         "ccByMob": trash_cc_by_mob(o, t),
+        # Trash deaths decomposed by pull SIZE (EXPERIMENTAL) — death-rate per pull, the honest
+        # one-level-deeper of the flat trash-deaths count (and aligned across guilds per-pull-of-size-N).
+        "deathsByPullSize": trash_deaths_by_pull_size(o, t),
     }
+
+
+# ---------- NEW EXPERIMENTAL DECOMPOSITIONS (one level deeper than an existing surfaced number) ----------
+# Each of these takes a flat aggregate the report already shows and decomposes it by the dimension that
+# names the lever (who=spec / what=mechanic / when=on-the-pull / by pull-size). All run on data already
+# fetched — no extra API calls. They ship behind an "Experimental" chip.
+
+# --- Overview: the Avg Raid Parse mean, decomposed into its distribution + the specs at the floor ---
+def parse_spread(o_idx, t_idx, enc_ids):
+    """One level deeper than the headline **Avg Raid Parse** (a bare mean): its DISTRIBUTION — the median,
+    how many parses sit in the FLOOR (<25), and WHICH specs are at that floor — ours vs benchmark. A mean
+    can't tell a leader whether the gap is the whole raid or a handful of anchors; the median + sub-25 count
+    can ("17 sub-25 vs 5; median 54 vs 90" = the floor is the gap, coach it, don't re-gear everyone). Spec
+    grain on the floor list (never per-player). Parses are per-player-per-shared-boss rankPercent (≥0).
+    EXPERIMENTAL."""
+    def samples(idx):
+        out = []
+        for enc in enc_ids:
+            for p in ((idx.get(enc) or {}).get("players") or []):
+                if p.get("parse") is not None and p["parse"] >= 0:
+                    out.append(p)
+        return out
+
+    def by_spec(rows):
+        b = {}
+        for p in rows:
+            sp = p.get("spec")
+            if sp:
+                b.setdefault((p["class"], sp), []).append(p["parse"])
+        return b
+
+    o, t = samples(o_idx), samples(t_idx)
+    o_p, t_p = [p["parse"] for p in o], [p["parse"] for p in t]
+    ob, tb = by_spec(o), by_spec(t)
+    floor = []
+    for (cls, sp), vals in ob.items():
+        tv = tb.get((cls, sp))
+        floor.append({"class": cls, "spec": sp, "oursAvg": round(sum(vals) / len(vals), 1),
+                      "theirsAvg": round(sum(tv) / len(tv), 1) if tv else None, "samples": len(vals)})
+    floor.sort(key=lambda r: r["oursAvg"])  # our lowest-parsing specs first — the raid floor
+    return {
+        "oursMedian": round(statistics.median(o_p), 1) if o_p else 0,
+        "theirsMedian": round(statistics.median(t_p), 1) if t_p else 0,
+        "oursSub25": sum(1 for x in o_p if x < 25), "theirsSub25": sum(1 for x in t_p if x < 25),
+        "oursTotal": len(o_p), "theirsTotal": len(t_p),
+        "floorSpecs": floor[:5],
+    }
+
+
+# --- Prep: the throughput-potion COUNT, decomposed into WHEN it landed (opener prepot vs reactive) ---
+PREPOT_WINDOW_MS = 3000  # a potion buff band starting within 3s of (or before) the pull = an opener prepot
+
+
+def prepot_timing(directory, idx, enc_ids):
+    """Did the raid's throughput (combat) potion land ON THE PULL — the free TBC opener prepot — or only
+    reactively mid-fight? One level deeper than the potion-USES count: its TIMING. From the aggregate Buffs
+    `bands` (earliest potion-buff band start vs the fight start). RAID-AGGREGATE (bands merge across
+    players), so it's an honest raid-level "opener potion on the pull: yes/no" per boss, NOT a per-player
+    prepotter count — labelled as such, same precedent as the aggregate Drums uptime. EXPERIMENTAL."""
+    fm = fight_map(directory)
+    bosses = []
+    for enc in enc_ids:
+        rep = load_boss(directory, str(enc))
+        fi = fm.get(str(enc))
+        if not rep or not fi:
+            continue
+        start = int(fi["start"])
+        earliest = None
+        for a in _auras(rep, "buffs"):
+            if _consumable_cat(a.get("name"), a.get("guid")) != "potion":
+                continue
+            for b in (a.get("bands") or []):
+                st = int(b["startTime"])
+                if earliest is None or st < earliest:
+                    earliest = st
+        nm = (idx.get(enc) or {}).get("name")
+        if earliest is None:
+            bosses.append({"encounterID": int(enc), "name": nm, "used": False, "prepot": False, "sec": None})
+        else:
+            bosses.append({"encounterID": int(enc), "name": nm, "used": True,
+                           "prepot": (earliest - start) <= PREPOT_WINDOW_MS,
+                           "sec": round((earliest - start) / 1000, 1)})
+    used = [b for b in bosses if b["used"]]
+    return {"bosses": bosses, "prepotBosses": sum(1 for b in bosses if b["prepot"]),
+            "usedBosses": len(used), "totalBosses": len(bosses)}
+
+
+# --- Execution: the raid Overheal% number, decomposed by HEALER SPEC ---
+def heal_eff_buckets(report, spec_map, role_map, class_map):
+    """Bucket the Healing table by (class, primary-spec), HEALER-role players only: sum effective healing +
+    overhealing per spec. Overheal % = overheal / (overheal + effective) is throughput spent on full health
+    bars — a clean better/worse signal for a healer spec (lower = tighter). Compared SAME-spec downstream,
+    which cancels the structural difference between HoT specs (high baseline overheal) and direct healers,
+    leaving the real coaching signal. Mirrors spec_dps_buckets/activity_buckets. EXPERIMENTAL."""
+    buckets = {}
+    for e in _entries(report, "heal"):
+        nm = e.get("name")
+        spec = spec_map.get(nm)
+        if not spec or role_map.get(nm) != "healer":
+            continue
+        cls = class_map.get(nm) or e.get("type") or "Unknown"
+        b = buckets.setdefault("{}|{}".format(cls, spec),
+                               {"class": cls, "spec": spec, "role": "healer", "eff": 0.0, "over": 0.0,
+                                "players": set()})
+        b["eff"] += float(e.get("total", 0))
+        b["over"] += float(e.get("overheal", 0))
+        b["players"].add(nm)
+    return buckets
+
+
+def tier_heal_eff_gap(o_pool, t_pool):
+    """Per healer spec, overheal % pooled across shared bosses, ours vs the benchmark's same spec, ranked by
+    the biggest EXCESS overheal (we waste most vs same spec). The per-spec decomposition of the raid-wide
+    Overheal figure — names which healer spec is splashing/sniping inefficiently. `both` flags same-spec
+    overlap (the clean comparison); one-side specs ride along as a first-party absolute note. EXPERIMENTAL."""
+    def pct(x):
+        den = (x["eff"] + x["over"]) if x else 0
+        return round(100 * x["over"] / den, 1) if den > 0 else 0
+    rows = []
+    for key in set(o_pool) | set(t_pool):
+        o, t = o_pool.get(key), t_pool.get(key)
+        ref = o or t
+        rows.append({"class": ref["class"], "spec": ref["spec"], "role": "healer",
+                     "ours": pct(o) if o else None, "theirs": pct(t) if t else None,
+                     "deficit": round(pct(o) - pct(t), 1) if (o and t) else 0,
+                     "oursSamples": len(o["players"]) if o else 0,
+                     "theirsSamples": len(t["players"]) if t else 0,
+                     "both": bool(o) and bool(t)})
+    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
+    return rows
+
+
+# --- Trash: the flat trash-deaths count, decomposed by PULL SIZE (death-rate per pull) ---
+PULL_SIZE_BUCKETS = [(1, 3, "1–3"), (4, 7, "4–7"), (8, 12, "8–12"), (13, 9999, "13+")]
+
+
+def trash_deaths_by_pull_size(o, t):
+    """Trash deaths decomposed by PULL SIZE: death-rate per pull, bucketed by mob count, ours vs benchmark.
+    One level deeper than the flat "Trash deaths: X vs Y" glance — it names WHETHER the deaths come from big
+    chain-pulls (and whether the benchmark survives the same-size pulls). This is the rare trash metric that
+    is BOTH aligned across guilds (pull boundaries don't align, but death-rate-per-pull-of-size-N does) and a
+    clean better/worse gap. Counts ride along beside the rates (small samples — be honest). EXPERIMENTAL."""
+    def agg(side):
+        deaths_by_fight = {}
+        for d in side["friendly"]:
+            deaths_by_fight[d.get("fight")] = deaths_by_fight.get(d.get("fight"), 0) + 1
+        buckets = {lab: {"pulls": 0, "deaths": 0} for _, _, lab in PULL_SIZE_BUCKETS}
+        for f in side["fights"]:
+            size = sum(int(x.get("instanceCount") or 1) for x in (f.get("enemyNPCs") or []))
+            if size <= 0:
+                continue
+            lab = next((l for lo, hi, l in PULL_SIZE_BUCKETS if lo <= size <= hi), None)
+            if lab is None:
+                continue
+            buckets[lab]["pulls"] += 1
+            buckets[lab]["deaths"] += deaths_by_fight.get(int(f["id"]), 0)
+        return buckets
+    oa, ta = agg(o), agg(t)
+    rows = []
+    for _, _, lab in PULL_SIZE_BUCKETS:
+        ob, tb = oa[lab], ta[lab]
+        if ob["pulls"] == 0 and tb["pulls"] == 0:
+            continue
+        rows.append({"size": lab,
+                     "oursPulls": ob["pulls"], "oursDeaths": ob["deaths"],
+                     "oursRate": round(ob["deaths"] / ob["pulls"], 2) if ob["pulls"] else None,
+                     "theirsPulls": tb["pulls"], "theirsDeaths": tb["deaths"],
+                     "theirsRate": round(tb["deaths"] / tb["pulls"], 2) if tb["pulls"] else None})
+    return rows
 
 
 # ---------- ASSEMBLE ----------
@@ -3169,6 +3363,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "hasAttempts": has_attempts,
     }
 
+    # Parse SPREAD (EXPERIMENTAL) — decompose the Avg Raid Parse mean into median + floor (<25) count +
+    # the lowest-parsing specs, ours vs benchmark (is the gap the whole raid or a few anchors?).
+    parse_spread_payload = parse_spread(ours_idx, theirs_idx, common_ids)
+
     # Composition
     ours_roster = get_roster(ours_idx, common_ids)
     theirs_roster = get_roster(theirs_idx, common_ids)
@@ -3191,7 +3389,11 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     theirs_pairs = [(p["class"], p["spec"]) for p in theirs_roster]
     gaps = [{"buff": c["buff"], "ours": has_provider(ours_pairs, c["class"], c["spec"]),
              "theirs": has_provider(theirs_pairs, c["class"], c["spec"]), "impact": c["impact"],
-             "class": c["class"], "spec": c["spec"]}
+             "class": c["class"], "spec": c["spec"], "scope": c.get("scope", "raid"),
+             # provider COUNT (one level deeper than the binary ✓/✗) — drives the count delta on
+             # group-scoped buffs and the single-point-of-failure flag on raid-wide ones.
+             "oursCount": count_providers(ours_pairs, c["class"], c["spec"]),
+             "theirsCount": count_providers(theirs_pairs, c["class"], c["spec"])}
             for c in PROVIDER_CHECKS]
     composition = {
         "oursClasses": class_counts(ours_roster), "theirsClasses": class_counts(theirs_roster),
@@ -3217,6 +3419,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "ours": consumable_report(ours_dir, ours_idx, common_ids, len(ours_roster)),
         "theirs": consumable_report(theirs_dir, theirs_idx, common_ids, len(theirs_roster)),
     }
+    # Opener-potion (prepot) timing (EXPERIMENTAL) — did the throughput potion land ON THE PULL, ours vs
+    # benchmark, per boss. The timing decomposition of the potion-uses count (raid-aggregate, labelled).
+    prepot = {"ours": prepot_timing(ours_dir, ours_idx, common_ids),
+              "theirs": prepot_timing(theirs_dir, theirs_idx, common_ids)}
     # Per-player consumable participation (ours only — a coaching view of your own raid).
     per_player_consumes = per_player_consumables(ours_dir, ours_idx, common_ids)
     # Per-player IN-COMBAT consumable usage (ours only): combat potion / health pot / mana pot / healthstone.
@@ -3240,6 +3446,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
     tier_o_spec, tier_t_spec = {}, {}
     tier_o_act, tier_t_act = {}, {}  # per-spec activity (active-GCD uptime) pools — EXPERIMENTAL
+    tier_o_heff, tier_t_heff = {}, {}  # per healer-spec overheal pools (eff/over sums) — EXPERIMENTAL
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     tier_dtime = {}  # debuff name -> {"o_est":[],"o_gap":[],"t_est":[],"t_gap":[]} — ramp/continuity, EXPERIMENTAL
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
@@ -3316,6 +3523,16 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
                                             "role": bucket["role"], "vals": []})
                 ent["vals"].extend(p["act"] for p in bucket["players"])
+        # Pool per healer-spec overheal (effective + overheal sums) across bosses — the per-spec
+        # decomposition of the raid Overheal figure (EXPERIMENTAL).
+        for pool, rep, sp, ro, cl in ((tier_o_heff, o_b, ours_spec, ours_role, ours_cls),
+                                      (tier_t_heff, t_b, theirs_spec, theirs_role, theirs_cls)):
+            for key, bucket in heal_eff_buckets(rep, sp, ro, cl).items():
+                ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
+                                            "role": "healer", "eff": 0.0, "over": 0.0, "players": set()})
+                ent["eff"] += bucket["eff"]
+                ent["over"] += bucket["over"]
+                ent["players"] |= bucket["players"]
         # Sample buff/debuff uptimes for the tier-wide coverage rollup.
         for kind, rows_ in (("buff", buff_rows), ("debuff", debuff_rows)):
             for r in rows_:
@@ -3418,6 +3635,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Per-spec activity (active-GCD uptime) gap — EXPERIMENTAL. The spec-level decomposition of the
     # raid-wide Activity figure (names which spec is actually losing the uptime).
     tier_activity = tier_activity_gap(tier_o_act, tier_t_act)
+    # Healing efficiency by spec (EXPERIMENTAL) — the per-healer-spec decomposition of the raid Overheal%.
+    tier_heal_eff = tier_heal_eff_gap(tier_o_heff, tier_t_heff)
     # Hit / Expertise itemization audit (combatantInfo.stats) — EXPERIMENTAL. The snapshot is GEAR hit;
     # we fold in each side's detectable raid spell-hit (Improved Faerie Fire, +3% when a Balance Druid is
     # in the roster) → effective hit, and compare effective-to-effective so a buff asymmetry (we run
@@ -3480,7 +3699,13 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     # Optimize tab — each raider's rotation vs a same-faction world-best player of their spec (reads
     # worldbest.json from the fetch stage; graceful {present:false} on older folders without it).
-    optimize = build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, common_ids)
+    # Cross-link (EXPERIMENTAL): a per-raider hit/expertise flag from the Prep stat audit, so a diverging
+    # rotation row can note when part of the gap is a fixable GEAR problem (under the hit cap → missed
+    # casts), not a sequencing choice. Reuses the already-computed stat audit — coach-not-blame, absolute.
+    hit_map = {p["name"]: {"effPct": p["effPct"], "cap": p["cap"], "under": p["under"],
+                           "gap": p["gap"], "hitType": p["hitType"]}
+               for p in stat_audit_payload["players"] if p.get("under")}
+    optimize = build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, common_ids, hit_map=hit_map)
 
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
@@ -3495,9 +3720,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
+        "parseSpread": parse_spread_payload,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
-                 "potionGap": potion_spec_gap,
+                 "potionGap": potion_spec_gap, "prepot": prepot, "healEffGap": tier_heal_eff,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,

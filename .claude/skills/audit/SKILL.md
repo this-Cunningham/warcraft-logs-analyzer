@@ -24,6 +24,35 @@ list of what each tab ships, so you audit what's actually there — not what you
 If you cannot write that sentence, the feature is **fun, not helpful.** Write the
 sentence for every feature you keep; the absence of one is the loudest signal to cut.
 
+## The two ways to be useless (both *feel* like analysis)
+
+A feature can clear "is it actionable?" and still be worthless. Watch for both:
+
+- **Trivia** — true but implies no action ("focus concentration 78%").
+- **Obvious** — implies an action the leader would take *anyway* ("it's interruptible →
+  assign a kick"). There was no decision to inform. **The obviousness test:** *does the
+  reader already know this, or would they already do it?* If yes, it doesn't earn space —
+  no matter how cleanly it's derived.
+
+## The test that separates real insight from "no duh": **disambiguation**
+
+The most valuable analysis (per how experienced raid leaders actually read logs) doesn't
+report a number — it **resolves an either/or the leader is genuinely unsure about**, and
+thereby tells them *which fix to apply*. An insight is "no duh" when the cause was never
+in doubt; it's gold when it answers **"which of these is it?"** The canonical ambiguities:
+
+- **gear vs play** (a low number — is it the gear or the player?)
+- **positioning vs healing vs unavoidable** (a death — whose fix is it?)
+- **uptime/movement vs throughput** (low DPS — drill positioning, or gear/rotation?)
+- **assignment vs execution** (a leaked kick — unassigned, or assigned-but-failing?)
+- **symptom vs root cause** (wiped to enrage — *because* P2 ran long *because* lust mistimed)
+- **fine vs dropped-when-it-mattered** (94% uptime — irrelevant gap, or a critical one?)
+
+> When auditing, ask of each feature: **what either/or does this resolve?** If the answer
+> is "none — the cause was never in question," it's an *obvious* insight; cut or rebuild it
+> so it disambiguates. ("Assign a kick" resolves nothing; *"you ARE assigned to kick it but
+> it still leaks — your kicker is out of range in the spread"* resolves assignment-vs-execution.)
+
 ## The 4 gates — a feature must pass ALL of them
 
 1. **Action.** There is a real, verb-first thing someone does because of it (the

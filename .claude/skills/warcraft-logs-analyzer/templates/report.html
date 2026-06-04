@@ -120,6 +120,15 @@
   .tltab{color:var(--tlc,var(--muted))}
   .tltab.on{color:#06101f;background:var(--tlc,var(--ours))}
   .bsub{display:none}.bsub.active{display:block}
+  /* Optimize tab — two nested tab levels (class -> spec), then per-player rotation tables. */
+  .osub{display:none}.osub.active{display:block}
+  .ossub{display:none}.ossub.active{display:block}
+  .btabs.ospecs{margin:2px 0 14px}
+  .btabs.ospecs .btab.on{background:var(--theirs);color:#06101f}
+  .optbench{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:13px;color:var(--muted)}
+  .optbench b{color:var(--txt)}
+  .optlabel{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);margin-right:4px}
+  .optpname{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:15px;font-weight:600}
   .ccard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 12px;min-width:98px}
   .ccard .chead{font-weight:700;font-size:13px;margin-bottom:5px}
   .cspecs{display:flex;flex-direction:column;gap:2px}
@@ -1213,6 +1222,80 @@ function wireBosses(){
     el.querySelectorAll(`.tlpane[data-tlboss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.tlk===k));
   }));
 }
+/* ---------- OPTIMIZE (per-raider rotation vs same-faction world best) ---------- */
+const optMetricLbl=m=>m==="hps"?"HPS":"DPS";
+// One spec's body: the world-best benchmark line + each of our raiders' cast-mix table (or a green
+// "matches world best" chip when they're within 5 points on every tracked ability).
+function optSpecBody(d,cls,s){
+  const col=cc(cls), fac=esc((d.deep.optimize&&d.deep.optimize.factionName)||"same-faction");
+  if(!s.benchmark){
+    return `<p class="num" style="padding:6px 2px">No ${fac} world ranking found for ${esc(s.spec)} ${esc(cls)} on the shared bosses — nothing to benchmark against.</p>`;
+  }
+  const b=s.benchmark, boss=s.boss||{};
+  const amt=b.amount!=null?` · ${fmtR(b.amount)} ${optMetricLbl(b.metric)}`:"";
+  const guild=b.guild?` · ${esc(b.guild)}`:"", reg=b.region?` (${esc(b.region)})`:"";
+  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(b.name)}</b>${guild}${reg} — World #${b.globalRank} ${fac} ${esc(s.spec)} ${esc(cls)} on <b>${esc(boss.name||"")}</b>${amt}</div>`;
+  const players=rowsOf(s.players);
+  if(!players.length) return h+`<p class="num" style="padding:6px 2px">None of your ${esc(s.spec)} ${esc(cls)} raiders have casts on ${esc(boss.name||"this boss")}.</p>`;
+  const parseTag=p=>p.parse!=null?` <span class="parse" style="background:${parseColor(p.parse)}">${p.parse}</span>`:"";
+  const match=players.filter(p=>p.matches), diverge=players.filter(p=>!p.matches);
+  if(match.length){
+    h+=`<div class="complist" style="margin:0 0 14px">`+match.map(p=>`<span class="chip" style="border-color:var(--good)"><span style="color:${col};font-weight:600">${esc(p.name)}</span>${parseTag(p)} <span style="color:#9be7b4">· matches world best ✓</span></span>`).join("")+`</div>`;
+  }
+  for(const p of diverge){
+    // Mirrored bars: our raider's cast share ← bar — ability (±Δ, centred) — bar → world best's share.
+    // Δ is neutral (rotation is descriptive, not better/worse), same as the Rotation view.
+    const abil=rowsOf(p.abilities);
+    const max=Math.max(1,...abil.map(a=>Math.max(a.ours,a.theirs)));
+    const w=v=>Math.max(2,Math.round(v/max*100));
+    h+=`<div style="margin:0 0 18px"><div class="optpname"><span style="color:${col}">${esc(p.name)}</span>${parseTag(p)}</div>
+      <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(p.name)}</span><span>Cast share by ability</span><span class="cthe">${esc(b.name)}</span></div><div class="ugrid">`;
+    for(const a of abil){
+      h+=`<div class="dval lo">${a.ours}%</div>
+        <div class="dbarL"><div class="f ours" style="width:${w(a.ours)}%"></div></div>
+        <div class="dmid">${esc(a.name)}<span class="delta flat">${a.diff>0?"+":""}${a.diff} pts</span></div>
+        <div class="dbarR"><div class="f theirs" style="width:${w(a.theirs)}%"></div></div>
+        <div class="dval ro">${a.theirs}%</div>`;
+    }
+    h+=`</div></div></div>`;
+  }
+  return h;
+}
+function renderOptimize(d){
+  const o=d.deep&&d.deep.optimize;
+  if(!o||!o.present) return `<h2 class="section">Optimize</h2><p class="num" style="padding:8px 2px">No world-best rotation data in this report (the data was fetched before the Optimize tab existed, or our raid had no resolvable guild faction to match).</p>`;
+  const classes=rowsOf(o.classes);
+  if(!classes.length) return `<h2 class="section">Optimize</h2><p class="num" style="padding:8px 2px">No DPS or healer specs to benchmark.</p>`;
+  const fac=o.factionName?esc(o.factionName):"same-faction";
+  let h=`<h2 class="section">Optimize — Rotation vs World Best<span class="hint">Every raider's cast mix benchmarked against a <b>${fac}</b> world-best player of their exact class &amp; spec — the top ${fac} parse on a boss your raid also killed, measured on that <b>same encounter</b> so it's apples-to-apples. Pick a <b>class</b>, then a <b>spec</b>; each raider shows the share of casts spent on each ability, theirs vs the world best. Raiders already within <b>5 points</b> on every ability collapse to a green chip. <b>Descriptive, not scored</b> — a different mix can be gear/talent/fight-driven; read it against the spec's playbook.</span></h2>`;
+  h+=`<div class="btabs">`+classes.map((c,i)=>`<button class="btab ${i===0?"on":""}" data-octab="${esc(c.class)}">${esc(c.class)}</button>`).join("")+`</div>`;
+  classes.forEach((c,ci)=>{
+    const specs=rowsOf(c.specs);
+    h+=`<div class="osub ${ci===0?"active":""}" data-octab="${esc(c.class)}">`;
+    h+=`<div class="btabs ospecs">`+specs.map((s,j)=>`<button class="btab ${j===0?"on":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}" data-ocls="${esc(c.class)}">${esc(s.spec)}</button>`).join("")+`</div>`;
+    specs.forEach((s,si)=>{
+      h+=`<div class="ossub ${si===0?"active":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}">`+optSpecBody(d,c.class,s)+`</div>`;
+    });
+    h+=`</div>`;
+  });
+  return h;
+}
+// Two nested tab levels: class selector (outer) toggles class panels; spec selector (inner, scoped per
+// class so distinct classes don't collide) toggles spec panels — mirrors the Bosses-tab wiring.
+function mountOptimize(){
+  const el=document.getElementById("p-optimize");
+  if(!el) return;
+  el.querySelectorAll(".btab[data-octab]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.octab;
+    el.querySelectorAll(".btab[data-octab]").forEach(x=>x.classList.toggle("on",x.dataset.octab===k));
+    el.querySelectorAll(".osub[data-octab]").forEach(x=>x.classList.toggle("active",x.dataset.octab===k));
+  }));
+  el.querySelectorAll(".btab[data-ospec]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.ospec, cls=t.dataset.ocls;
+    el.querySelectorAll(`.btab[data-ospec][data-ocls="${cls}"]`).forEach(x=>x.classList.toggle("on",x.dataset.ospec===k));
+    el.querySelectorAll(`.ossub[data-ospec^="${cls}|"]`).forEach(x=>x.classList.toggle("active",x.dataset.ospec===k));
+  }));
+}
 /* ---------- TRASH ---------- */
 function renderTrash(d){
   const tr=d.deep&&d.deep.trash;
@@ -1407,17 +1490,19 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="trash">Trash</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="optimize">Optimize</div><div class="tab" data-t="trash">Trash</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-composition">${renderComposition(d)}</div>
   <div class="panel" id="p-enchants">${renderEnchants(d)}</div>
   <div class="panel" id="p-execution"></div>
   <div class="panel" id="p-bosses"></div>
+  <div class="panel" id="p-optimize">${renderOptimize(d)}</div>
   <div class="panel" id="p-trash">${renderTrash(d)}</div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;
   document.getElementById("app").innerHTML=h;
   mountExecution();
   mountBosses();
+  mountOptimize();
   mountTrash();
   wrapTables(); // wrap tables in the statically-rendered panels (Overview, Composition, Prep, Trash)
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{

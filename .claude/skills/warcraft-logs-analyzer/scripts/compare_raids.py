@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # find sibling m
 import lib
 import build_deepdive
 import fetch_report
+import fetch_worldbest
 
 META_Q = "query M($code:String!){reportData{report(code:$code){title zone{name} fights(killType:Kills){encounterID}}}}"
 PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}"
@@ -214,6 +215,24 @@ def main(argv=None):
         fetch_report.fetch(code, directory, shared)
         with open(os.path.join(directory, ".shared.json"), "w", encoding="utf-8") as fh:
             json.dump(sorted(shared), fh)
+
+    # Same-faction world-best rotations for our raid's specs (powers the Optimize tab). Keyed by OUR
+    # roster + faction + shared bosses, so it lives in ours_dir alongside the deep data. Re-fetched when
+    # our data isn't cached, when --refresh is passed, or when an older cached dir predates this file
+    # (so re-running over a cached report backfills the new tab). A failure here is non-fatal — the rest
+    # of the report still builds; the Optimize tab just renders empty.
+    worldbest_path = os.path.join(ours_dir, "worldbest.json")
+    if cached[ours_code] and os.path.isfile(worldbest_path) and not args.refresh:
+        print("Using cached world-best rotations.")
+    else:
+        print("Fetching same-faction world-best rotations...")
+        enc_names = {int(k): v["name"] for k, v in
+                     build_deepdive.index_by_encounter(build_deepdive.get_fights(ours_parses)).items()
+                     if int(k) in shared}
+        try:
+            fetch_worldbest.fetch_for_report(ours_code, ours_parses, shared, enc_names, worldbest_path)
+        except Exception as exc:
+            print("  world-best fetch failed ({}); Optimize tab will render empty.".format(exc))
 
     # Build the report (pure Python + static template - deterministic).
     print("Building report...")

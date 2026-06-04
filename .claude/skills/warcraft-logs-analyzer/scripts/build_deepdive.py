@@ -1377,6 +1377,112 @@ def tier_rotation(o_pool, t_pool, top=8, min_share=3.0, collapse_diff=5.0):
     return rows
 
 
+def _casts_by_name(report):
+    """{player name -> {ability name -> total casts}} for one boss report's Casts table. Powers the
+    Optimize tab, which compares each of OUR raiders' cast mix to a world-best player on the same boss."""
+    out = {}
+    for e in _entries(report, "casts"):
+        nm = e.get("name")
+        if not nm:
+            continue
+        d = out.setdefault(nm, {})
+        for a in (e.get("abilities") or []):
+            an = a.get("name")
+            if an:
+                d[an] = d.get(an, 0) + int(a.get("total", 0))
+    return out
+
+
+def _rotation_diff(p_abil, w_abil, min_share, top):
+    """One raider's cast mix vs the world-best player's, as ability cast-SHARE rows (ours%, theirs%, Δ),
+    biggest divergence first. Same share math as the tier Rotation view, but per-individual-player vs a
+    single world-best benchmark instead of spec-pooled vs the other guild. None if either side has no
+    casts. `min_share` drops trivial fillers so the rotation's backbone shows, not noise."""
+    p_tot, w_tot = sum(p_abil.values()), sum(w_abil.values())
+    if p_tot <= 0 or w_tot <= 0:
+        return None
+    rows = []
+    for an in set(p_abil) | set(w_abil):
+        o_pct = 100.0 * p_abil.get(an, 0) / p_tot
+        t_pct = 100.0 * w_abil.get(an, 0) / w_tot
+        if max(o_pct, t_pct) < min_share:
+            continue
+        rows.append({"name": an, "ours": round(o_pct, 1), "theirs": round(t_pct, 1),
+                     "diff": round(o_pct - t_pct, 1)})
+    rows.sort(key=lambda x: -abs(x["diff"]))
+    return rows[:top]
+
+
+def build_optimize(ours_dir, ours_idx, ours_spec, ours_role, ours_cls,
+                   min_share=3.0, top=10, collapse_diff=5.0):
+    """Optimize tab payload: per class -> per spec -> each of OUR raiders' rotation benchmarked against a
+    same-faction WORLD-BEST player of that exact class/spec. Reads `worldbest.json` (written in the fetch
+    stage by fetch_worldbest); pure/deterministic here. Graceful {"present": False} when the file is
+    absent (older data folders) or no guild faction was resolvable. Each spec is benchmarked on ONE shared
+    boss (the boss the world-best player parsed, which our raiders also killed), so our-player and
+    world-best cast shares are measured on the SAME encounter — an apples-to-apples rotation read."""
+    wb = read_json(os.path.join(ours_dir, "worldbest.json")) if \
+        os.path.isfile(os.path.join(ours_dir, "worldbest.json")) else None
+    if not wb or not wb.get("present"):
+        return {"present": False}
+
+    # Cache per-boss casts-by-name so multiple specs sharing a benchmark boss load it once.
+    boss_casts = {}
+
+    def _casts_for(enc):
+        if enc not in boss_casts:
+            rep = load_boss(ours_dir, enc)
+            boss_casts[enc] = _casts_by_name(rep) if rep else {}
+        return boss_casts[enc]
+
+    by_class = {}
+    for sp in (wb.get("specs") or []):
+        cls, spec, role = sp.get("class"), sp.get("spec"), sp.get("role")
+        slot = by_class.setdefault(cls, [])
+        player = sp.get("player")
+        if not player:
+            # No same-faction world ranking for this spec — surface it honestly, no comparison.
+            slot.append({"spec": spec, "role": role, "benchmark": None, "players": [], "worstDiff": -1})
+            continue
+        enc = (sp.get("boss") or {}).get("encounterID")
+        w_abil = sp.get("abilities") or {}
+        casts = _casts_for(enc)
+        # Per-boss parse for context (the player's percentile on the benchmark boss).
+        parse_by_name = {p["name"]: p.get("parse") for p in (ours_idx.get(str(enc), {}).get("players") or [])}
+        players = []
+        for nm, p_abil in casts.items():
+            if ours_spec.get(nm) != spec or ours_cls.get(nm) != cls or ours_role.get(nm) != role:
+                continue
+            abil = _rotation_diff(p_abil, w_abil, min_share, top)
+            if not abil:
+                continue
+            max_diff = max((abs(a["diff"]) for a in abil), default=0.0)
+            players.append({"name": nm, "parse": parse_by_name.get(nm),
+                            "matches": max_diff <= collapse_diff, "maxDiff": round(max_diff, 1),
+                            "abilities": abil})
+        # Most-divergent raider first (most to coach), so a leader reads top-down.
+        players.sort(key=lambda p: -p["maxDiff"])
+        slot.append({
+            "spec": spec, "role": role, "metric": sp.get("metric"),
+            "boss": sp.get("boss"),
+            "benchmark": {"name": player.get("name"), "guild": player.get("guild"),
+                          "server": player.get("server"), "region": player.get("region"),
+                          "amount": player.get("amount"), "globalRank": player.get("globalRank"),
+                          "metric": sp.get("metric")},
+            "players": players,
+            "worstDiff": max((p["maxDiff"] for p in players), default=0.0),
+        })
+
+    classes = []
+    for cls in sorted(by_class):
+        specs = by_class[cls]
+        # Within a class, the spec with the biggest rotation gap floats up.
+        specs.sort(key=lambda s: -s.get("worstDiff", 0))
+        classes.append({"class": cls, "specs": specs})
+    return {"present": True, "factionName": wb.get("factionName"), "region": wb.get("region"),
+            "classes": classes}
+
+
 def ability_agg(report, tank_names):
     agg = {}
     if not report.get("dt"):
@@ -2821,6 +2927,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Built before the scorecard so the big trash-deaths gap can feed the Overview Biggest Gaps cards.
     trash = build_trash(ours_dir, theirs_dir)
 
+    # Optimize tab — each raider's rotation vs a same-faction world-best player of their spec (reads
+    # worldbest.json from the fetch stage; graceful {present:false} on older folders without it).
+    optimize = build_optimize(ours_dir, ours_idx, ours_spec, ours_role, ours_cls)
+
     # "Biggest Gaps" scorecard — rank every tracked dimension by distance to the benchmark.
     gaps_scorecard = biggest_gaps(summary, quality, consumables, audit, gaps,
                                   tier_spec=tier_spec, tier_uptime=tier_uptime, trash=trash,
@@ -2841,7 +2951,8 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd, "tierRotation": tier_rot,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
-                 "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash},
+                 "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,
+                 "optimize": optimize},
     }
     out_full = render_report(payload, out_file)
     print("Deep-dive report written to {} ({} shared bosses, {} with buff/debuff data)".format(

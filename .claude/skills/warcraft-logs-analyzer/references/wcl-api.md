@@ -26,7 +26,8 @@ rather than many small calls.
 - `report.rankings(compare: RankingCompareType, playerMetric: ReportRankingMetricType, fightIDs: [Int], encounterID: Int, ...)` → per-player percentile parses.
 - `report.fights(killType: KillType, encounterID: Int, fightIDs: [Int], difficulty: Int)`.
 - `report.masterData.actors(type: "Player") { id name type subType }` (subType = class for players).
-- Cross-guild leaderboard: `worldData.encounter(id: Int!).characterRankings(metric: CharacterRankingMetricType, difficulty: Int, serverRegion:, serverSlug:, className:, specName:, ...)` → JSON.
+- Cross-guild leaderboard: `worldData.encounter(id: Int!).characterRankings(metric: CharacterRankingMetricType, difficulty: Int, serverRegion:, serverSlug:, className:, specName:, ...)` → JSON. Each ranking carries `report{code fightID}`, `guild`, `server{name region}`, `amount`, and a raw `faction` int — so the ranked player's log (and their Casts table) is directly reachable. `className`/`specName` take the same spec strings the report data uses (`BeastMastery`, `Survival`, …) — verbatim, no spaces. Powers the Optimize tab (`fetch_worldbest.py`).
+- **Faction encoding mismatch (verified live):** a guild's `GameFaction` is `{id:1 name:Alliance}` / `{id:2 name:Horde}` (via `report.guild.faction` or `guildData.guild(id).faction`), but a `characterRankings` entry's raw `faction` int is **0=Alliance, 1=Horde**. To filter rankings to your raid's faction: `entryFaction == guildFactionId - 1`.
 - Find reports for a guild: `reportData.reports(guildName:, guildServerSlug:, guildServerRegion:) { data { code title } }`.
 
 **Enums**

@@ -2,7 +2,7 @@
 
 `build_deepdive.py` (invoked by `compare_raids.py`) injects a `const DATA` blob into
 `templates/report.html` (inline CSS+JS, dark, offline, no CDN) by replacing the
-literal `/*__DATA__*/null`. Six top-level tabs, a funnel:
+literal `/*__DATA__*/null`. Seven top-level tabs, a funnel:
 
 | Tab | Question it answers |
 |---|---|
@@ -10,6 +10,8 @@ literal `/*__DATA__*/null`. Six top-level tabs, a funnel:
 | **Composition** | Roster makeup & buffs |
 | **Prep** | Did we show up ready |
 | **Execution** | Raid-wide gaps + per-boss drill-down |
+| **Bosses** | Per-boss execution drill-down + kill summary |
+| **Wipes** | Why we wipe (the wall, the trend, the tax, what ends attempts) |
 | **Optimize** | How each raider's rotation compares to the world best |
 | **Trash** | How we handle trash packs |
 
@@ -35,6 +37,11 @@ deliberately omitted (see `PRODUCT_MANAGER_SOUL.md`). Symbols below are
   strength requires benchmark uptime > 0 (a real "we maintain it better" lead, not a
   "they don't run it").
 - **Raid Summary cards** (incl. Total Wipes when attempt data present).
+- **Parse Spread** (`parse_spread` → `parseSpreadView`) — **EXPERIMENTAL**, the distribution behind the
+  Avg Raid Parse *mean*: median + the count of **floor** parses (rankPercent < 25) + the lowest-parsing
+  **specs** (with the benchmark's same spec), ours vs theirs. Tells a leader whether the gap is the whole
+  raid or a handful of anchors — coach the named floor specs vs re-gear everyone. Spec grain, never
+  per-player. From the per-player-per-shared-boss `rankPercent` already in the parses file.
 - **Boss-by-Boss** — one sub-tab per boss (`mountOverview` wires `.btab/.bsub
   [data-otab]`): kill time, Raid DPS/HPS bars (total ÷ duration), avg parse, deaths,
   wipes-before-kill (shown only if either wiped), **wipe depth** (`attempt_map`:
@@ -52,6 +59,16 @@ Raid composition + buff-provider gaps (`PROVIDER_CHECKS`: class/spec → raid bu
 brings). Spec = each player's **primary (most-frequent) spec across shared bosses**
 (`primary_spec_map`), so a Feral who bear-tanks one fight still reads Feral and still
 counts as a Leader-of-the-Pack provider — keeps counts order-independent.
+
+**Provider Count & Coverage** (`count_providers` + `scope` on `PROVIDER_CHECKS` → the second Composition
+table) — **EXPERIMENTAL**, one level deeper than the binary ✓/✗: **how many** providers each side fields.
+Honest split by buff `scope`: **group**-scoped buffs (Windfury / Bloodlust / Battle Shout / Trueshot /
+Ferocious Inspiration / Leader of the Pack land on the provider's 5-man party) → a count delta is a clean
+coverage signal (more = more groups covered); **raid**-scoped boss debuffs (Misery / CoE / Imp FF / JoW /
+Imp Scorch / Expose) → one provider delivers it in full, so a count delta isn't better/worse, but
+**count == 1 is a single-point-of-failure** (one death/absence and the buff is gone). Count matching
+inherits `has_provider`'s spec-name logic, so a WCL spec variant (e.g. "Dreamstate" boomkin) can read 0 —
+the same caveat the binary check already carried.
 
 (Cut in the soul audit: *Damage Contribution by Class* — % share conflates "fewer of
 that class" with "that class underperforms." The per-player **DPS by Spec** gap is
@@ -97,6 +114,12 @@ the honest version.)
   spec), ranked by biggest deficit (clean better/worse — pure throughput). (2)
   **Choices** (`throughput_choices`): which specific flasks/battle-elixirs each raid
   runs (meta mined from benchmark), descriptive.
+- **Opener Potion — Prepot** (`prepot_timing` → `prepotView`) — **EXPERIMENTAL**, the *timing* decomposition
+  of the potion-uses count: did the throughput potion land **on the pull** (the free TBC opener prepot,
+  which shares a cooldown with the in-combat potion so skipping it wastes a potion) or only reactively
+  mid-fight. From the aggregate Buffs `bands` (earliest potion band start vs fight start; ≤3s ≈ on the
+  pull). **Raid-aggregate** (bands merge across players) → an honest raid-level "opener potion on the pull:
+  X/N bosses", NOT a per-player prepotter count (same precedent as Drums uptime).
 - **Enchants & Weapon Oils** (`audit_report`) — missing enchants from
   `combatantInfo.gear.permanentEnchant` + weapon-oil presence, restricted to the
   **shared-boss roster** (matches Composition). **Windfury counts as a weapon buff for
@@ -218,6 +241,16 @@ the honest version.)
   **DPS gap diagnosis** (`dps_diagnosis` → `quality.dpsDiagnosis`) splits the raid-DPS
   deficit into an **activity** (uptime/movement) vs **throughput** (gear/rotation/buffs)
   component — what *kind* of fix. An estimate; silent unless we trail on raid DPS.
+- **Healing Efficiency by Spec** (`heal_eff_buckets`/`tier_heal_eff_gap` → `healEfficiencyView`) —
+  **EXPERIMENTAL**, the per-healer-spec decomposition of the raid **Overheal %** number (sits right under
+  Output Quality). Each healer spec's overheal % (overheal ÷ (overheal + effective), pooled across shared
+  bosses) ours vs the benchmark's **same spec**, biggest excess first — names which healer spec is
+  splashing/sniping inefficiently (coachable on spell choice, snipe discipline, assignments). Same-spec
+  comparison cancels the structural HoT-vs-direct-heal overheal difference (Resto Druid ~67% on both
+  sides), leaving the residual Δ as the real signal. Specs with no benchmark same-spec ride along as a
+  first-party absolute note (overheal% is a valid absolute — lower is tighter). DPS got DPS-by-spec and
+  Activity got Activity-by-spec; this completes the set for Overheal. (Note: NOT decomposable by *spell* —
+  the Healing table carries `overheal` only at the player level, not per ability.)
 - **Clear Efficiency** (`efficiency`) — first-pull→last-kill wall-clock vs in-combat time,
   **scoped to shared bosses** on each side (filters fights to shared encounters — the bug
   fix: the old full-report span was meaningless when the two reports covered different
@@ -295,9 +328,43 @@ ranking metric); `min_share` (3pp) drops fillers.
   (so re-running over a cached report backfills the tab). A fetch failure is non-fatal — the rest of the
   report still builds; the tab renders an empty-state note. Graceful `{present:false}` when the file is
   absent or our raid had no resolvable guild faction (a PUG night).
+- **Hit/Expertise cross-link** (`hit_map` from `stat_audit_compare` → `optBossBody`) — **EXPERIMENTAL**,
+  a per-raider note on a *diverging* row when the Prep stat audit flagged that raider **under their
+  effective-hit cap**: "effective hit 12% vs the 16% cap — missed casts can distort this mix; closing it
+  is a gem/enchant fix, not a rotation change." Explains *why* a rotation diverges with a concrete, fixable
+  gear lever rather than scoring the rotation — coach-not-blame, and the soul's blessed absolute check
+  (hit cap = wrong-vs-correct). Reuses the already-computed Prep audit; no extra fetch. Shown only when
+  `under` is true, so it's silent for capped raiders.
 - **Known wrinkle** — a hybrid who played the spec in a different role/form on the benchmark boss (a
   Feral who bear-tanked) reads a large, role-driven "gap"; inherited from the Rotation view, covered by
   the descriptive framing. Form-aware spec detection would sharpen it.
+
+---
+
+## Wipes
+
+`wipe_analysis` → `renderWipes` (static panel, no mount). **EXPERIMENTAL** and **first-party by nature** —
+a benchmark on farm rarely wipes, so its column is usually absent/0. Scoped to the **shared bosses** the
+raid actually wiped on (names + wipe-death data are scoped there). Empty-state is a positive ("a clean
+clear"). Per boss:
+
+- **The Wall** (`wall`) — the phase the most wipes **ended in** + the typical boss-HP% remaining there
+  (`lastPhase` + `fightPercentage` from `attempts.json`, phase id→name via `phase_name_map`). Names the
+  phase gate to drill.
+- **Progression Trend** (`_wipe_trend` + the `trendSeq` bar viz) — the %-remaining sequence across the wipe
+  pulls, with a verdict: **converging** (closest attempt is recent — keep pushing), **plateaued** (clustering
+  at one depth — change something), or **regressing** (further after early attempts — fatigue/tilt, reset).
+  **Silent under 3 wipes** (no honest trend to call). Viz bar height = progress (boss HP removed; taller =
+  closer to the kill).
+- **The progression Tax** — wall-clock **time spent wiping** per boss + the raid total + the biggest
+  time-sink boss. The cost the kill-time number hides (a "1 wipe" can be a 12-minute attempt).
+- **What Ends Your Attempts** (needs `wipe-deaths.json`) — the most common **first death** (the failure that
+  starts the cascade) + the **killing blows** on the wipe pulls, ranked. From the friendly Deaths table on
+  the wipe fights (`fetch_report` writes `wipe-deaths.json`), bucketed to each pull by the entry's `fight`
+  id. Graceful when absent (older folders): the progression sections still render, with a note that the
+  death detail backfills on the next refresh. `hasDeaths` gates it.
+
+Benchmark wipe counts ride along per boss as light context where present (`dp.wipes.theirs`).
 
 ---
 
@@ -320,6 +387,12 @@ drops off-zone fights (each fight carries `gameZone{id name}`; older folders ski
 - **Chain-Pulling** (`trash_chain_pull`) — avg/max mobs per pull + count of LARGE pulls (≥10) +
   each side's biggest pull. WCL exposes **no pack object / baseline**, so "N packs merged" can't be
   inferred and we don't claim it. Descriptive, neutral Δ.
+- **Trash Deaths by Pull Size** (`trash_deaths_by_pull_size` → inline in `renderTrash`) — **EXPERIMENTAL**,
+  the honest one-level-deeper of the flat trash-deaths count: death-**rate per pull** bucketed by mob count
+  (1–3 / 4–7 / 8–12 / 13+), ours vs benchmark. Solves the hybrid-comparison problem — pull boundaries don't
+  align across guilds, but **death-rate-per-pull-of-size-N does** ("when you pull 8–12, how often does
+  someone die, vs them?"). Sharp, aligned, better/worse. Raw deaths/pulls shown beside the rate (samples
+  are small — be honest). Sits under Chain-Pulling (the size lever it pairs with).
 - **Kill Order & Crowd Control** — outer toggle (`.btab[data-ttab]`, `mountTrash`): **Kill Order**
   (default) | **Crowd Control**. Kill Order nests two lenses (`data-ktab`):
   - **Same-Pack Matches** (default; `trash_identical_packs` → `sameMatchesBody`/`killSeq`) — kill
@@ -355,6 +428,10 @@ the trinket half of Cooldown Usage; `threat` powers Early Aggro; focus-fire need
 `attempts.json`); `attempt_map` tallies kills vs wipes + closest wipe's depth/phase, and `wipe_recovery`
 uses the `startTime`/`endTime` (added for the Wipe Recovery view) to measure the gap between a wipe and the
 next pull. Graceful without the file (and older `attempts.json` without timestamps → Wipe Recovery empty).
+The **Wipes tab** adds one more cheap call: the friendly Deaths table for the shared bosses' **wipe** fight
+ids (`fetch_report` → `wipe-deaths.json`, entries carry `fight` + `timestamp` + killingBlow so they bucket
+to pulls client-side) — powers "what ends your attempts". Graceful when absent (the tab's progression
+sections still render from `attempts.json`).
 
 **Timeline curves** (`timeline-<enc>.json`, shared bosses) — `_binned_curves` pages DamageDone +
 Healing events, bins `amount` into 40 buckets ÷ width → exact DPS/HPS-over-time. **From events on

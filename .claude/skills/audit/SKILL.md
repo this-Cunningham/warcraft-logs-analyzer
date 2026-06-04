@@ -189,6 +189,15 @@ Verdicts:
   class looks identical to that class underperforming). Gate 3 fails (confounded),
   Gate 1 fails (no action). Failure mode: **Vanity/Scoreboard.** → **CUT** (and indeed
   the soul already cut it; the per-player DPS-by-spec gap is the honest version).
+- *"Shadow Word: Death is interruptible and you take it — assign a kick."* Action exists,
+  data is clean, it even names the mechanic — yet it's worthless: the leader **already
+  knows** you kick an interruptible cast. It fails the **obviousness test** (they'd do it
+  anyway) and **disambiguates nothing** (the cause was never in question). → **CUT as
+  written.** The fix is to make it resolve a real either/or — *"you're assigned to kick
+  SW:D but still leak it 6× — your kicker is out of range during the spread phase"*
+  (resolves **assignment vs execution**, names the actual failure). → that version is a
+  **KEEP/SHARPEN**. *The lesson: actionable + clean + named-lever can STILL be "no duh" if
+  it resolves no ambiguity — disambiguation is the test the other gates don't catch.*
 
 > The bar, in one line: *Would this help an unfamiliar raid leader decide what to fix
 > next — honestly, and at a glance?* If it's a scoreboard, trivia, a vanity stat, a

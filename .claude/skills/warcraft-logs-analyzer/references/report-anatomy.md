@@ -112,10 +112,12 @@ the honest version.)
   worst-first — the one per-player view outside Optimize (a gear FIX, not a skill judgment).
   - **gear**: the snapshot rating ÷ 12.6 (casters) / ÷ 15.77 (melee+ranged), `max` across the night.
   - **talent**: the spec's standard-build hit talent, assumed taken in full (`SPEC_TALENT_HIT` — Shadow
-    Focus +10, Balance of Power +4, Elemental Precision +3 [Fire/Frost], Precision +5 rogue / +3 warrior,
-    Surefooted +3). Invisible in the data (TBC talents are placeholders), so it's a meta assumption, not a
-    read. Omitted where partial/build-dependent: Warlock Suppression (Affliction DoTs only, not Shadow
-    Bolt), Mage Arcane (EP is Fire/Frost only), Ele Shaman, Ret/Feral/BM/Enh.
+    Focus +10, Balance of Power +4, Elemental Precision +3 [Fire/Frost mage], Nature's Guidance +3 [Elem &
+    Enh shaman], Precision +5 [all rogue specs] / +3 [Arms/Fury warrior], Surefooted +3 [Survival hunter]).
+    Invisible in the data (TBC talents are placeholders), so it's a meta assumption, not a read. Omitted
+    (no standard hit talent / partial): Warlock Affliction (Suppression helps DoTs not Shadow Bolt — they
+    gear to the SB cap), Destruction/Demo Warlock, Mage Arcane (EP is Fire/Frost only), BM/Marksmanship
+    Hunter, Ret, Feral, and the TANKS (Prot Warrior/Pala, bear — they itemize to ~9% without a talent).
   - **raid**: Improved Faerie Fire (+3% spell hit, `IMP_FAERIE_FIRE_HIT`) via `spell_hit_env`, credited when
     a Balance Druid is in that side's roster (raid-wide boss debuff). NOT modeled: Totem of Wrath / Heroic
     Presence (party-scoped), Misery (it's +5% spell DAMAGE, not hit). Melee/ranged raid = 0.

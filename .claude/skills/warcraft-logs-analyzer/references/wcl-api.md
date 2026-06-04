@@ -105,8 +105,10 @@ Reusable queries live in `queries/`:
   **talent** — the spec's standard-build hit talent, assumed taken in full (`SPEC_TALENT_HIT`; talents are
   invisible — TBC `combatantInfo.talents` are placeholders — so this is a meta assumption). Modeled only
   where the talent boosts ~all of the spec's damage (Shadow Focus +10, Balance of Power +4, Elemental
-  Precision +3 [Fire/Frost, *not* Arcane], Precision +5 rogue / +3 warrior, Surefooted +3); omitted where
-  partial (Warlock **Suppression** helps Affliction DoTs but NOT Shadow Bolt). (b) **raid** — only
+  Precision +3 [Fire/Frost, *not* Arcane], Nature's Guidance +3 [Elem & Enh shaman], Precision +5 [all
+  rogues] / +3 [Arms/Fury warrior], Surefooted +3); omitted where partial / no standard talent (Warlock
+  **Suppression** helps Affliction DoTs but NOT Shadow Bolt; Arcane; BM/MM hunter; Ret; Feral; tanks gear
+  to ~9% without one). (b) **raid** — only
   **Improved Faerie Fire (+3%)**, inferred from a Balance Druid in the roster. NOT added: **Totem of Wrath**
   (+3%) and **Heroic Presence** (+1%) are party-scoped (can't tell who's in range). (**Misery is +5% spell
   DAMAGE, not hit** — a common mix-up.) Compared effective-to-effective same-spec, so talents (shared)

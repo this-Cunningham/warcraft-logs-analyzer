@@ -303,19 +303,39 @@ def avg_ilvl(directory, enc_ids):
 # combatantInfo carries a per-pull stat snapshot (Hit, Expertise, Crit, Haste, …) the report never used.
 # Hit rating is the #1 itemization lever in TBC: a caster/melee under the hit cap simply MISSES, bleeding
 # throughput that's fixable with gems/enchants/gear. The snapshot's "Hit" is **gear** hit only (rating);
-# it excludes the talent + raid-buff % that also count toward a raider's cap. We surface gear hit AND fold
-# in the one raid spell-hit source we can detect reliably — **Improved Faerie Fire (+3%)**, a raid-wide
-# boss debuff credited when a Balance Druid is in that raid's roster — to give an EFFECTIVE spell hit.
-#
-# NOT modeled (and why): Totem of Wrath (+3%) and Draenei Heroic Presence (+1%) are PARTY-scoped, so
-# "the raid has it" ≠ "this player got it"; per-spec talents (Elemental Precision / Shadow Focus /
-# Suppression) are invisible (TBC combatantInfo talents are placeholders). These largely CANCEL between
-# two similar raids, and the comparison is benchmark-relative anyway. (Note: Misery is +5% spell DAMAGE,
-# not hit — it is deliberately NOT a hit source here.) Melee has no detectable raid hit buff → gear-only.
+# the talent + raid-buff % also count toward the cap. We surface EFFECTIVE hit = gear + talent + raid:
+#   • gear   — the combatantInfo rating, converted to %.
+#   • talent — the spec's STANDARD-build hit talent, assumed taken 100% (`SPEC_TALENT_HIT`; e.g. a Shadow
+#              Priest's Shadow Focus +10%). Invisible in the data (TBC talents are placeholders), so it's
+#              an assumption from the meta, not a read.
+#   • raid   — Improved Faerie Fire (+3% spell hit, `IMP_FAERIE_FIRE_HIT`), credited when a Balance Druid
+#              is in the roster (raid-wide boss debuff — the one reliably detectable raid source).
+# NOT modeled (party-scoped or murky, and they cancel between similar raids): Totem of Wrath / Heroic
+# Presence (party-range), Warlock Suppression (Affliction DoTs only, not Shadow Bolt). (Note: Misery is
+# +5% spell DAMAGE, not hit.) Melee has no detectable raid hit buff → raid = 0 for melee/ranged.
 SPELL_HIT_PER_PCT = 12.6    # spell hit rating per 1% (TBC)
 PHYS_HIT_PER_PCT = 15.77    # melee/ranged hit rating per 1% (TBC)
 HIT_CAP = {"spell": 16.0, "melee": 9.0, "ranged": 8.0}  # textbook gear hit caps (the target ceiling)
 IMP_FAERIE_FIRE_HIT = 3.0   # Improved Faerie Fire (Balance Druid): +3% spell hit, raid-wide boss debuff
+
+# Hit from a spec's STANDARD PvE talent build — assumed taken 100% (the user's rule: if the common build
+# has a hit talent, every raider of that spec has it). ONLY clean cases where the talent boosts ~all of
+# the spec's damage (sourced from TBC talent data). Deliberately omitted (partial / build-dependent, and
+# they cancel same-spec anyway): Warlock Suppression (helps Affliction DoTs but NOT Shadow Bolt), Mage
+# Arcane (Elemental Precision is Fire/Frost only; Arcane Focus is resist, not hit), Elemental Shaman, and
+# melee with no standard hit talent (Ret/Feral/BM/Enh). Keyed by (class, spec) — spec strings match the
+# roster. (Note: this is per-spec, so it cancels in the same-spec benchmark flag; its value is an HONEST
+# effective hit vs the absolute cap — a Shadow Priest at 6% gear is capped via Shadow Focus, not under.)
+SPEC_TALENT_HIT = {
+    ("Priest", "Shadow"):    10.0,  # Shadow Focus 5/5 (+2%/pt spell hit)
+    ("Druid", "Balance"):     4.0,  # Balance of Power 2/2 (+2%/pt, all spells)
+    ("Mage", "Fire"):         3.0,  # Elemental Precision 3/3 (Fire & Frost spells)
+    ("Mage", "Frost"):        3.0,  # Elemental Precision 3/3
+    ("Rogue", "Combat"):      5.0,  # Precision 5/5 (+1%/pt melee hit)
+    ("Warrior", "Arms"):      3.0,  # Precision 3/3 (Arms; Fury dips Arms for it too)
+    ("Warrior", "Fury"):      3.0,  # Precision 3/3
+    ("Hunter", "Survival"):   3.0,  # Surefooted 3/3 (ranged hit)
+}
 
 
 def _hit_kind(cls, spec, role):
@@ -342,10 +362,11 @@ def spell_hit_env(roster):
 
 
 def stat_audit(directory, role_map, spec_map, class_map, allow_names, spell_env=0.0):
-    """Per-raider gear Hit% + EFFECTIVE Hit% (+ Expertise) from combatantInfo.stats, scoped to the
-    shared-boss roster (healers excluded — no hit itemization). Hit rating → % via the spell/physical
-    constant; MAX across the night so a one-off resist/threat-set swap doesn't understate real hit gear.
-    `spell_env` (raid Imp FF) is added to spell casters' gear hit → effective hit; melee/ranged get none."""
+    """Per-raider hit broken into GEAR + TALENT + RAID → EFFECTIVE (+ Expertise), from combatantInfo.stats,
+    scoped to the shared-boss roster (healers excluded — no hit itemization). Gear: the snapshot rating ÷
+    the spell/physical constant (MAX across the night, so a one-off resist/threat-set swap doesn't
+    understate real gear). Talent: the spec's standard-build hit talent (`SPEC_TALENT_HIT`). Raid: `spell_env`
+    (Imp FF) for casters, 0 for melee/ranged. effPct = gear + talent + raid."""
     pd = read_json(os.path.join(directory, "playerdetails.json"))
     pd = pd["reportData"]["report"]["playerDetails"]["data"]["playerDetails"]
     allow = set(allow_names)
@@ -358,19 +379,22 @@ def stat_audit(directory, role_map, spec_map, class_map, allow_names, spell_env=
             ci = pl.get("combatantInfo")
             stats = (ci.get("stats") if isinstance(ci, dict) else None) or {}
             cls = class_map.get(nm) or pl.get("type")
-            kind = _hit_kind(cls, spec_map.get(nm), role_map.get(nm))
+            spec = spec_map.get(nm) or ""
+            kind = _hit_kind(cls, spec, role_map.get(nm))
             if not stats or not kind:
                 continue
             seen.add(nm)
             per = SPELL_HIT_PER_PCT if kind == "spell" else PHYS_HIT_PER_PCT
             hit_rating = int((stats.get("Hit") or {}).get("max", 0) or 0)
-            hit_pct = round(hit_rating / per, 1)
-            env = spell_env if kind == "spell" else 0.0  # raid Imp FF — casters only
+            gear = round(hit_rating / per, 1)
+            talent = SPEC_TALENT_HIT.get((cls, spec), 0.0)   # standard-build hit talent, assumed
+            raid = spell_env if kind == "spell" else 0.0      # raid Imp FF — casters only
             exp = int((stats.get("Expertise") or {}).get("max", 0) or 0)
             out.append({
-                "name": nm, "class": cls, "spec": spec_map.get(nm) or "", "role": role_map.get(nm),
-                "hitType": kind, "hitRating": hit_rating, "hitPct": hit_pct,
-                "env": round(env, 1), "effPct": round(hit_pct + env, 1),
+                "name": nm, "class": cls, "spec": spec, "role": role_map.get(nm),
+                "hitType": kind, "hitRating": hit_rating,
+                "gearPct": gear, "talentPct": round(talent, 1), "raidPct": round(raid, 1),
+                "effPct": round(gear + talent + raid, 1),
                 "cap": HIT_CAP[kind], "expertise": exp, "physical": kind != "spell",
             })
     return out
@@ -411,7 +435,7 @@ def stat_audit_compare(ours, theirs):
         return round(sum(v) / len(v), 1) if v else None
 
     def _env(rs):  # the side's spell-hit environment (Imp FF), read off any spell caster
-        return next((r["env"] for r in rs if r["hitType"] == "spell"), 0.0)
+        return next((r["raidPct"] for r in rs if r["hitType"] == "spell"), 0.0)
     summary = {
         "oursUnder": n_under, "playerCount": len(rows),
         "spell": {"ours": _avg_type(ours, "spell"), "theirs": _avg_type(theirs, "spell")},

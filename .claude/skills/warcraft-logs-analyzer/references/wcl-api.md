@@ -101,15 +101,17 @@ Reusable queries live in `queries/`:
 - **`combatantInfo.stats` is a per-pull stat SNAPSHOT** (`{Hit, Expertise, Crit, Haste, Intellect,
   Agility, …}`, each `{min, max}` across the player's pulls). Powers the **Hit & Expertise** audit
   (`stat_audit`). `Hit` is a **rating** — convert to % with the TBC constants (spell 12.6 rtg/%, melee/
-  ranged 15.77 rtg/%). Two caveats: (1) it reflects only **gear** hit, not the talent (Elemental
-  Precision/Suppression/Shadow Focus) or raid-buff hit that also counts toward a raider's cap. We add back
-  the one reliably-detectable raid source — **Improved Faerie Fire (+3% spell hit)**, inferred from a
-  Balance Druid in the roster (raid-wide boss debuff) — for an **effective** spell hit, and compare
-  effective-to-effective so a comp asymmetry (boomkins on one side only) doesn't mis-flag. Deliberately NOT
-  added: **Totem of Wrath** (+3%) and **Heroic Presence** (+1%) are party-scoped (can't tell who's in
-  range), and talents are invisible — these largely cancel same-spec anyway. (**Misery is +5% spell
-  DAMAGE, not hit** — a common mix-up; it is not a hit source.) (2) `Expertise`'s unit (rating vs expertise
-  points) is ambiguous, so it's surfaced benchmark-relative only, never as a cap distance. Healers excluded.
+  ranged 15.77 rtg/%). The snapshot is only **gear** hit; effective hit = **gear + talent + raid**: (a)
+  **talent** — the spec's standard-build hit talent, assumed taken in full (`SPEC_TALENT_HIT`; talents are
+  invisible — TBC `combatantInfo.talents` are placeholders — so this is a meta assumption). Modeled only
+  where the talent boosts ~all of the spec's damage (Shadow Focus +10, Balance of Power +4, Elemental
+  Precision +3 [Fire/Frost, *not* Arcane], Precision +5 rogue / +3 warrior, Surefooted +3); omitted where
+  partial (Warlock **Suppression** helps Affliction DoTs but NOT Shadow Bolt). (b) **raid** — only
+  **Improved Faerie Fire (+3%)**, inferred from a Balance Druid in the roster. NOT added: **Totem of Wrath**
+  (+3%) and **Heroic Presence** (+1%) are party-scoped (can't tell who's in range). (**Misery is +5% spell
+  DAMAGE, not hit** — a common mix-up.) Compared effective-to-effective same-spec, so talents (shared)
+  cancel and a comp asymmetry (boomkins on one side only) doesn't mis-flag. `Expertise`'s unit (rating vs
+  expertise points) is ambiguous → surfaced benchmark-relative only, never a cap distance. Healers excluded.
 - `table(Buffs/Debuffs)` uptime is **raid-aggregate**, not per-player.
 - Clear-efficiency uses kills only, so "Out of Boss" time includes trash + wipes.
 - Composition (from parses) and the Enchants audit (from playerDetails) share the

@@ -3916,17 +3916,26 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         players = (ours_idx.get(enc) or {}).get("players") or []
         dur_sec = (p["oursDurMs"] or 0) / 1000.0
         for r in gb["raiders"]:
-            if r.get("sec", 999) >= 60 or dur_sec <= 0:
-                continue  # first-minute deaths only
+            if r.get("sec", 999) >= 90 or dur_sec <= 0:
+                continue  # first 90 seconds only (the costliest, clearest early deaths)
             pl = next((x for x in players if x.get("name") == r["name"]), None)
             if not pl or not pl.get("amount") or pl.get("parse", -1) < 0:
                 continue
             anchors = [(x["amount"], x["parse"]) for x in players
                        if x.get("class") == pl["class"] and x.get("spec") == pl["spec"]
                        and x.get("amount") and x.get("parse", -1) >= 0]
-            est = _interp_parse(pl["amount"] + r["dmg"] / dur_sec, anchors)
+            # Ghost DPS = their realized output projected to the GHOST kill time, NOT the actual end: in the
+            # ghost world the boss dies sooner (by timeSavedSec), so the dead raider only deals damage until
+            # then. ghost_total = (actual total, all pre-death) + avg DPS × (ghost_dur − death_sec); the
+            # ghost parse is that total over the ghost duration. (Parse is DPS, so a shorter kill keeps the
+            # rate honest rather than crediting output past a fight that would already be over.)
+            ghost_dur = max(1.0, dur_sec - (gb.get("timeSavedSec") or 0))
+            death_sec = r.get("sec") or 0
+            ghost_total = pl["amount"] * dur_sec + avg_dps.get(r["name"], 0) * max(0.0, ghost_dur - death_sec)
+            est = _interp_parse(ghost_total / ghost_dur, anchors)
             if est is not None and est > pl["parse"]:
-                r["actualParse"], r["ghostParse"] = pl["parse"], est
+                # Round to the nearest 5 — a coarse band, not a false-precision point estimate.
+                r["actualParse"], r["ghostParse"] = pl["parse"], int(round(est / 5.0) * 5)
         ghost_bosses.append(dict(gb, boss=p["name"]))
     ghost_run = {"bosses": ghost_bosses,
                  "totalTimeSavedSec": ssum([b["timeSavedSec"] for b in ghost_bosses]),

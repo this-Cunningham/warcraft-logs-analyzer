@@ -90,6 +90,11 @@
   .tag2.gap{background:rgba(248,114,114,.18);color:#ffb4b4}
   .tag2.edge{background:rgba(78,161,255,.18);color:#bcdcff}
   .tag2.ok{background:rgba(54,211,153,.15);color:#9af0cf}
+  /* "Experimental" chip — marks a newer, less-proven insight (e.g. hit-cap audit, per-spec activity).
+     Violet so it reads as beta/provisional without looking like a gap (red) or a win (green). Inline in
+     an h2.section title; not a `.hint`, so the section-title styling leaves it as a pill. */
+  .xp{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:6px;
+    background:rgba(148,130,201,.18);color:#ccbff2;border:1px solid rgba(148,130,201,.4);vertical-align:middle;margin-left:8px}
 
   .upt{position:relative;height:16px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:90px}
   .upt .f{position:absolute;top:0;bottom:0;left:0}
@@ -589,6 +594,9 @@ function renderEnchants(d){
   }
   h+=`</tbody></table>`;
 
+  /* Hit & Expertise (EXPERIMENTAL) — gear-sourced hit% per raider vs the benchmark's same-spec target. */
+  h+=hitCapView(d);
+
   /* Item level by role — is a specific role (often healers) under-geared, vs one raid-wide avg? */
   const ob=dp.outputBreakdown;
   if(ob&&ob.oursRoleIlvl){
@@ -598,6 +606,36 @@ function renderEnchants(d){
     <div class="cards">${rc("DPS Item Level",ro.dps,rt.dps)}${rc("Healer Item Level",ro.healer,rt.healer)}${rc("Tank Item Level",ro.tank,rt.tank)}</div>`;
   }
   return h;
+}
+
+/* ---------- HIT & EXPERTISE (combatantInfo.stats) — EXPERIMENTAL ---------- */
+// Per-raider gear-sourced hit% vs the benchmark's same-spec target (capped at the textbook hit cap).
+// The one report view (besides Optimize) that's per-raider — a gear FIX, not a skill judgment.
+function hitCapView(d){
+  const sa=d.deep&&d.deep.statAudit; const pls=sa?rowsOf(sa.players):[];
+  if(!pls.length) return "";
+  const s=sa.summary, oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const acard=(label,ov,tv,dl)=>`<div class="card"><div class="label">${label}</div><div class="vals">`+
+    `<span class="vcol"><span class="v ours">${ov}</span><span class="vlab ours">${oT}</span></span>`+
+    `<span class="vcol"><span class="v theirs">${tv}</span><span class="vlab theirs">${tT}</span></span>`+
+    (dl?`<span class="delta ${dl.cls}">${dl.txt}</span>`:"")+`</div></div>`;
+  // One avg-hit card per hit type actually present (caster spell / melee / ranged), ours vs benchmark.
+  const tcard=(label,o)=> (o&&o.ours!=null)?
+    acard(label,o.ours+"%",(o.theirs!=null?o.theirs+"%":"—"),(o.theirs!=null?deltaHigh(o.ours,o.theirs):null)):"";
+  let cards=tcard("Avg Caster Spell Hit",s.spell)+tcard("Avg Melee Hit",s.melee)+tcard("Avg Ranged Hit",s.ranged);
+  cards+=`<div class="card"><div class="label">Raiders Under Hit Target</div><div class="vals"><span class="v ${s.oursUnder>0?'theirs':'ours'}">${s.oursUnder}</span><span class="num">/ ${s.playerCount}</span></div></div>`;
+  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Gear-sourced <b>hit rating</b> per raider (from the <code>combatantInfo</code> stat snapshot), converted to %: casters use spell hit (12.6 rtg/%), melee &amp; hunters use melee/ranged hit (15.77 rtg/%). Healers are excluded (they don't itemize hit). Under-hit means missed casts/attacks — lost throughput that's fixable with gems, enchants, or gear. The <b>Target</b> is the benchmark's same-spec gear hit, capped at the textbook cap (spell 16% · melee 9% · ranged 8%): comparing same-spec absorbs the talent &amp; raid-debuff hit (Misery, Imp. Faerie Fire) the snapshot can't see. Expertise (melee/tanks, reduces the boss's dodge/parry) is shown for context. <b>Experimental</b> — a snapshot can miss a mid-fight swap, so treat a borderline row as a prompt to check, not a verdict.</span></h2>
+  <div class="cards">${cards}</div>
+  <h4 class="ours">${oT} — hit &amp; expertise by raider</h4>
+  <table><thead><tr><th>Player</th><th>Spec</th><th>Gear Hit</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
+  for(const p of pls){
+    const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.hitPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
+    const tgtCell=`${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
+    const expCell=p.physical?(`${p.expertise}`+(p.benchExp!=null?` <span class="num">(bench ${p.benchExp})</span>`:"")):'<span class="cna">—</span>';
+    h+=`<tr class="${p.under?'isgap':''}"><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
+      <td class="num">${esc(p.spec)}</td><td>${hitCell}</td><td>${tgtCell}</td><td class="num">${expCell}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
 }
 
 /* ---------- EXECUTION (raid-wide gaps) ---------- */
@@ -611,6 +649,9 @@ function renderExecution(d){
 
   /* 2. Lowest-hanging DPS — per-spec gap pooled across every shared boss. */
   h+=tierSpecGapView(d);
+
+  /* 2b. Activity by spec (EXPERIMENTAL) — the uptime decomposition of the DPS gap above. */
+  h+=activityGapView(d);
 
   /* 3. Buff & debuff coverage gaps — uptime averaged across bosses, biggest deficit first. */
   h+=tierUptimeGapView(d);
@@ -851,6 +892,24 @@ function tierSpecGapView(d){
     if(note.length) h+=`<p class="srcs" style="margin-top:8px">${note.join(" &nbsp;·&nbsp; ")}</p>`;
   }
   return h;
+}
+// Activity by spec (EXPERIMENTAL): each DPS spec's average active-GCD uptime, ours vs benchmark same spec.
+// The per-spec decomposition of the raid-wide Activity figure — names which spec is leaking the uptime.
+function activityGapView(d){
+  const both=rowsOf(d.deep&&d.deep.tierActivityGap).filter(r=>r.both);
+  if(!both.length) return "";
+  const w=v=>Math.max(2,Math.round(v)); // already a 0-100 %, honest absolute bar scale
+  let h=`<h2 class="section">Activity by Spec<span class="xp">Experimental</span><span class="hint">Each DPS spec's average per-player <b>activity</b> — the share of the fight spent actively dealing damage — pooled across shared bosses, ours vs the benchmark's same spec. Idle GCDs from movement, target swaps, or being out of range are throughput you recover <i>without</i> more gear, so a trailing spec (red) is high-leverage coaching. This breaks the raid-wide Activity figure down to the spec actually losing the uptime. <b>Experimental.</b></span></h2>
+    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg activity %, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+  for(const r of both){
+    const dl=deltaHigh(r.ours,r.theirs); // higher activity better
+    h+=`<div class="dval lo">${r.ours}%</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
+      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
+      <div class="dval ro">${r.theirs}%</div>`;
+  }
+  return h+`</div></div>`;
 }
 // Buff/debuff coverage gaps across all bosses: where we most consistently trail on maintaining an aura.
 function tierUptimeGapView(d){

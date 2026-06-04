@@ -299,6 +299,107 @@ def avg_ilvl(directory, enc_ids):
     return round(sum(vals) / len(vals), 1)
 
 
+# ---------- HIT / EXPERTISE AUDIT (from combatantInfo.stats) — EXPERIMENTAL ----------
+# combatantInfo carries a per-pull stat snapshot (Hit, Expertise, Crit, Haste, …) the report never used.
+# Hit rating is the #1 itemization lever in TBC: a caster/melee under the hit cap simply MISSES, bleeding
+# throughput that's fixable with gems/enchants/gear. We surface gear-sourced Hit% per raider.
+#
+# Honesty: the cap a raider actually NEEDS depends on talents (Elemental Precision / Suppression / Shadow
+# Focus = +3-5% spell hit) and raid debuffs (Shadow Priest Misery / Improved Faerie Fire = +3% to the
+# whole raid) that the snapshot can't show. So the practical TARGET is the BENCHMARK's same-spec gear hit
+# (their casters are itemized for their own talents+comp), capped at the textbook cap — you never need
+# more hit than the cap. Flag only raiders a clear margin under that target. EXPERIMENTAL.
+SPELL_HIT_PER_PCT = 12.6    # spell hit rating per 1% (TBC)
+PHYS_HIT_PER_PCT = 15.77    # melee/ranged hit rating per 1% (TBC)
+HIT_CAP = {"spell": 16.0, "melee": 9.0, "ranged": 8.0}  # textbook gear hit caps (the target ceiling)
+
+
+def _hit_kind(cls, spec, role):
+    """('spell'|'melee'|'ranged') for a hit-relevant role, or None to skip. Healers don't itemize hit;
+    hunters use ranged hit; casters use spell hit; everyone else (incl. tanks, for threat) melee hit."""
+    if role == "healer":
+        return None
+    if cls == "Hunter":
+        return "ranged"
+    sp = spec or ""
+    if (cls in ("Mage", "Warlock") or (cls == "Priest" and "Shadow" in sp)
+            or (cls == "Druid" and "Balance" in sp) or (cls == "Shaman" and "Element" in sp)):
+        return "spell"
+    return "melee"
+
+
+def stat_audit(directory, role_map, spec_map, class_map, allow_names):
+    """Per-raider gear-sourced Hit% + Expertise from combatantInfo.stats, scoped to the shared-boss
+    roster (healers excluded — no hit itemization). Hit rating → % via the spell/physical constant; we
+    take the MAX across the night so a one-off resist/threat-set swap doesn't understate real hit gear."""
+    pd = read_json(os.path.join(directory, "playerdetails.json"))
+    pd = pd["reportData"]["report"]["playerDetails"]["data"]["playerDetails"]
+    allow = set(allow_names)
+    seen, out = set(), []
+    for rn in ("tanks", "healers", "dps"):
+        for pl in (pd.get(rn) or []):
+            nm = pl.get("name")
+            if (allow and nm not in allow) or nm in seen:
+                continue
+            ci = pl.get("combatantInfo")
+            stats = (ci.get("stats") if isinstance(ci, dict) else None) or {}
+            cls = class_map.get(nm) or pl.get("type")
+            kind = _hit_kind(cls, spec_map.get(nm), role_map.get(nm))
+            if not stats or not kind:
+                continue
+            seen.add(nm)
+            per = SPELL_HIT_PER_PCT if kind == "spell" else PHYS_HIT_PER_PCT
+            hit_rating = int((stats.get("Hit") or {}).get("max", 0) or 0)
+            exp = int((stats.get("Expertise") or {}).get("max", 0) or 0)
+            out.append({
+                "name": nm, "class": cls, "spec": spec_map.get(nm) or "", "role": role_map.get(nm),
+                "hitType": kind, "hitRating": hit_rating, "hitPct": round(hit_rating / per, 1),
+                "cap": HIT_CAP[kind], "expertise": exp, "physical": kind != "spell",
+            })
+    return out
+
+
+def stat_audit_compare(ours, theirs):
+    """Attach each raider's practical hit TARGET (= benchmark same-spec avg, capped at the textbook cap)
+    + benchmark expertise, and flag raiders a clear margin under target. Benchmark-relative so talent /
+    raid-debuff hit (which the snapshot can't see) is handled implicitly. Sorted worst hit gap first."""
+    bench = {}
+    for p in theirs:
+        b = bench.setdefault((p["class"], p["spec"]), {"hit": [], "exp": []})
+        b["hit"].append(p["hitPct"])
+        if p["physical"]:
+            b["exp"].append(p["expertise"])
+    rows, n_under = [], 0
+    for p in ours:
+        b = bench.get((p["class"], p["spec"]), {})
+        bh, be = b.get("hit") or [], b.get("exp") or []
+        bench_hit = round(sum(bh) / len(bh), 1) if bh else None
+        bench_exp = round(sum(be) / len(be)) if be else None
+        # Target = benchmark same-spec gear hit, never above the textbook cap; fall back to the cap when
+        # the benchmark didn't field this spec. Flag = a clear margin under target (2% vs a real benchmark,
+        # 3% against the bare cap — wider, since the cap ignores talent/debuff hit reductions).
+        if bench_hit is not None:
+            target, margin = min(bench_hit, p["cap"]), 2.0
+        else:
+            target, margin = p["cap"], 3.0
+        under = p["hitPct"] < target - margin
+        n_under += 1 if under else 0
+        rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp,
+                     "target": round(target, 1), "under": under, "gap": round(target - p["hitPct"], 1)})
+    rows.sort(key=lambda r: (not r["under"], -r["gap"]))
+
+    def _avg_type(rs, t):
+        v = [r["hitPct"] for r in rs if r["hitType"] == t]
+        return round(sum(v) / len(v), 1) if v else None
+    summary = {
+        "oursUnder": n_under, "playerCount": len(rows),
+        "spell": {"ours": _avg_type(ours, "spell"), "theirs": _avg_type(theirs, "spell")},
+        "melee": {"ours": _avg_type(ours, "melee"), "theirs": _avg_type(theirs, "melee")},
+        "ranged": {"ours": _avg_type(ours, "ranged"), "theirs": _avg_type(theirs, "ranged")},
+    }
+    return {"players": rows, "summary": summary}
+
+
 # ---------- CONSUMABLE COVERAGE (from the per-boss Buffs tables we already fetch) ----------
 # The Buffs table carries consumable auras (flask/food/elixir/drums/potions) with a `totalUses`
 # count. For flask/food that's ~one application per player, so totalUses ≈ how many raiders showed
@@ -1162,6 +1263,30 @@ def spec_dps_buckets(report, spec_map, role_map, class_map, dur_ms):
     return buckets
 
 
+# ---------- ACTIVITY BY SPEC (per-player active-GCD uptime, from dd activeTime) — EXPERIMENTAL ----------
+def activity_buckets(report, spec_map, role_map, class_map, dur_ms):
+    """Per-player DPS activity % (active-GCD time / fight duration) bucketed by (class, primary-spec).
+    Reads the DamageDone table's activeTime — the share of the fight a DPS spent actively dealing damage;
+    idle GCDs (movement, target swaps, out of range) are recoverable throughput. DPS only: healer "active"
+    time isn't a clean better/worse signal (less healing can just mean the raid took less damage), and
+    tank activeTime conflates tanking with incidental DPS. Mirrors spec_dps_buckets so the buckets line
+    up with the DPS-by-spec view."""
+    buckets = {}
+    if dur_ms <= 0:
+        return buckets
+    for e in _entries(report, "dd"):
+        nm = e.get("name")
+        spec = spec_map.get(nm)
+        if not spec or role_map.get(nm) != "dps":
+            continue
+        cls = class_map.get(nm) or e.get("type") or "Unknown"
+        act = min(100.0, float(e.get("activeTime", 0)) / dur_ms * 100)
+        key = "{}|{}".format(cls, spec)
+        b = buckets.setdefault(key, {"class": cls, "spec": spec, "role": "dps", "players": []})
+        b["players"].append({"name": nm, "act": act})
+    return buckets
+
+
 def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o_dur, t_dur):
     """Per-spec DPS comparison for one boss, ranked by the per-player deficit to the
     benchmark's same spec (biggest gap first → lowest-hanging fruit floats to the top).
@@ -1280,6 +1405,28 @@ def tier_spec_gap(o_pool, t_pool):
             "oursAvg": o_avg, "theirsAvg": t_avg, "deficit": t_avg - o_avg,
             "oursSamples": len(o_d), "theirsSamples": len(t_d),
             "both": bool(o_d) and bool(t_d),
+        })
+    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
+    return rows
+
+
+def tier_activity_gap(o_pool, t_pool):
+    """Pool every DPS/healer's per-boss activity % by spec across ALL shared bosses, then rank specs by
+    the per-player deficit to the benchmark's same spec. The per-spec decomposition of the raid-wide
+    Activity figure — it names which spec is actually losing the uptime. EXPERIMENTAL."""
+    rows = []
+    for key in set(o_pool) | set(t_pool):
+        o, t = o_pool.get(key), t_pool.get(key)
+        ref = o or t
+        o_v = o["vals"] if o else []
+        t_v = t["vals"] if t else []
+        o_avg = round(sum(o_v) / len(o_v), 1) if o_v else 0
+        t_avg = round(sum(t_v) / len(t_v), 1) if t_v else 0
+        rows.append({
+            "class": ref["class"], "spec": ref["spec"], "role": ref["role"],
+            "ours": o_avg, "theirs": t_avg, "deficit": round(t_avg - o_avg, 1),
+            "oursSamples": len(o_v), "theirsSamples": len(t_v),
+            "both": bool(o_v) and bool(t_v),
         })
     rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
     return rows
@@ -2852,6 +2999,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
     # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
     tier_o_spec, tier_t_spec = {}, {}
+    tier_o_act, tier_t_act = {}, {}  # per-spec activity (active-GCD uptime) pools — EXPERIMENTAL
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
     per_boss = []
@@ -2909,6 +3057,13 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             for key, bucket in spec_dps_buckets(rep, sp, ro, cl, dur).items():
                 ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "dps": []})
                 ent["dps"].extend(p["dps"] for p in bucket["players"])
+        # Pool per-spec activity (active-GCD uptime) across bosses — the per-spec activity rollup.
+        for pool, rep, sp, ro, cl, dur in ((tier_o_act, o_b, ours_spec, ours_role, ours_cls, o_dur),
+                                           (tier_t_act, t_b, theirs_spec, theirs_role, theirs_cls, t_dur)):
+            for key, bucket in activity_buckets(rep, sp, ro, cl, dur).items():
+                ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
+                                            "role": bucket["role"], "vals": []})
+                ent["vals"].extend(p["act"] for p in bucket["players"])
         # Sample buff/debuff uptimes for the tier-wide coverage rollup.
         for kind, rows_ in (("buff", buff_rows), ("debuff", debuff_rows)):
             for r in rows_:
@@ -3000,6 +3155,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
     tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
     tier_uptime = tier_uptime_gap(tier_upt)
+    # Per-spec activity (active-GCD uptime) gap — EXPERIMENTAL. The spec-level decomposition of the
+    # raid-wide Activity figure (names which spec is actually losing the uptime).
+    tier_activity = tier_activity_gap(tier_o_act, tier_t_act)
+    # Hit / Expertise itemization audit (combatantInfo.stats) — EXPERIMENTAL. Benchmark-relative so the
+    # talent/raid-debuff hit the snapshot can't see is absorbed by comparing to their same-spec gear hit.
+    stat_audit_payload = stat_audit_compare(
+        stat_audit(ours_dir, ours_role, ours_spec, ours_cls, ours_roster_names),
+        stat_audit(theirs_dir, theirs_role, theirs_spec, theirs_cls, theirs_roster_names))
     # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
     leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
     # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced). cd_usage_pool reads the
@@ -3054,6 +3217,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "potionGap": potion_spec_gap,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
+                 "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,

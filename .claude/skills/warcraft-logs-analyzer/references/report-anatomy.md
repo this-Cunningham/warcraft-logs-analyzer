@@ -106,6 +106,17 @@ the honest version.)
   auras (NOT aggregate Buffs — WF is group-scoped; match "Windfury"/`WINDFURY_IDS`). A
   melee w/ WF but no oil is covered (✓ WF). Graceful: no consumes → no upgrades. (Gem
   count dropped — no socket count to flag empties.)
+- **Hit & Expertise** (`stat_audit`/`stat_audit_compare` → `hitCapView`) — **EXPERIMENTAL**, the
+  first new modality off `combatantInfo.stats` (a per-pull Hit/Expertise/Crit/Haste snapshot the report
+  never read). Per-raider gear-sourced **hit %** (rating ÷ 12.6 for casters, ÷ 15.77 for melee/ranged;
+  healers excluded — no hit itemization), worst-first, the one per-player view outside Optimize (it's a
+  gear FIX, not a skill judgment). **Honesty:** the cap a raider actually needs depends on talents
+  (Elemental Precision/Suppression/Shadow Focus) + raid debuffs (Misery/Imp. Faerie Fire = +3% raid-wide)
+  the snapshot can't see — so the **Target** is the *benchmark's same-spec* gear hit (those contributions
+  cancel same-spec-to-same-spec), capped at the textbook cap (`HIT_CAP`: spell 16 · melee 9 · ranged 8).
+  Flag = a clear margin under target (2pp vs a real benchmark, 3pp vs the bare cap). Hit `max` across the
+  night (a one-off resist/threat-set swap shouldn't understate real hit gear). Expertise shown
+  benchmark-relative only (unit is ambiguous, so no absolute cap claim). Graceful "" on older folders.
 - **Item level** — raid avg (`fights.averageItemLevel`) + **by role** (`role_ilvl`:
   dps/healer/tank from dd/heal/dt) so an under-geared role stands out.
 
@@ -119,6 +130,14 @@ the honest version.)
 - **Lowest-Hanging DPS — Spec Gaps** (`tier_spec_gap` → `tierSpecGapView`) — DPS
   pooled by (class, spec) across shared bosses, ranked by per-player deficit. Mirrored
   bars; one-raid-only specs noted.
+- **Activity by Spec** (`activity_buckets`/`tier_activity_gap` → `activityGapView`) — **EXPERIMENTAL**,
+  sits right under the spec DPS gap as its uptime decomposition. Each **DPS** spec's avg per-player
+  activity (`dd.activeTime` ÷ fight dur — the share of the fight spent actively dealing damage) pooled
+  across shared bosses, ours vs benchmark same spec, mirrored bars. Idle GCDs (movement/swaps/range) are
+  throughput recoverable *without* gear, so a trailing spec is high-leverage coaching — it names which
+  spec is losing the uptime behind the raid-wide Activity number. **Healers excluded on purpose:** their
+  "active" time isn't a clean better/worse signal (less healing can just mean the raid took less damage);
+  tanks excluded too (activeTime conflates tanking with incidental DPS). Clean better/worse for DPS.
 - **Buff & Debuff Coverage Gaps** (`tier_uptime_gap` → `tierUptimeGapView`) — each
   aura's avg uptime, listing only where we trail (biggest deficit first).
 - **Interrupts Leaked** (`leaked_casts`/`leaked_interrupts_gap` →

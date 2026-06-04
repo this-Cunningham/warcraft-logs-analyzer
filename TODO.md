@@ -26,28 +26,33 @@ the "descriptive, not scored" framing; the sharper move is to make the compariso
 like-for-like (or drop it) so every gap the tab shows is a real rotational one.
 Inherited from the same blind spot in the existing Rotation — Ability Mix view.
 
-## TODO: In-Combat matrix — mana potion name coverage + WCL logging gap
+## TODO: In-Combat matrix — mana pot WCL logging gap (+ optional Mage Mana Gem column)
 
 > i used a bunch of mana potions in this raid (madslippery) and i am not seeing it
 > in Per-Player Consumables — In Combat
 
-Two separate issues uncovered by investigation:
+Corrected after investigation — the original "Replenish Mana name bug" was a false
+lead (Replenish Mana is a Mage **Mana Gem**, not a potion; the code is right to
+exclude it). What's actually going on:
 
-1. **Code bug — `"Replenish Mana"` not matched.** The code only recognises
-   `"Restore Mana"` as a mana potion cast (`MANA_POTION_NAMES`). But at least one
-   player on this raid (Byrdman) had their Super Mana Potions log as
-   `"Replenish Mana"` instead — a different cast name WCL uses for some mana
-   potion variants. Fix: add `"Replenish Mana"` to `MANA_POTION_NAMES` in
-   `build_deepdive.py`. May be worth checking what other variants exist (Super
-   Mana Potion, Fel Mana Potion, Major Mana Potion all could differ).
+1. **`"Replenish Mana"` is the Mage Mana Emerald/Mana Gem (guid 27103), NOT a mana
+   potion — do NOT add it to `MANA_POTION_NAMES`.** The real mana potion is
+   `"Restore Mana"` (guid 28499), and the code already catches it correctly. Byrdman
+   (Mage) shows BOTH: `Restore Mana` (his Super Mana Pots — tracked fine, 2 on
+   Leotheras, 3 on Vashj) AND `Replenish Mana` (his Mana Gem — correctly ignored).
+   Adding Replenish Mana would mislabel a free, reusable class ability as a consumable.
+   **No code change here — current behavior is correct.** *(Optional enhancement: a
+   separate "Mana Gem" column for mages could be a usage view, but it's a class
+   ability, not a prep/consumable gap, so it doesn't belong in the consumables matrix
+   as a pass/fail.)*
 
 2. **WCL data gap — madslippery's pots never logged.** Madslippery (Holy Priest,
    sourceID 23) has zero mana potion events of any kind in the Casts table, buff
    events, or resource events across all 7 boss kills — WCL simply didn't record
    the item usage for this player. The In-Combat matrix correctly shows nothing
-   because there's nothing to show; the gap is upstream, not in our code. Worth a
-   note in the UI ("missing doesn't always mean didn't use — WCL occasionally
-   misses instant-item casts") but not a code fix.
+   because there's nothing to show; the gap is upstream, not in our code. **This is
+   the real (non-)issue behind the report:** worth a UI note ("missing doesn't always
+   mean didn't use — WCL occasionally misses instant-item casts") but not a code fix.
 
 ## TODO: "What's Killing Us" hint should state it's kill-pull deaths only
 

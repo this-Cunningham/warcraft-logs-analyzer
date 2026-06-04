@@ -198,6 +198,33 @@ Per the soul: a false red is *falsely precise* — it reads as a prep failure wh
 isn't one, crowding out real failures. The actionable Prep gap for a DPS is missing a
 battle elixir or flask, not a missing guardian.
 
+## TODO: "What's Killing Us" — show source mob when the killing blow came from an add
+
+> Bug? "Arcing Smash — High King Maulgar, The Lurker Below." Do both bosses have
+> Arcing Smash?
+
+Data confirmed correct, but confusing without context. Arcing Smash appears on both
+bosses because:
+- **Maulgar (enc 50649):** 3 deaths — Maulgar's own cleave ability.
+- **Lurker Below (enc 100624):** 1 death (ßyrdman) — killed by a **Coilfang Guardian
+  add**, not by The Lurker. Same ability name, completely different mechanic and fix.
+
+The current `death_list` records the killing blow's **ability name** only, not its
+source NPC (`killingBlow.name` = "Arcing Smash" but `death.damage.sources[0].name` =
+"Coilfang Guardian" is already in the data). So the tier-wide "What's Killing Us" row
+groups them together as "Arcing Smash" with no way to distinguish boss-cleave from
+add-melee — a leader reading the table can't tell which fight to fix or who to kill
+first.
+
+**Fix:** record the source NPC alongside the killing blow in `death_list`, then
+display it in parens in the "What's Killing Us" row when the source differs from the
+boss name — identical to what the Trash "What's Killing Us" already does
+(`_death_source_mob` + "Fragmentation Bomb (Tempest-Smith)"). For the boss view:
+"Arcing Smash (Coilfang Guardian)" on Lurker, "Arcing Smash" on Maulgar. This turns
+an ambiguous ability name into an actionable assignment ("kill the Coilfang Guardians
+before they cleave"). Source NPC name is in `death.damage.sources[0].name` — already
+fetched, no extra API call needed.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

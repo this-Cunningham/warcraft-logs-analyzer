@@ -1501,6 +1501,41 @@ def death_causes(per_boss, side):
     return agg
 
 
+def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
+    """The counterfactual "ghost run" for ONE boss: if nobody had died, how much output did the deaths
+    forfeit — and (as a clearly-bounded estimate) how much sooner could it have died? Each death forfeits
+    the dead raider's **average DPS across the raid night** (`avg_dps` — a stable, sustainable rate, not a
+    single-fight burst) for the time they were down. Summed = forfeited damage (the SOLID number — "their
+    normal output × time dead"), also shown as a share of the raid's actual damage on the boss. Dividing by
+    the raid's DPS gives an **upper-bound** kill-time (a pure-DPS-race estimate; phase-gated fights — air
+    phases, scripted transitions — cap how much extra DPS actually compresses, so it's a ceiling, not a
+    claim). Names who forfeited most, to coach not shame. Returns None when nobody died / no usable data."""
+    dur_sec = dur_ms / 1000.0
+    if dur_sec <= 0 or raid_dps <= 0:
+        return None
+    forfeited, per = 0.0, {}
+    for d in deaths:
+        nm, t = d.get("name"), d.get("tSec")
+        rate_ = avg_dps.get(nm)
+        if not rate_ or t is None or t <= 0 or t >= dur_sec:
+            continue
+        f = rate_ * (dur_sec - t)                  # their NIGHT-AVERAGE DPS, projected over the time down
+        forfeited += f
+        rec = per.setdefault(nm, {"name": nm, "class": d.get("class"), "dmg": 0.0, "sec": t})
+        rec["dmg"] += f
+        rec["sec"] = min(rec["sec"], t)
+    if forfeited <= 0:
+        return None
+    raid_dmg = raid_dps * dur_sec
+    raiders = sorted(per.values(), key=lambda r: -r["dmg"])
+    return {"timeSavedSec": round(forfeited / raid_dps),
+            "forfeitedDmg": round(forfeited),
+            "pctOfRaid": round(100 * forfeited / raid_dmg, 1) if raid_dmg > 0 else 0,
+            "deaths": sum(1 for d in deaths if avg_dps.get(d.get("name")) and (d.get("tSec") or 0) > 0),
+            "raiders": [{"name": r["name"], "class": r["class"], "dmg": round(r["dmg"]),
+                         "sec": round(r["sec"])} for r in raiders[:5]]}
+
+
 def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
     """Tier-wide avoidable damage by MECHANIC — the damage analog of What's Killing Us (which counts the
     deaths). Pools each non-tank damage-taken ABILITY across the shared bosses, ours vs benchmark, as a
@@ -3591,6 +3626,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_o_act, tier_t_act = {}, {}  # per-spec activity (active-GCD uptime) pools — EXPERIMENTAL
     tier_o_heff, tier_t_heff = {}, {}  # per healer-spec overheal pools (eff/over sums) — EXPERIMENTAL
     tier_o_dmg, tier_t_dmg = {}, {}  # avoidable damage by ability (ex-tanks), pooled tier-wide — EXPERIMENTAL
+    ours_player_dps = {}  # name -> [per-boss DPS] → night-average DPS per raider, for the Ghost Run
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
     tier_dtime = {}  # debuff name -> {"o_est":[],"o_gap":[],"t_est":[],"t_gap":[]} — ramp/continuity, EXPERIMENTAL
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
@@ -3647,6 +3683,11 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             tier_o_dmg[_nm] = tier_o_dmg.get(_nm, 0) + _v
         for _nm, _v in ability_agg(t_b, theirs_tank).items():
             tier_t_dmg[_nm] = tier_t_dmg.get(_nm, 0) + _v
+        # Each raider's per-boss DPS → their night-average DPS, the projection rate for the Ghost Run.
+        for _e in _entries(o_b, "dd"):
+            _nm = _e.get("name")
+            if _nm:
+                ours_player_dps.setdefault(_nm, []).append(rate(int(_e.get("total", 0)), o_dur))
 
         # Raid output for this boss (total damage/healing / duration).
         o_raid_dmg, t_raid_dmg = raid_sum(o_b, "dd"), raid_sum(t_b, "dd")
@@ -3801,6 +3842,18 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     o_avail = len(ours_roster) * (o_dur_sum / 1000.0)
     t_avail = len(theirs_roster) * (t_dur_sum / 1000.0)
     death_time = death_time_compare(per_boss, o_avail, t_avail)
+    # Ghost run (EXPERIMENTAL) — the counterfactual cost of our deaths. Projected at each raider's
+    # NIGHT-AVERAGE DPS (a stable rate), forfeited output is the solid number; the kill-time is an
+    # upper-bound (pure-DPS-race) estimate. Assembled per boss after the loop, once avg DPS is known.
+    avg_dps = {nm: (sum(v) / len(v)) for nm, v in ours_player_dps.items() if v}
+    ghost_bosses = []
+    for p in per_boss:
+        gb = ghost_run_for_boss(p["deaths"]["ours"], p["oursDurMs"], p["oursRaidDps"], avg_dps)
+        if gb:
+            ghost_bosses.append(dict(gb, boss=p["name"]))
+    ghost_run = {"bosses": ghost_bosses,
+                 "totalTimeSavedSec": ssum([b["timeSavedSec"] for b in ghost_bosses]),
+                 "totalForfeitedDmg": ssum([b["forfeitedDmg"] for b in ghost_bosses])}
     # Bloodlust/Heroism timing + window payoff + cooldown alignment (EXPERIMENTAL), from per-boss lust data.
     def _cdpct(cd):
         return cd.get("pct") if isinstance(cd, dict) else None
@@ -3884,7 +3937,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "deathCauses": death_causes_rows, "avoidableDamage": avoidable_damage,
                  "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,
-                 "deathTime": death_time, "bloodlust": bloodlust,
+                 "deathTime": death_time, "ghostRun": ghost_run, "bloodlust": bloodlust,
                  "dpsRamp": dps_ramp_rows, "debuffTiming": debuff_timing_rows, "wipeRecovery": wipe_rec,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,

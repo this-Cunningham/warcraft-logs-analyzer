@@ -86,19 +86,25 @@ ripples usefully across the report.
 
 > Is "Shoot" in Interrupts Leaked really interruptible? What boss is it from?
 
-Confirmed false positive. **Shoot** (guid 37770, Coilfang Ambushers on The Lurker
-Below) appears in the Interrupts table because a raider `Polymorph`-interrupted it
-once — that one kick is the code's proof of interruptibility (`spellsInterrupted ≥ 1`),
-which is correct logic. But the 24 `missedCasts` are Coilfang Ambusher auto-shots
-targeting players: a ranged mob auto-attack, not a meaningful boss mechanic to
-interrupt. Treating it as a leaked interrupt is noise that a raid leader can't act on.
+Confirmed false positive with a clear root cause. **Shoot** (guid 37770, Coilfang
+Ambushers on The Lurker Below) only counts as "interruptible" because the code's
+proof-of-interruptibility (`spellsInterrupted ≥ 1`) was satisfied by a **Polymorph** —
+`details[].abilities[]` shows the lone "interrupt" was `Disastèr (Mage) → Polymorph`.
+A Polymorph is **CC that incidentally stops a cast**, not a real interrupt kick, so it
+isn't valid proof the ability is kickable. The 24 leaked "Shoot" casts are then just
+Coilfang Ambusher auto-shots — noise a leader can't act on.
 
-Fix: add an ability-name blocklist in `leaked_casts` / `leaked_interrupts_gap` that
-excludes generic auto-attacks — at minimum `{"Shoot", "Auto Attack", "Melee"}` — so
-only named casts (actual abilities) surface as leaked interrupts. Per the soul, this
-is a **data-integrity** fix: the leaked-interrupts view should name actionable
-mechanics, not auto-shots a raid couldn't meaningfully prevent. Applies equally to
-the per-boss Interrupts view (`unkicked_compare`) which reads from the same source.
+**Preferred fix (root cause):** when validating `spellsInterrupted`, discount interrupts
+whose interrupting ability is a hard-CC — reuse `report_common.HARD_CC_NAMES` (already
+contains Polymorph, Banish, Sap, …). An ability is only "proven interruptible" if at
+least one interrupt came from a *real* interrupt (Counterspell, Kick, Pummel, Shield
+Bash, Earth Shock, Spell Lock, …), not solely from CC. This generalizes — it catches
+any cast whose only "kick" was a Poly/Banish, not just Shoot. (Backstop, if needed: a
+small auto-attack name blocklist `{"Shoot", "Auto Attack", "Melee"}`.)
+
+Per the soul, a **data-integrity** fix: the leaked-interrupts view should name
+actionable mechanics, not casts that were never really kickable. Applies equally to
+the per-boss Interrupts view (`unkicked_compare`), which reads the same source.
 
 ---
 

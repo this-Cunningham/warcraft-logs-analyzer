@@ -3378,6 +3378,33 @@ def _wipe_trend(seq, downed):
             "(assignments, cooldown timing, positioning).")
 
 
+# Auto-attack names — "sustained" damage, as opposed to a discrete avoidable mechanic.
+_AUTO_DMG_NAMES = {"Melee", "Auto Attack", "Auto Shot", "Shoot", "Attack"}
+
+
+def _classify_wipe_death(d):
+    """Disambiguate WHY a death happened, from the death-window damage mix (the "last hits"): the either/or
+    a raid leader actually argues about — a **mechanics/positioning** failure vs **sustained damage**
+    (healing/gear/tuning). Heuristic, honest about its limits: it reads the damage composition, not intent,
+    and can't see a missed defensive cooldown. Returns (bucket, label):
+      • "mechanic"  — a discrete NAMED, non-melee ability dominates the death window (an avoidable hit you
+                      should have dodged/LoS'd/soaked correctly) → positioning/timing fix. Labelled by the
+                      killing mechanic. (Healers can't out-heal a one-shot — this isn't a healing miss.)
+      • "sustained" — melee/attrition dominates with no single mechanic → a healing-assignment, defensive,
+                      gear, or tuning question, NOT a "stand somewhere else" drill."""
+    dmg = d.get("damage") or {}
+    abils = dmg.get("abilities") or []
+    total = sum(float(a.get("total", 0)) for a in abils) or float(dmg.get("total", 0)) or 1.0
+    melee = sum(float(a.get("total", 0)) for a in abils if a.get("name") in _AUTO_DMG_NAMES)
+    named = sorted(((a.get("name"), float(a.get("total", 0))) for a in abils
+                    if a.get("name") and a.get("name") not in _AUTO_DMG_NAMES), key=lambda x: -x[1])
+    if melee / total >= 0.5 or not named:
+        return "sustained", "Sustained / melee damage"
+    kb = (d.get("killingBlow") or {}).get("name")
+    label = kb if (kb and kb not in _AUTO_DMG_NAMES) else named[0][0]
+    return "mechanic", label
+
+
 def wipe_analysis(directory, enc_names, phase_names):
     """Comprehensive per-boss wipe progression — EXPERIMENTAL, first-party by nature (a benchmark on farm
     rarely wipes). From attempts.json (every pull) + wipe-deaths.json (the friendly Deaths table on the
@@ -3437,6 +3464,7 @@ def wipe_analysis(directory, enc_names, phase_names):
                for f in wipes]
         # WHAT ENDS ATTEMPTS — first death + killing blows on the wipe pulls (when wipe deaths present).
         first_causes, blow_causes, tracked = {}, {}, 0
+        cause_mech, cause_sust, mech_names = 0, 0, {}  # death-cause disambiguation: mechanics vs sustained
         for f in wipes:
             ds = sorted(deaths_by_fight.get(int(f["id"]), []), key=lambda d: d.get("timestamp", 0))
             if not ds:
@@ -3447,6 +3475,12 @@ def wipe_analysis(directory, enc_names, phase_names):
             for d in ds:
                 bc = (d.get("killingBlow") or {}).get("name") or "Unknown"
                 blow_causes[bc] = blow_causes.get(bc, 0) + 1
+                bucket, label = _classify_wipe_death(d)
+                if bucket == "mechanic":
+                    cause_mech += 1
+                    mech_names[label] = mech_names.get(label, 0) + 1
+                else:
+                    cause_sust += 1
 
         def rank(m):
             return [{"cause": c, "count": n} for c, n in sorted(m.items(), key=lambda kv: -kv[1])]
@@ -3461,6 +3495,9 @@ def wipe_analysis(directory, enc_names, phase_names):
             "wall": wall, "trendSeq": seq, "trend": _wipe_trend(seq, bool(kills)),
             "firstDeaths": rank(first_causes), "killingBlows": rank(blow_causes)[:8],
             "deathsTracked": tracked,
+            # Death-cause disambiguation: avoidable mechanic (positioning) vs sustained (healing/gear/tuning).
+            "causeMechanic": cause_mech, "causeSustained": cause_sust,
+            "topMechanics": rank(mech_names)[:4],
         })
     # Active walls (not yet downed) first, then the bosses that ate the most wipe-time.
     bosses.sort(key=lambda b: (b["downed"], -b["wipeTimeSec"]))

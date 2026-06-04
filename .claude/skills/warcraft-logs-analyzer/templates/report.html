@@ -1854,6 +1854,16 @@ function renderWipes(d){
     if(b.deathsTracked&&rowsOf(b.firstDeaths).length){
       const top=rowsOf(b.firstDeaths)[0];
       h+=`<p class="srcs" style="margin:12px 0 4px"><b>What ends your attempts:</b> the first death was most often <b style="color:var(--bad)">${esc(top.cause)}</b>${top.count>1?` (${top.count}× across ${b.deathsTracked} tracked wipes)`:""} — the failure that starts the cascade.</p>`;
+      // Disambiguation: is this a mechanics/positioning wall, or a sustained-damage (healing/gear) wall?
+      const m=b.causeMechanic||0, s=b.causeSustained||0, tot=m+s;
+      if(tot){
+        const mechs=rowsOf(b.topMechanics).slice(0,3).map(x=>esc(x.cause)).join(", ");
+        let verdict;
+        if(m>=2*s&&m>0) verdict=`a <b style="color:var(--bad)">mechanics problem</b> — ${m}/${tot} deaths to avoidable hits (${mechs}). Drill positioning/timing on those; <b>healing won't fix it</b> (you can't out-heal those hits).`;
+        else if(s>=2*m&&s>0) verdict=`a <b style="color:var(--bad)">sustained-damage problem</b> — ${s}/${tot} deaths to melee/attrition, not single mechanics. That's a <b>healing-assignment / defensive / gear / tuning</b> question, not a positioning drill.`;
+        else verdict=`<b>mixed</b> — ${m}/${tot} to avoidable mechanics (${mechs}), ${s}/${tot} to sustained damage. Split the fix: positioning for the first, healing/CDs for the second.`;
+        h+=`<p class="srcs" style="margin:4px 0 4px"><b>Likely cause:</b> ${verdict} <span class="num" style="opacity:.6">— heuristic from the death-window damage mix; it can't see a missed defensive, and "avoidable" = a named non-melee killing hit.</span></p>`;
+      }
       const kb=rowsOf(b.killingBlows);
       if(kb.length){
         h+=`<table><thead><tr><th>Killing blow on wipes</th><th>Deaths</th></tr></thead><tbody>`;

@@ -26,42 +26,49 @@ the "descriptive, not scored" framing; the sharper move is to make the compariso
 like-for-like (or drop it) so every gap the tab shows is a real rotational one.
 Inherited from the same blind spot in the existing Rotation — Ability Mix view.
 
-## TODO: In-Combat matrix — fix healthstones, drop Health Potion column, keep Super Mana Pot
+## TODO: In-Combat matrix — Casts table is capped at 5 abilities, truncating consumables (CRITICAL)
 
-> We care about Super Mana Potion usage (keep it). Healthstones aren't being recorded
-> properly in Per-Player Consumables — In Combat. And drop the Health Potion column —
-> no one uses those.
+> I used ~17 super mana potions this raid (Madslippery) and the matrix shows it 0
+> times — others used a lot too. Mana pots are under Casts for a boss as "Restore
+> Mana"; healthstones are the cast "Master Healthstone". Also drop the Health Potion
+> column — no one uses those.
 
-Four findings (per_player_incombat in build_deepdive.py + inCombatMatrix in report.html):
+**ROOT CAUSE (verified live):** the WCL `table(dataType:Casts)` returns only the **top
+5 abilities per player** — every player, every boss, exactly 5, sorted by cast count.
+The In-Combat matrix reads MP / HS / HP by scanning `_entries(rep,"casts")` for the
+consumable's name, so for anyone whose 5 most-cast abilities are all rotational/heal
+spells, the low-count consumable casts get **truncated off the bottom and never seen.**
+This silently breaks the matrix for basically every healer and most DPS. (My earlier
+"WCL never logged Madslippery's pots" conclusion was WRONG — they were logged, the
+5-ability table cap hid them.)
 
-1. **Healthstone (HS) is read from the wrong table — REAL BUG.** The matrix reads HS
-   from the **Casts** table (`_is_healthstone` over `_entries(rep,"casts")`), but in
-   this data a healthstone use logs ONLY in the **Healing** table as `Master
-   Healthstone` (guid 27237), attributed to the **consumer** (the player who
-   self-healed). There are zero healthstone casts — but many heal-table entries
-   (Papparadeli, Deadmoth, Kaver, …). So the HS column is always empty. **Fix:** read
-   HS from the `heal` alias, per-player by entry name, matching ability name containing
-   "Healthstone". Count: the heal-table ability carries only `total` (healing amount),
-   no `uses`/`hitCount`, so for an exact pop-count read it from Healing **events** (one
-   event per pop); or, simpler for a usage matrix, show presence (✓ if total>0) rather
-   than a count. (This corrects the wcl-api.md note claiming healthstones log as casts —
-   verified false here; they log as heals.)
+**Proof:** Madslippery's Casts-table entry shows only 5 heal spells, no Restore Mana.
+But counting Restore Mana (guid 28499) from **cast events** gives **exactly 15** across
+the raid — matching the user's recollection and WCL's own count. Same for healthstones:
+no "Master Healthstone" in the truncated Casts table, but `Master Healthstone` (guid
+27237) IS a real cast event (2 on Vashj alone).
 
-2. **Drop the Health Potion (HP) column.** Per the user, nobody runs health potions in
-   TBC raids — and the data agrees: zero `Restore Health` casts all night. Remove the
-   HP sub-column from both `per_player_incombat` (the cell dict) and the `inCombatMatrix`
-   SUB header in report.html. Leaves P (throughput potion) · MP (mana pot) · HS
-   (healthstone) — a leaner, all-meaningful matrix.
+**Fix — read in-combat consumables from cast EVENTS by spell id, not the capped table:**
+- Fetch `events(dataType:Casts, abilityID:<guid>)` per consumable spell id (covers all
+  players, untruncated), bucket by `sourceID`. Cheap and targeted — one events call per
+  (consumable, fight) rather than dumping every cast event. Spell ids: Super Mana Potion
+  `Restore Mana` = 28499; Healthstone `Master Healthstone` = 27237 (+ other HS ranks);
+  Health Potion `Restore Health` = (look up) — though see below, we're dropping it.
+- This replaces the `_entries(rep,"casts")` name-scan in `per_player_incombat`. The
+  throughput potion (P) is already buff-sourced (`consumes-<enc>.json`, not the table),
+  so it's unaffected and correct.
+- Requires a new fetch in `fetch_report.py` (the consumable cast events per shared boss).
+  Validate counts against the Casts table for a DPS whose pot IS in their top 5 (e.g.
+  ßyrdman) — events and table should agree where the table isn't truncated.
 
-3. **Super Mana Potion (MP) — keep, already correct.** `Restore Mana` (guid 28499) is
-   the Super Mana Pot and is tracked correctly. No change. (Note: `Replenish Mana`
-   guid 27103 is the Mage **Mana Gem**, a class ability — correctly excluded; do NOT
-   add it to `MANA_POTION_NAMES`.)
+**Also: drop the Health Potion (HP) column.** Nobody runs health potions in TBC raids
+(zero in the data, user confirms). Remove the HP sub-column from `per_player_incombat`
+and the `inCombatMatrix` SUB header in report.html. Leaves P · MP · HS — all meaningful.
 
-4. **WCL data gap — madslippery's pots never logged.** Madslippery (Holy Priest) has
-   zero mana-pot events of any kind across all 7 kills — WCL didn't record them, so the
-   matrix correctly shows nothing. Upstream gap, not our code. Worth a UI note
-   ("missing ≠ didn't use — WCL occasionally misses instant-item casts").
+**Note:** `Replenish Mana` (guid 27103) is the Mage **Mana Gem**, a class ability — keep
+it excluded; it is NOT a Super Mana Potion. Also fix the wcl-api.md note: it says
+healthstones log as casts (true) but the bigger caveat is the **5-ability Casts-table
+cap** — document that consumable detection must use events, not the table.
 
 ## TODO: "What's Killing Us" hint should state it's kill-pull deaths only
 

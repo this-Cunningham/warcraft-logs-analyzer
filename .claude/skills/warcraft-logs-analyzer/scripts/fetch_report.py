@@ -6,6 +6,8 @@ per-report folder. Run once per report, then feed both folders to build_deepdive
 Writes:
     <out_dir>/fights.json          (boss kills: id, name, encounterID, start/end, size, ilvl)
     <out_dir>/attempts.json        (every boss pull kill+wipe, for per-boss wipe/attempt counts)
+    <out_dir>/wipe-deaths.json     (shared bosses only: friendly Deaths table on the WIPE pulls — powers
+                                    the Wipes tab's "what ends your attempts": first death + killing blows)
     <out_dir>/playerdetails.json   (combatantInfo: gear/enchants/gems, potionUse)
     <out_dir>/boss-<encounterID>.json  (per-kill: buffs + boss debuffs, in one call)
     <out_dir>/consumes-<encounterID>.json  (shared bosses only: per-player buff auras for the
@@ -347,6 +349,28 @@ def fetch(code, out_dir, full_encounters=None):
     )
     attempts = lib.invoke_query(attempts_q, {"code": code})
     _save(attempts, os.path.join(out_dir, "attempts.json"))
+
+    # 1c) Wipe DEATHS (shared bosses only): the friendly Deaths table for the WIPE pulls — the data behind
+    #     "what ends your attempts" on the Wipes tab (first death + killing blows per wipe). Kills are
+    #     already covered by boss-<enc>.json; this adds the progression-wipe view. ONE cheap call across
+    #     every shared-boss wipe fight (entries carry `fight` + `timestamp` + killingBlow, so we bucket
+    #     them to pulls client-side). Graceful: no wipes on the shared bosses → an empty file.
+    full_set = set(int(e) for e in (full_encounters or []))
+    if full_set:
+        att_fights = attempts["reportData"]["report"]["fights"]
+        wipe_fights = [f for f in att_fights
+                       if not f.get("kill") and int(f.get("encounterID") or 0) in full_set]
+        wipe_fids = [int(f["id"]) for f in wipe_fights]
+        wd_entries = []
+        if wipe_fids:
+            wd_q = ("query WD($code:String!,$f:[Int]!){reportData{report(code:$code){"
+                    "table(dataType:Deaths, fightIDs:$f, hostilityType:Friendlies)}}}")
+            wd = lib.invoke_query(wd_q, {"code": code, "f": wipe_fids})["reportData"]["report"]["table"]
+            wd_entries = ((wd or {}).get("data") or {}).get("entries") or []
+        _save({"wipeFights": wipe_fights, "deaths": wd_entries},
+              os.path.join(out_dir, "wipe-deaths.json"))
+        print("[{}] wipe deaths: {} shared-boss wipe fights, {} deaths".format(
+            code, len(wipe_fids), len(wd_entries)))
 
     # 2) Player details (gear/enchants/gems/potions) across all kills - gear is static,
     #    one call covers the roster.

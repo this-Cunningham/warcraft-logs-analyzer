@@ -3294,6 +3294,130 @@ def trash_deaths_by_pull_size(o, t):
     return rows
 
 
+# --- Wipes tab: comprehensive per-boss wipe progression (attempts.json + wipe-deaths.json) ---
+def _load_attempt_fights(directory):
+    path = os.path.join(directory, "attempts.json")
+    if not os.path.isfile(path):
+        return []
+    try:
+        return read_json(path)["reportData"]["report"]["fights"]
+    except (OSError, KeyError, ValueError):
+        return []
+
+
+def _wipe_trend(seq, downed):
+    """A one-line read of the wipe %-remaining sequence (lower = closer to a kill): converging, plateaued,
+    or regressing. None when there are too few wipes (<3) to call a trend honestly."""
+    vals = [(i, v) for i, v in enumerate(seq) if v is not None]
+    if len(vals) < 3:
+        return None
+    n = len(seq)
+    best_i, best_v = min(vals, key=lambda iv: iv[1])
+    if best_i >= n - max(1, n // 3):
+        return "Converging — the closest attempt was among the most recent pulls; keep pushing."
+    early_best = min(v for i, v in vals if i < max(1, n // 2))
+    late_best = min(v for i, v in vals if i >= n // 2)
+    if late_best > early_best + 5:
+        return ("Regressing — pulls got further from the kill after the early attempts "
+                "(fatigue/tilt; a short reset may help).")
+    return ("Plateaued — attempts cluster at the same depth without getting closer; change something "
+            "(assignments, cooldown timing, positioning).")
+
+
+def wipe_analysis(directory, enc_names, phase_names):
+    """Comprehensive per-boss wipe progression — EXPERIMENTAL, first-party by nature (a benchmark on farm
+    rarely wipes). From attempts.json (every pull) + wipe-deaths.json (the friendly Deaths table on the
+    wipe pulls, when fetched). For each shared boss the raid WIPED on: attempts/wipes/downed, best depth
+    (% remaining + the phase), time spent wiping (the progression TAX the kill-time number hides), the WALL
+    (the phase most wipes end in + the typical %-remaining there), the progression TREND (are pulls
+    converging on a kill?), and — from the wipe deaths — WHAT ENDS the attempts (the most common FIRST death
+    + the killing blows on wipes). Scoped to `enc_names` (shared bosses, id→name); `phase_names` is
+    id→{phaseId:name}. Graceful {present:False} without attempts.json."""
+    fights = _load_attempt_fights(directory)
+    if not fights:
+        return {"present": False}
+    wd_path = os.path.join(directory, "wipe-deaths.json")
+    wd = read_json(wd_path) if os.path.isfile(wd_path) else None
+    deaths_by_fight = {}
+    if wd:
+        for d in (wd.get("deaths") or []):
+            deaths_by_fight.setdefault(d.get("fight"), []).append(d)
+
+    by_enc = {}
+    for f in fights:
+        enc = str(f.get("encounterID"))
+        if enc in enc_names:  # shared bosses only — names + wipe-death data are scoped to them
+            by_enc.setdefault(enc, []).append(f)
+
+    def pname(enc, pid):
+        if pid is None:
+            return None
+        return (phase_names.get(enc) or {}).get(pid) or "Phase {}".format(pid)
+
+    def dsec(f):
+        return max(0, int(f.get("endTime", 0)) - int(f.get("startTime", 0))) / 1000.0
+
+    bosses = []
+    for enc, fl in by_enc.items():
+        fl = sorted(fl, key=lambda x: x.get("startTime", 0))
+        wipes = [f for f in fl if not f.get("kill")]
+        if not wipes:
+            continue  # only bosses the raid actually wiped on
+        kills = [f for f in fl if f.get("kill")]
+        depth = [f for f in wipes if f.get("fightPercentage") is not None]
+        best = min(depth, key=lambda f: float(f["fightPercentage"])) if depth else None
+        # THE WALL — which phase do wipes end in most, and the typical %-remaining there.
+        phase_ct, phase_pcts = {}, {}
+        for f in wipes:
+            ph = f.get("lastPhase")
+            phase_ct[ph] = phase_ct.get(ph, 0) + 1
+            if f.get("fightPercentage") is not None:
+                phase_pcts.setdefault(ph, []).append(float(f["fightPercentage"]))
+        wall = None
+        if phase_ct:
+            wp = max(phase_ct, key=phase_ct.get)
+            pcts = sorted(phase_pcts.get(wp) or [])
+            wall = {"phase": pname(enc, wp), "wipes": phase_ct[wp], "ofTotal": len(wipes),
+                    "medPct": round(pcts[len(pcts) // 2], 1) if pcts else None}
+        seq = [round(float(f["fightPercentage"]), 1) if f.get("fightPercentage") is not None else None
+               for f in wipes]
+        # WHAT ENDS ATTEMPTS — first death + killing blows on the wipe pulls (when wipe deaths present).
+        first_causes, blow_causes, tracked = {}, {}, 0
+        for f in wipes:
+            ds = sorted(deaths_by_fight.get(int(f["id"]), []), key=lambda d: d.get("timestamp", 0))
+            if not ds:
+                continue
+            tracked += 1
+            fc = (ds[0].get("killingBlow") or {}).get("name") or "Unknown"
+            first_causes[fc] = first_causes.get(fc, 0) + 1
+            for d in ds:
+                bc = (d.get("killingBlow") or {}).get("name") or "Unknown"
+                blow_causes[bc] = blow_causes.get(bc, 0) + 1
+
+        def rank(m):
+            return [{"cause": c, "count": n} for c, n in sorted(m.items(), key=lambda kv: -kv[1])]
+
+        bosses.append({
+            "encounterID": int(enc), "name": enc_names.get(enc, "Encounter {}".format(enc)),
+            "attempts": len(fl), "wipes": len(wipes), "downed": bool(kills),
+            "wipeTimeSec": round(sum(dsec(f) for f in wipes)),
+            "killTimeSec": round(sum(dsec(f) for f in kills)),
+            "bestPct": round(float(best["fightPercentage"]), 1) if best else None,
+            "bestPhase": pname(enc, best.get("lastPhase")) if best else None,
+            "wall": wall, "trendSeq": seq, "trend": _wipe_trend(seq, bool(kills)),
+            "firstDeaths": rank(first_causes), "killingBlows": rank(blow_causes)[:8],
+            "deathsTracked": tracked,
+        })
+    # Active walls (not yet downed) first, then the bosses that ate the most wipe-time.
+    bosses.sort(key=lambda b: (b["downed"], -b["wipeTimeSec"]))
+    biggest = max(bosses, key=lambda b: b["wipeTimeSec"], default=None)
+    return {"present": True, "hasDeaths": wd is not None,
+            "bosses": bosses,
+            "totalWipes": sum(b["wipes"] for b in bosses),
+            "totalWipeTimeSec": sum(b["wipeTimeSec"] for b in bosses),
+            "biggestSink": biggest["name"] if biggest else None}
+
+
 # ---------- ASSEMBLE ----------
 def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
           ours_name="Our Raid", theirs_name="Benchmark", zone_name=""):
@@ -3665,6 +3789,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Wipe recovery (EXPERIMENTAL): wall-clock reset time between a wipe and the next pull, per boss.
     enc_names = {str(b["encounterID"]): b["name"] for b in bosses}
     wipe_rec = wipe_recovery_compare(wipe_recovery(ours_dir), wipe_recovery(theirs_dir), enc_names)
+    # Wipes tab (EXPERIMENTAL) — comprehensive per-boss wipe progression: the wall, the trend, the
+    # progression tax, and (from the wipe-fight deaths) what ends the attempts. First-party by nature.
+    wipes = {"ours": wipe_analysis(ours_dir, enc_names, ours_phase_names),
+             "theirs": wipe_analysis(theirs_dir, enc_names, theirs_phase_names)}
     # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
     leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
     # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced). cd_usage_pool reads the
@@ -3732,7 +3860,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,
-                 "optimize": optimize},
+                 "wipes": wipes, "optimize": optimize},
     }
     out_full = render_report(payload, out_file)
     print("Deep-dive report written to {} ({} shared bosses, {} with buff/debuff data)".format(

@@ -1772,6 +1772,54 @@ function mountTrash(){
   }));
   wire("ttab"); wire("ktab");
 }
+/* ---------- WIPES (per-boss progression: the wall, the trend, the tax, what ends attempts) ---------- */
+function renderWipes(d){
+  const dp=d.deep, w=dp&&dp.wipes&&dp.wipes.ours;
+  if(!w||!w.present||!rowsOf(w.bosses).length){
+    return `<h2 class="section">Wipes</h2><p class="num" style="padding:8px 2px">No wipes recorded on the shared bosses — a clean clear. (This tab fills in on progression nights: it reads every pull's depth, phase, the time the wiping cost, and what ended each attempt.)</p>`;
+  }
+  const tW=(dp.wipes.theirs&&dp.wipes.theirs.present)?dp.wipes.theirs:null;
+  const tByEnc={}; if(tW) for(const b of rowsOf(tW.bosses)) tByEnc[b.encounterID]=b;
+  const mmss=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
+  const pct=p=>p==null?"—":(p<1?"<1%":(Math.round(p*10)/10)+"%");
+  let h=`<h2 class="section">Wipes — Progression Breakdown<span class="xp">Experimental</span><span class="hint">A deep read of every wipe on the shared bosses: how far attempts got (the <b>wall</b>), whether they're <b>converging</b> on a kill, the <b>time</b> the wiping cost (which the kill-time number hides), and — from the wipe-pull deaths — <b>what ends the attempts</b> (the first death and the killing blows). First-party by design: the benchmark is on farm and rarely wipes, so this is about <i>your</i> progression. <b>Experimental.</b></span></h2>`;
+  h+=`<div class="cards">
+    <div class="card"><div class="label">Wipes (shared bosses)</div><div class="vals"><span class="v ours">${w.totalWipes}</span>${tW?`<span class="v theirs">${tW.totalWipes}</span>`:""}</div></div>
+    <div class="card"><div class="label">Time Spent Wiping</div><div class="vals"><span class="v ours">${mmss(w.totalWipeTimeSec)}</span>${tW?`<span class="v theirs">${mmss(tW.totalWipeTimeSec)}</span>`:""}</div></div>
+    ${w.biggestSink?`<div class="card"><div class="label">Biggest Time Sink</div><div class="vals"><span class="v ours" style="font-size:17px">${esc(w.biggestSink)}</span></div></div>`:""}
+  </div>`;
+  for(const b of rowsOf(w.bosses)){
+    const tb=tByEnc[b.encounterID];
+    h+=`<div class="boss" style="margin-top:18px"><h3>${esc(b.name)}<span class="badge" style="background:${b.downed?'#16351f':'#3a1717'};color:${b.downed?'var(--good)':'var(--bad)'}">${b.downed?'downed ✓':'not downed'}</span></h3>
+      <div class="cards">
+        <div class="card"><div class="label">Wipes</div><div class="vals"><span class="v ours">${b.wipes}</span>${tb?`<span class="v theirs">${tb.wipes}</span>`:""}</div></div>
+        <div class="card"><div class="label">Closest Attempt</div><div class="vals"><span class="v ours">${pct(b.bestPct)}${b.bestPhase?` <span class="num" style="font-size:12px">(${esc(b.bestPhase)})</span>`:""}</span></div></div>
+        <div class="card"><div class="label">Time Wiping</div><div class="vals"><span class="v ours">${mmss(b.wipeTimeSec)}</span></div></div>
+      </div>`;
+    if(b.wall&&b.wall.phase){
+      h+=`<p class="srcs" style="margin:10px 0 4px"><b>The wall:</b> ${b.wall.wipes} of ${b.wall.ofTotal} wipe${b.wall.ofTotal!==1?"s":""} ended in <b style="color:var(--ours)">${esc(b.wall.phase)}</b>${b.wall.medPct!=null?` around <b>${pct(b.wall.medPct)}</b> boss HP`:""} — the phase to drill.</p>`;
+    }
+    if(b.trend){
+      const seq=asArr(b.trendSeq).filter(v=>v!=null);
+      const viz=seq.length?`<div style="display:flex;align-items:flex-end;gap:3px;height:48px;margin:6px 0 2px">`+seq.map((v,i)=>{const prog=Math.max(0,100-v);return `<span title="Wipe ${i+1}: ${pct(v)} boss HP remaining" style="width:10px;display:inline-block;border-radius:2px 2px 0 0;background:var(--ours);height:${Math.max(4,Math.round(prog/100*44))}px"></span>`;}).join("")+`</div><div class="num" style="font-size:11px;opacity:.6">each bar = a wipe in order · taller = closer to the kill</div>`:"";
+      h+=`<p class="srcs" style="margin:8px 0 2px"><b>Trend:</b> ${esc(b.trend)}</p>${viz}`;
+    }
+    if(b.deathsTracked&&rowsOf(b.firstDeaths).length){
+      const top=rowsOf(b.firstDeaths)[0];
+      h+=`<p class="srcs" style="margin:12px 0 4px"><b>What ends your attempts:</b> the first death was most often <b style="color:var(--bad)">${esc(top.cause)}</b>${top.count>1?` (${top.count}× across ${b.deathsTracked} tracked wipes)`:""} — the failure that starts the cascade.</p>`;
+      const kb=rowsOf(b.killingBlows);
+      if(kb.length){
+        h+=`<table><thead><tr><th>Killing blow on wipes</th><th>Deaths</th></tr></thead><tbody>`;
+        for(const r of kb) h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td><td class="num">${r.count}</td></tr>`;
+        h+=`</tbody></table>`;
+      }
+    } else if(!w.hasDeaths){
+      h+=`<p class="srcs" style="margin:8px 0 0;opacity:.7">Per-wipe death detail (what ends the attempts) appears after the next data refresh — it draws on a newly added fetch.</p>`;
+    }
+    h+=`</div>`;
+  }
+  return h;
+}
 function render(){
   const d=DATA; if(!d){document.getElementById("app").innerHTML="<p>No data.</p>";return;}
   let h=`<header class="hero">
@@ -1780,12 +1828,13 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="optimize">Optimize</div><div class="tab" data-t="trash">Trash</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="wipes">Wipes</div><div class="tab" data-t="optimize">Optimize</div><div class="tab" data-t="trash">Trash</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-composition">${renderComposition(d)}</div>
   <div class="panel" id="p-enchants">${renderEnchants(d)}</div>
   <div class="panel" id="p-execution"></div>
   <div class="panel" id="p-bosses"></div>
+  <div class="panel" id="p-wipes">${renderWipes(d)}</div>
   <div class="panel" id="p-optimize">${renderOptimize(d)}</div>
   <div class="panel" id="p-trash">${renderTrash(d)}</div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;

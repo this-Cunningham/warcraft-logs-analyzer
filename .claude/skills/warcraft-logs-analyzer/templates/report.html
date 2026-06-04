@@ -647,6 +647,9 @@ function renderExecution(d){
   /* 1. What's killing us — killing blows aggregated across the whole shared clear. */
   h+=deathCausesView(d);
 
+  /* 1b. Time lost to deaths (EXPERIMENTAL) — the output-time companion to the count above. */
+  h+=deathTimeView(d);
+
   /* 2. Lowest-hanging DPS — per-spec gap pooled across every shared boss. */
   h+=tierSpecGapView(d);
 
@@ -661,6 +664,9 @@ function renderExecution(d){
 
   /* 3c. Cooldown usage (clean better/worse), from Casts + buffs. */
   h+=cdUsageView(d);
+
+  /* 3c-ii. Bloodlust timing + window payoff (EXPERIMENTAL) — when you burst and how much you got. */
+  h+=bloodlustView(d);
 
   /* 3d. Early aggro (threat pulls), focus concentration, and per-target engagement — new modalities. */
   h+=threatPullsView(d);
@@ -863,6 +869,33 @@ function deathCausesView(d){
   }
   return h+`</tbody></table>`;
 }
+// Time lost to deaths (EXPERIMENTAL): output-minutes burned by deaths, by killing-blow cause + raid
+// total. The TIME companion to What's Killing Us — a death at 90% boss HP costs far more than one at 2%.
+function deathTimeView(d){
+  const dt=d.deep&&d.deep.deathTime; if(!dt) return "";
+  const rows=rowsOf(dt.rows); if(!rows.length && !dt.oursMin && !dt.theirsMin) return "";
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const lostD=deltaLow(dt.oursMin,dt.theirsMin);                 // fewer minutes lost is better
+  const upD=deltaHigh(100-dt.oursPct,100-dt.theirsPct);          // higher effective uptime is better
+  const vc=(v,side,lab)=>`<span class="vcol"><span class="v ${side}">${v}</span><span class="vlab ${side}">${lab}</span></span>`;
+  let h=`<h2 class="section">Time Lost to Deaths<span class="xp">Experimental</span><span class="hint">The TIME companion to “What's Killing Us”: each death costs the output from when it happened to the kill, summed across the clear into <b>player-minutes</b> of lost throughput — and as a share of total player-combat-time (→ effective uptime). A death at 90% boss HP costs far more than one at 2%, so this ranks the mechanic burning the most output-time, not just the most frequent. <b>Upper bound</b> — assumes a downed raider stays down; a battle-res reduces it. <b>Experimental.</b></span></h2>
+    <div class="cards">
+      <div class="card"><div class="label">Output Time Lost</div><div class="vals">${vc(dt.oursMin+"m","ours",oT)}${vc(dt.theirsMin+"m","theirs",tT)}<span class="delta ${lostD.cls}">${lostD.txt}m</span></div></div>
+      <div class="card"><div class="label">Effective Uptime</div><div class="vals">${vc((100-dt.oursPct).toFixed(1)+"%","ours",oT)}${vc((100-dt.theirsPct).toFixed(1)+"%","theirs",tT)}<span class="delta ${upD.cls}">${upD.txt}</span></div></div>
+    </div>`;
+  if(rows.length){
+    h+=`<table><thead><tr><th>Killing blow</th><th>${oT}</th><th>${tT}</th><th>Δ</th></tr></thead><tbody>`;
+    for(const r of rows){
+      const dl=deltaLow(r.oursMin,r.theirsMin);
+      h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.oursMin}m</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirsMin}m</td>
+        <td class="delta ${dl.cls}">${dl.txt}m</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  return h;
+}
 // DPS gaps by spec: per-spec avg DPS pooled across all bosses, biggest deficit first.
 function tierSpecGapView(d){
   const all=rowsOf(d.deep&&d.deep.tierSpecGap);
@@ -970,6 +1003,26 @@ function cdUsageView(d){
       <div class="dval ro">${fmtC(r.theirs)}</div>`;
   }
   return h+`</div></div>`;
+}
+// Bloodlust timing + window payoff (EXPERIMENTAL): per boss, WHEN each raid popped lust and the DPS
+// multiplier in the 40s window after — did the burst actually align with the haste window?
+function bloodlustView(d){
+  const rows=rowsOf(d.deep&&d.deep.bloodlust&&d.deep.bloodlust.rows);
+  if(!rows.length) return "";
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const tsec=s=>s==null?"—":fmtTime(s*1000);          // seconds-into-fight → m:ss
+  const mult=m=>m==null?'<span class="cna">—</span>':("×"+m);
+  let h=`<h2 class="section">Bloodlust — Timing &amp; Payoff<span class="xp">Experimental</span><span class="hint">When each raid popped <b>Bloodlust / Heroism</b> (time into the fight) and the <b>window payoff</b> — raid DPS in the 40s lust window ÷ the fight average, so &gt;1× means cooldowns and trinkets were stacked into the haste window. Timing is <b>descriptive</b> (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target); a low payoff means lust was up but the burst wasn't aligned with it. <b>Experimental</b> — payoff is binned coarsely.</span></h2>
+  <table><thead><tr><th>Boss</th><th>${oT} lust</th><th>Payoff</th><th>${tT} lust</th><th>Payoff</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=(r.oursMult!=null&&r.theirsMult!=null)?deltaHigh(r.oursMult,r.theirsMult):null; // higher payoff better
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours)">${tsec(r.oursSec)}</td>
+      <td>${mult(r.oursMult)}${dl?` <span class="delta ${dl.cls}">${dl.txt}</span>`:""}</td>
+      <td class="num" style="color:var(--theirs)">${tsec(r.theirsSec)}</td>
+      <td class="num">${mult(r.theirsMult)}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
 }
 // Early aggro — non-tank players who held the BOSS's aggro (a threat pull). Tier-wide, ours vs benchmark.
 function threatPullsView(d){

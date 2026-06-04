@@ -127,6 +127,13 @@ the honest version.)
 - **What's Killing Us** (`death_cause_compare` → `deathCausesView`) — killing-blow
   names across all shared bosses, ranked by **biggest avoidable delta** (ours−theirs;
   floats the mechanic the benchmark solved). Top row feeds the scorecard.
+- **Time Lost to Deaths** (`death_time_compare` → `deathTimeView`) — **EXPERIMENTAL**, the *time*
+  companion to What's Killing Us: each death costs `(fight end − death time)` player-seconds of lost
+  output, summed across the clear into **player-minutes** by killing-blow cause (reusing
+  `_death_cause_label`, so an add's blow carries its mob in parens), plus a raid headline (minutes lost +
+  **effective uptime** = 100 − lost%, base = roster × total shared-boss fight time). Ranks by the mechanic
+  burning the most output-time — a death at 90% boss HP costs far more than one at 2%, which a raw count
+  misses. **Upper bound** (assumes a downed raider stays down; a battle-res reduces it) — labeled as such.
 - **Lowest-Hanging DPS — Spec Gaps** (`tier_spec_gap` → `tierSpecGapView`) — DPS
   pooled by (class, spec) across shared bosses, ranked by per-player deficit. Mirrored
   bars; one-raid-only specs noted.
@@ -154,6 +161,13 @@ the honest version.)
   events** — only buffs w/ `totalUses` → read per-player buff `uses` (`COOLDOWN_NAMES`).
   Trinkets are the inverse: *use* logs as a cast under item name, buff renamed to effect
   ("Haste") → read from Casts (`TRINKET_NAMES`). Disjoint, no double-count.
+- **Bloodlust — Timing & Payoff** (`lust_window_mult` + per-boss `lust_sec` → `bloodlustView`) —
+  **EXPERIMENTAL**, per boss: **when** each raid popped Bloodlust/Heroism (`lust_sec`, seconds into the
+  fight) and the **window payoff** — raid DPS in the 40s lust window ÷ the fight-average DPS (binned off
+  the timeline curve), so >1× = cooldowns/trinkets stacked into the haste window. Timing is **descriptive**
+  (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target);
+  the payoff has a clean direction (higher = better-aligned burst). Graceful "—" when a side didn't lust /
+  has no timeline. Assembled from the per-boss `oursLustSec`/`oursLustMult` fields.
 - **Rotation — Ability Mix** (`rotation_buckets`/`tier_rotation` → `rotationView`) —
   per spec both raids fielded, **share** of casts per ability (from the **Casts** table;
   `dd.abilities` only covers damaging). DPS + Healer sub-tabs (`data-rtab`). Specs

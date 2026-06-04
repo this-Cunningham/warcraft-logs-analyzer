@@ -928,6 +928,30 @@ def lust_sec(auras, fight_start):
     return round((int(first) - int(fight_start)) / 1000)
 
 
+def lust_window_mult(tl, lust, window=40):
+    """How hard the raid burst during its Bloodlust/Heroism window — EXPERIMENTAL. Average raid DPS in the
+    `window` seconds after lust popped ÷ the fight's average DPS. >1 means damage spiked when lust landed
+    (DPS cooldowns/trinkets stacked into the haste window); ~1 means lust was up but nothing was stacked
+    with it. Coarse (binned to the timeline's buckets, ~40s lust = a few buckets) and descriptive — a
+    payoff read on the lust, not a score. None when lust or the timeline curve is absent."""
+    if not tl or lust is None:
+        return None
+    dps = tl.get("dps") or []
+    n = len(dps)
+    dur = (tl.get("durMs") or 0) / 1000.0
+    if not n or dur <= 0:
+        return None
+    avg = sum(dps) / n
+    if avg <= 0:
+        return None
+    w = dur / n  # seconds per bucket
+    lo, hi = max(0, int(lust // w)), min(n, int((lust + window) // w) + 1)
+    seg = dps[lo:hi]
+    if not seg:
+        return None
+    return round((sum(seg) / len(seg)) / avg, 2)
+
+
 def load_boss(directory, enc):
     p = os.path.join(directory, "boss-{}.json".format(enc))
     if not os.path.isfile(p):
@@ -1353,6 +1377,33 @@ def death_cause_compare(per_boss):
         rows.append({"cause": label, "boss": boss, "ours": o.get(key, 0), "theirs": t.get(key, 0)})
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows
+
+
+def death_time_compare(per_boss, o_avail, t_avail):
+    """Output-TIME lost to deaths, by killing-blow cause, pooled across the shared clear — EXPERIMENTAL.
+    Each death costs (fight end − death time) player-seconds of lost output; we sum that per cause and
+    rank by the biggest improvable delta. The TIME companion to 'What's Killing Us' (which COUNTS deaths):
+    not how OFTEN a mechanic kills, but how much raid output-time it burns — a death at 90% boss-HP costs
+    far more than one at 2%. UPPER BOUND: assumes a downed raider stays down, so a battle-res reduces it.
+    o_avail/t_avail = roster × total shared-boss fight time (player-seconds) = the base for the % lost."""
+    def by_cause(side):
+        agg, dur_key = {}, ("oursDurMs" if side == "ours" else "theirsDurMs")
+        for pb in per_boss:
+            dsec = round(pb[dur_key] / 1000)
+            for d in pb["deaths"][side]:
+                cost = max(0, dsec - int(d.get("tSec", 0)))
+                lbl = _death_cause_label(d, pb["name"])
+                agg[lbl] = agg.get(lbl, 0) + cost
+        return agg
+    o, t = by_cause("ours"), by_cause("theirs")
+    rows = [{"cause": c, "oursMin": round(o.get(c, 0) / 60, 1), "theirsMin": round(t.get(c, 0) / 60, 1),
+             "deficitMin": round((o.get(c, 0) - t.get(c, 0)) / 60, 1)} for c in set(o) | set(t)]
+    rows.sort(key=lambda r: (-r["deficitMin"], -r["oursMin"]))
+    o_total, t_total = sum(o.values()), sum(t.values())
+    return {"rows": rows[:15],
+            "oursMin": round(o_total / 60, 1), "theirsMin": round(t_total / 60, 1),
+            "oursPct": round(100 * o_total / o_avail, 1) if o_avail > 0 else 0,
+            "theirsPct": round(100 * t_total / t_avail, 1) if t_avail > 0 else 0}
 
 
 # ---------- WIPE / ATTEMPT COUNTS (one cheap query per report) ----------
@@ -3091,6 +3142,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "encounterID": b["encounterID"], "name": b["name"],
             "oursLustSec": o_lust,
             "theirsLustSec": t_lust,
+            # Bloodlust window payoff (EXPERIMENTAL): DPS in the 40s lust window ÷ fight-average DPS.
+            "oursLustMult": lust_window_mult(o_tl, o_lust),
+            "theirsLustMult": lust_window_mult(t_tl, t_lust),
             "oursRaidDps": rate(o_raid_dmg, o_dur), "theirsRaidDps": rate(t_raid_dmg, t_dur),
             "oursRaidHps": rate(o_raid_heal, o_dur), "theirsRaidHps": rate(t_raid_heal, t_dur),
             "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
@@ -3163,6 +3217,16 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     stat_audit_payload = stat_audit_compare(
         stat_audit(ours_dir, ours_role, ours_spec, ours_cls, ours_roster_names),
         stat_audit(theirs_dir, theirs_role, theirs_spec, theirs_cls, theirs_roster_names))
+    # Time lost to deaths (EXPERIMENTAL) — the TIME companion to "What's Killing Us": output-minutes
+    # burned by deaths, by cause + raid total. % base = roster × total shared-boss fight time.
+    o_avail = len(ours_roster) * (o_dur_sum / 1000.0)
+    t_avail = len(theirs_roster) * (t_dur_sum / 1000.0)
+    death_time = death_time_compare(per_boss, o_avail, t_avail)
+    # Bloodlust/Heroism timing + window payoff (EXPERIMENTAL), assembled from the per-boss lust data.
+    bloodlust = {"rows": [{"boss": p["name"], "oursSec": p["oursLustSec"], "theirsSec": p["theirsLustSec"],
+                           "oursMult": p.get("oursLustMult"), "theirsMult": p.get("theirsLustMult")}
+                          for p in per_boss
+                          if p["oursLustSec"] is not None or p["theirsLustSec"] is not None]}
     # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
     leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
     # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced). cd_usage_pool reads the
@@ -3218,6 +3282,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,
+                 "deathTime": death_time, "bloodlust": bloodlust,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,

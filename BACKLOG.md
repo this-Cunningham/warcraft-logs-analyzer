@@ -85,26 +85,26 @@ in the current format — not before.
 
 ---
 
-## BACKLOG: Rotations tab — per-spec ability mix vs. world-best player for that spec
+## SHIPPED: Optimize tab — per-raider rotation vs. world-best player for that spec
 
-> Is it possible to pull the best class/spec combo (#1 for each, but if top 1 isn't available go
-> down the list to get 1 of top 10) for all class/specs in our raid — and show in a new main tab
-> "Rotations" this exact type of breakdown we already have ("Rotation — Ability Mix") but instead
-> of our raid against the benchmark raid, it would be our class/specs against the top players in
-> the world for that spec.
+Built as the top-level **Optimize** tab (next to Trash): class sub-tabs → spec sub-tabs → each of our
+raiders' cast mix vs a **same-faction world-best player** of that exact class/spec. The benchmark frame
+is "the ceiling player for your spec" instead of a better guild. Raiders within 5pp on every ability
+collapse to a green "matches world best ✓" chip; the rest get the mirrored-bar cast-share table.
 
-This is a high-signal idea: it swaps the benchmark frame from "a better guild's raid" to "the ceiling
-player for your exact spec." The gap revealed is spec-specific rotation quality — not just "did your
-Fire Mage use Combustion," but "here's how a world-top Fire Mage distributes casts vs. yours." Every
-player's rotation inefficiency becomes visible against the hardest possible honest baseline.
+How the open questions resolved:
+- `worldData.encounter(id).characterRankings(metric, className, specName)` returns the global top 100
+  with each entry's `report{code,fightID}`, `guild`, `server`, and a raw `faction` int — so the
+  ranked player's log IS reachable, and we fetch their Casts table directly. No new auth path.
+- Faction encoding: a guild's `GameFaction` is id 1=Alliance/2=Horde, but a ranking entry's `faction`
+  int is 0=Alliance/1=Horde — so the same-faction filter is `entryFaction == guildFactionId - 1`.
+- Our roster's spec strings (e.g. `BeastMastery`, `Survival`) match the API's `specName` verbatim — no
+  mapping needed. Healers benchmark on `metric:hps`, DPS on `dps`; tanks excluded (no clean metric).
+- API budget: ~1 rankings call + 1 casts call per distinct DPS/healer spec (~30 calls for a full raid),
+  well under the 3600/hr cap. Cached to `worldbest.json` in our data dir, refreshed with `--refresh`.
+- Same-boss integrity: each spec benchmarks on the first shared boss with a same-faction ranking (our
+  raiders killed it too), so our-player and world-best cast shares are measured on the SAME encounter.
 
-**Open questions / research needed:**
-- WCL rankings API: does it expose top-N logs for a given spec+encounter combination? Need to confirm
-  whether the same `reportCode` + actor data is reachable from a rankings query, or whether this
-  requires a new fetch path.
-- One benchmark log per spec means N separate API fetches (one per spec in our raid) — API budget
-  impact to scope out.
-- The existing Rotation tab is built around a single benchmark report; this would require per-spec
-  benchmark switching. Assess whether that's a tab-level change or a deeper refactor.
-- Data integrity: the world-#1 log for a spec might be a farm kill on a much weaker gear tier — need
-  to confirm the comparison is meaningful (same boss, same phase of the tier).
+Known wrinkle (inherited from the Rotation view): a hybrid who played the spec in a different
+role/form on the benchmark boss (e.g. a Feral who bear-tanked) reads a large, role-driven "gap" — the
+"descriptive, not scored" framing covers it, but form-aware spec detection would sharpen it later.

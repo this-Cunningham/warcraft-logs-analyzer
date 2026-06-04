@@ -2,7 +2,7 @@
 
 `build_deepdive.py` (invoked by `compare_raids.py`) injects a `const DATA` blob into
 `templates/report.html` (inline CSS+JS, dark, offline, no CDN) by replacing the
-literal `/*__DATA__*/null`. Five top-level tabs, a funnel:
+literal `/*__DATA__*/null`. Six top-level tabs, a funnel:
 
 | Tab | Question it answers |
 |---|---|
@@ -10,6 +10,7 @@ literal `/*__DATA__*/null`. Five top-level tabs, a funnel:
 | **Composition** | Roster makeup & buffs |
 | **Prep** | Did we show up ready |
 | **Execution** | Raid-wide gaps + per-boss drill-down |
+| **Optimize** | How each raider's rotation compares to the world best |
 | **Trash** | How we handle trash packs |
 
 Every section compares ours vs benchmark with a delta; weak/ambiguous metrics are
@@ -197,6 +198,44 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
   **Phase NAMES** from report-level `report.phases` (`PhaseMetadata{id,name}`, populated in TBC
   for scripted bosses e.g. Kael "P5: Gravity Lapse"), joined by id (`phase_name_map`); fall back
   to "Phase N". Single-phase fights show a graceful note.
+
+---
+
+## Optimize
+
+`build_optimize` → `renderOptimize`/`optSpecBody` (wired by `mountOptimize`). The **only per-player
+view in the report** (a deliberate exception to the otherwise raid/spec-level rule) and the only one
+benchmarked against the **world**, not the comparison guild. Two nested tab levels: **class** sub-tabs
+(`data-octab`) → **spec** sub-tabs (`data-ospec`, scoped per class via `data-ocls` so distinct classes
+don't collide — mirrors the Bosses-tab wiring). Within a spec, each of our raiders' cast SHARE per
+ability is mirror-barred against a same-faction world-best player's, reusing the Rotation view's layout
+(`dmgcmp`/`ugrid`). Raiders within `collapse_diff` (5pp) on every tracked ability collapse to a green
+"matches world best ✓" chip; the rest get the full table. **Descriptive, not scored** (same rule as the
+Rotation view — a different mix can be gear/talent/fight-driven). DPS + healer only (tanks have no clean
+ranking metric); `min_share` (3pp) drops fillers.
+
+- **Benchmark selection** — `fetch_worldbest.py` (fetch stage; needs the network, so NOT in the pure
+  `build_deepdive` path) resolves, per distinct DPS/healer (class, primary-spec): the highest-ranked
+  **same-faction** entry from `worldData.encounter(id).characterRankings(metric, className, specName)`,
+  walking the shared bosses in order and taking the first boss that yields a same-faction hit. It then
+  fetches that player's **Casts** table for their ranked `report{code,fightID}` and writes raw ability
+  tallies + player meta to `worldbest.json` in our data dir. `metric` is `hps` for healers, `dps`
+  otherwise. **Faction:** a guild's `GameFaction` id is 1=Alliance/2=Horde, but a ranking entry's raw
+  `faction` int is 0=Alliance/1=Horde, so the same-faction filter is `entryFaction == guildFactionId - 1`
+  (verified live). Our roster's spec strings (`BeastMastery`, `Survival`, …) match the API's `specName`
+  verbatim — no mapping.
+- **Same-encounter integrity** — each spec is benchmarked on the boss its world-best player parsed
+  (which our raiders also killed), and our raiders' casts are read from that **same** `boss-<enc>.json`,
+  so both sides' cast shares come from the same fight. The spec header names the boss + the world player
+  (`World #N <Faction> <Spec> <Class> on <Boss> · <amount> DPS/HPS`).
+- **Caching** — `worldbest.json` lives in our data dir alongside the deep data; `compare_raids`
+  refetches it when our data isn't cached, on `--refresh`, or when an older cached dir predates the file
+  (so re-running over a cached report backfills the tab). A fetch failure is non-fatal — the rest of the
+  report still builds; the tab renders an empty-state note. Graceful `{present:false}` when the file is
+  absent or our raid had no resolvable guild faction (a PUG night).
+- **Known wrinkle** — a hybrid who played the spec in a different role/form on the benchmark boss (a
+  Feral who bear-tanked) reads a large, role-driven "gap"; inherited from the Rotation view, covered by
+  the descriptive framing. Form-aware spec detection would sharpen it.
 
 ---
 

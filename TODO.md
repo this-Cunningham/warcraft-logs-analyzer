@@ -82,6 +82,24 @@ healer. Note: the roster role feeds more than the enchant audit (per-player
 consumables labels, healer/DPS table splits), so the fix lands in one place but
 ripples usefully across the report.
 
+## TODO: Leaked Interrupts — exclude auto-attacks ("Shoot") from interruptible abilities
+
+> Is "Shoot" in Interrupts Leaked really interruptible? What boss is it from?
+
+Confirmed false positive. **Shoot** (guid 37770, Coilfang Ambushers on The Lurker
+Below) appears in the Interrupts table because a raider `Polymorph`-interrupted it
+once — that one kick is the code's proof of interruptibility (`spellsInterrupted ≥ 1`),
+which is correct logic. But the 24 `missedCasts` are Coilfang Ambusher auto-shots
+targeting players: a ranged mob auto-attack, not a meaningful boss mechanic to
+interrupt. Treating it as a leaked interrupt is noise that a raid leader can't act on.
+
+Fix: add an ability-name blocklist in `leaked_casts` / `leaked_interrupts_gap` that
+excludes generic auto-attacks — at minimum `{"Shoot", "Auto Attack", "Melee"}` — so
+only named casts (actual abilities) surface as leaked interrupts. Per the soul, this
+is a **data-integrity** fix: the leaked-interrupts view should name actionable
+mechanics, not auto-shots a raid couldn't meaningfully prevent. Applies equally to
+the per-boss Interrupts view (`unkicked_compare`) which reads from the same source.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

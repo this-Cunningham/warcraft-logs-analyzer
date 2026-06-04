@@ -108,3 +108,36 @@ How the open questions resolved:
 Known wrinkle (inherited from the Rotation view): a hybrid who played the spec in a different
 role/form on the benchmark boss (e.g. a Feral who bear-tanked) reads a large, role-driven "gap" — the
 "descriptive, not scored" framing covers it, but form-aware spec detection would sharpen it later.
+
+---
+
+## BACKLOG: Wipes tab — dissect wipe-pull data per boss
+
+> setup data for our "wipes" — add a new main tab called Wipes where we dissect wipe data
+
+The current report already surfaces **wipe counts + wipe depth** (best attempt's boss-HP% and phase)
+on each boss card, but that's the ceiling — the raw wipe pulls aren't fetched in full. A dedicated
+Wipes tab would answer the question a leader asks after a progression wall: *where exactly are we
+dying, and at what point in the fight does it go wrong?* Per the soul, the actionable signal is the
+decomposition: not "we wiped 8 times" but "5 of those wipes were P3 deaths to Gravity Lapse, 2 were
+P2 cascade deaths within 10s of each other" — that names the drill.
+
+**What this would unlock:**
+- Per-boss wipe-pull death list (killing blows + phase/timing) vs the benchmark's wipe pulls — are
+  they dying to the same mechanic, and does the benchmark wipe less or get further?
+- Wipe-depth progression over attempts (did the raid get closer over the night, or stay stuck at the
+  same wall?) — a pure first-party view, no benchmark needed.
+- Death cascade detection on wipes (≥4 deaths in 15s — already exists for kill pulls; extend to wipes
+  to pinpoint the single event that collapses the raid).
+
+**Open questions / research needed:**
+- `attempts.json` currently fetches `fights(killType:Encounters){encounterID kill fightPercentage
+  lastPhase}` — cheap, no tables. A full wipe dissection needs the Deaths table per wipe-fight ID,
+  which is N more `table(dataType:Deaths, fightIDs:$f)` calls (one per wipe per boss). For a 10-wipe
+  night that's manageable; for a 60-wipe progression night it's significant API cost — need a
+  cost-cap strategy (e.g. fetch only the N deepest wipes per boss, or cap at last M wipes).
+- Are the benchmark's wipe-pull deaths meaningful to compare? A guild on farm has few wipes;
+  comparing our 8-wipe Vashj vs their 0-wipe Vashj is one-sided. May be more honest as a
+  **first-party-only** view (how OUR raid improves over the night) than an ours-vs-benchmark table.
+- Tension with the soul's "honest about scope" rule: the hint text should clearly state
+  wipe-pull deaths are separate from the kill-pull "What's Killing Us" view.

@@ -1528,7 +1528,12 @@ def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
         return None
     raid_dmg = raid_dps * dur_sec
     raiders = sorted(per.values(), key=lambda r: -r["dmg"])
-    return {"timeSavedSec": round(forfeited / raid_dps),
+    # Time saved = forfeited ÷ the GHOST raid DPS (actual + the revived raiders' own DPS), NOT the actual
+    # raid DPS — if those raiders were alive they'd ALSO be speeding the kill, so the extra damage lands
+    # against a faster raid. (Each dead PLAYER counts once toward the ghost DPS, not once per death.) This
+    # is the self-consistent kill-time and is smaller than forfeited/actual-DPS, which over-states it.
+    ghost_raid_dps = raid_dps + sum(avg_dps.get(nm, 0) for nm in per)
+    return {"timeSavedSec": round(forfeited / ghost_raid_dps),
             "forfeitedDmg": round(forfeited),
             "pctOfRaid": round(100 * forfeited / raid_dmg, 1) if raid_dmg > 0 else 0,
             "deaths": sum(1 for d in deaths if avg_dps.get(d.get("name")) and (d.get("tSec") or 0) > 0),

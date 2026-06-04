@@ -618,9 +618,8 @@ function renderExecution(d){
   /* 3b. Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
   h+=leakedInterruptsView(d);
 
-  /* 3c. Cooldown usage (clean better/worse) + rotation / ability-mix (descriptive), from Casts. */
+  /* 3c. Cooldown usage (clean better/worse), from Casts + buffs. */
   h+=cdUsageView(d);
-  h+=rotationView(d);
 
   /* 3d. Early aggro (threat pulls), focus concentration, and per-target engagement — new modalities. */
   h+=threatPullsView(d);
@@ -913,47 +912,6 @@ function cdUsageView(d){
   }
   return h+`</div></div>`;
 }
-// Rotation / ability mix: per spec (both raids fielded), how the cast composition differs from the
-// benchmark's same spec. DESCRIPTIVE (a different mix can be gear/talent/fight-driven, not strictly
-// worse), so neutral Δ with no good/bad coloring — same rule as the Dispels view. Spec-level only.
-function rotationView(d){
-  const rows=rowsOf(d.deep&&d.deep.tierRotation);
-  if(!rows.length) return "";
-  const roles=[["dps","DPS"],["healer","Healer"]].filter(([k])=>rows.some(r=>r.role===k));
-  if(!roles.length) return "";
-  const first=roles[0][0];
-  let h=`<h2 class="section">Rotation — Ability Mix<span class="hint">For each spec both raids fielded, the share of its casts spent on each ability, ours vs the benchmark's same spec (pooled across shared bosses). Split into <b>DPS</b> and <b>Healer</b> — healer spell priority is a lever too. Specs matching the benchmark collapse to a green chip; only the diverging ones are broken out. <b>Descriptive, not scored:</b> read a different mix against the spec's playbook.</span></h2>`;
-  h+=`<div class="btabs">`+roles.map(([k,lbl],i)=>`<button class="btab ${i===0?'on':''}" data-rtab="${k}">${lbl}</button>`).join("")+`</div>`;
-  for(const [k,lbl] of roles){
-    const rr=rows.filter(r=>r.role===k);
-    const diverge=rr.filter(r=>!r.matches), match=rr.filter(r=>r.matches);
-    let body="";
-    if(match.length){
-      body+=`<p class="srcs" style="margin:0 0 8px"><b>Rotation matches benchmark</b> means every tracked ability is within <b>5 percentage points</b> of the benchmark's cast share — effectively the same distribution, so there's no rotational gap to coach. The specs broken out below diverge by more; look there first.</p>
-      <div class="complist" style="margin:0 0 14px">`+match.map(r=>`<span class="chip" style="border-color:var(--good)"><span style="color:${cc(r.class)};font-weight:600">${esc(r.spec)} ${esc(r.class)}</span> <span style="color:#9be7b4">· rotation matches benchmark ✓</span></span>`).join("")+`</div>`;
-    }
-    for(const r of diverge){
-      // Mirrored bars: ours% ← bar — ability (+Δ share, centred) — bar → benchmark%. Δ is neutral
-      // (rotation is descriptive, not better/worse). Sort order is preserved from the builder.
-      const abil=rowsOf(r.abilities);
-      const max=Math.max(1,...abil.map(a=>Math.max(a.ours,a.theirs)));
-      const w=v=>Math.max(2,Math.round(v/max*100));
-      body+=`<div style="margin:0 0 16px"><h4 style="color:${cc(r.class)};margin:0 0 6px">${esc(r.spec)} ${esc(r.class)}</h4>
-        <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Cast share by ability</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
-      for(const a of abil){
-        body+=`<div class="dval lo">${a.ours}%</div>
-          <div class="dbarL"><div class="f ours" style="width:${w(a.ours)}%"></div></div>
-          <div class="dmid">${esc(a.name)}<span class="delta flat">${a.diff>0?"+":""}${a.diff} pts</span></div>
-          <div class="dbarR"><div class="f theirs" style="width:${w(a.theirs)}%"></div></div>
-          <div class="dval ro">${a.theirs}%</div>`;
-      }
-      body+=`</div></div></div>`;
-    }
-    if(!body) body=`<p class="num" style="padding:6px 2px">No comparable ${esc(lbl)} specs both raids fielded.</p>`;
-    h+=`<div class="bsub ${k===first?'active':''}" data-rtab="${k}">${body}</div>`;
-  }
-  return h;
-}
 // Early aggro — non-tank players who held the BOSS's aggro (a threat pull). Tier-wide, ours vs benchmark.
 function threatPullsView(d){
   const rows=rowsOf(d.deep&&d.deep.threatPulls&&d.deep.threatPulls.rows);
@@ -1201,12 +1159,6 @@ function wireExecution(){
   el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{
     if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; renderExecPanel(); wireExecution(); renderBossesPanel(); wireBosses(); }
   }));
-  // Rotation — Ability Mix DPS/Healer toggle (native, no re-render).
-  el.querySelectorAll(".btab[data-rtab]").forEach(t=>t.addEventListener("click",()=>{
-    const k=t.dataset.rtab;
-    el.querySelectorAll(".btab[data-rtab]").forEach(x=>x.classList.toggle("on",x.dataset.rtab===k));
-    el.querySelectorAll(".bsub[data-rtab]").forEach(x=>x.classList.toggle("active",x.dataset.rtab===k));
-  }));
 }
 function wireBosses(){
   const el=document.getElementById("p-bosses");
@@ -1252,7 +1204,7 @@ function optBossBody(d,cls,s,b){
   }
   for(const p of diverge){
     // Mirrored bars: our raider's cast share ← bar — ability (±Δ, centred) — bar → world best's share.
-    // Δ is neutral (rotation is descriptive, not better/worse), same as the Rotation view.
+    // Δ is neutral — rotation is descriptive, not strictly better/worse (same rule as the Dispels view).
     const abil=rowsOf(p.abilities);
     const max=Math.max(1,...abil.map(a=>Math.max(a.ours,a.theirs)));
     const w=v=>Math.max(2,Math.round(v/max*100));

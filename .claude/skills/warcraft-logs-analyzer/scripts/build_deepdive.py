@@ -3988,7 +3988,12 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     avg_dps = {nm: (sum(v) / len(v)) for nm, v in ours_player_dps.items() if v}
     ghost_bosses = []
     for p in per_boss:
-        gb = ghost_run_for_boss(p["deaths"]["ours"], p["oursDurMs"], p["oursRaidDps"], avg_dps)
+        # DPS-ONLY: the ghost run is a lost-DPS-output story, so only DPS-role deaths count. A dead healer
+        # or tank costs the raid differently (healing/survivability, not raid DPS) — that lives in the
+        # deaths / death-cause-disambiguation views, not here. (Avoids a healer's tiny damage-DPS or HPS
+        # parse leaking into a DPS-distribution ghost parse.)
+        dps_deaths = [d for d in p["deaths"]["ours"] if ours_role.get(d.get("name")) == "dps"]
+        gb = ghost_run_for_boss(dps_deaths, p["oursDurMs"], p["oursRaidDps"], avg_dps)
         if not gb:
             continue
         # Rough ghost-PARSE band for FIRST-MINUTE deaths only (the costliest, clearest cases) — zero extra

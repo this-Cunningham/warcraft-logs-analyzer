@@ -8,7 +8,27 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 
 ---
 
-_No open items — the last pass shipped: removed the shaded edge-fade on scrolling
+## TODO: Optimize tab — form/role-aware rotation benchmarking
+
+> The Optimize tab compares each raider's cast mix to a world-best player of their
+> spec, but a hybrid who played the spec in a *different form/role* on the benchmark
+> boss reads a huge, meaningless gap — e.g. a Feral who bear-tanked Al'ar gets
+> compared to a cat-DPS world best, so the "rotation gap" is really just bear-vs-cat.
+> The comparison is only honest when our raider played the same role/form as the
+> benchmark. Detect the form/role the player actually used (their casts already
+> reveal it — bear abilities vs cat) and either skip the comparison, benchmark them
+> on a boss where they played the DPS form, or match the benchmark to their form.
+
+A data-integrity fix, not a feature: per the soul, an apparent gap that's really a
+role mismatch is *falsely precise* — it reads as "your rotation is 55% off" when the
+player simply wasn't doing that rotation that fight. Right now it's covered only by
+the "descriptive, not scored" framing; the sharper move is to make the comparison
+like-for-like (or drop it) so every gap the tab shows is a real rotational one.
+Inherited from the same blind spot in the existing Rotation — Ability Mix view.
+
+---
+
+_Last pass shipped: removed the shaded edge-fade on scrolling
 tables, clarified the "Total Boss Kill Time" label (+ verified Clear Efficiency is
 scoped to shared bosses), converted the remaining five sections (Buff & Debuff
 Coverage Gaps, Early Aggro — Threat Pulls, Add Control — Kill Speed, What's Killing

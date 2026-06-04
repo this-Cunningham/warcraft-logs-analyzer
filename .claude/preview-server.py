@@ -13,16 +13,22 @@ import socket
 import socketserver
 
 
-class DualStackServer(socketserver.TCPServer):
+class DualStackServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """Listen on IPv6 with IPV6_V6ONLY disabled so the one socket also accepts IPv4.
 
     Without this the server binds IPv4-only (127.0.0.1), but modern browsers resolve
     `localhost` to IPv6 `::1` first and get ERR_CONNECTION_REFUSED instead of falling back.
     Dual-stack makes http://localhost, http://127.0.0.1, and http://[::1] all reach the
-    server. Mirrors what `python -m http.server` does."""
+    server. Mirrors what `python -m http.server` does.
+
+    ThreadingMixIn handles each connection on its own thread. A single page load opens
+    several parallel connections (HTML, favicon, keep-alive); single-threaded, the extras
+    sit in CLOSE_WAIT and the browser fails with ERR_CONNECTION_FAILED even though the
+    port is LISTENING. Threading serves them concurrently and resolves the hang."""
 
     address_family = socket.AF_INET6
     allow_reuse_address = True
+    daemon_threads = True
 
     def server_bind(self):
         try:

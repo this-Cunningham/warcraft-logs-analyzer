@@ -302,16 +302,20 @@ def avg_ilvl(directory, enc_ids):
 # ---------- HIT / EXPERTISE AUDIT (from combatantInfo.stats) — EXPERIMENTAL ----------
 # combatantInfo carries a per-pull stat snapshot (Hit, Expertise, Crit, Haste, …) the report never used.
 # Hit rating is the #1 itemization lever in TBC: a caster/melee under the hit cap simply MISSES, bleeding
-# throughput that's fixable with gems/enchants/gear. We surface gear-sourced Hit% per raider.
+# throughput that's fixable with gems/enchants/gear. The snapshot's "Hit" is **gear** hit only (rating);
+# it excludes the talent + raid-buff % that also count toward a raider's cap. We surface gear hit AND fold
+# in the one raid spell-hit source we can detect reliably — **Improved Faerie Fire (+3%)**, a raid-wide
+# boss debuff credited when a Balance Druid is in that raid's roster — to give an EFFECTIVE spell hit.
 #
-# Honesty: the cap a raider actually NEEDS depends on talents (Elemental Precision / Suppression / Shadow
-# Focus = +3-5% spell hit) and raid debuffs (Shadow Priest Misery / Improved Faerie Fire = +3% to the
-# whole raid) that the snapshot can't show. So the practical TARGET is the BENCHMARK's same-spec gear hit
-# (their casters are itemized for their own talents+comp), capped at the textbook cap — you never need
-# more hit than the cap. Flag only raiders a clear margin under that target. EXPERIMENTAL.
+# NOT modeled (and why): Totem of Wrath (+3%) and Draenei Heroic Presence (+1%) are PARTY-scoped, so
+# "the raid has it" ≠ "this player got it"; per-spec talents (Elemental Precision / Shadow Focus /
+# Suppression) are invisible (TBC combatantInfo talents are placeholders). These largely CANCEL between
+# two similar raids, and the comparison is benchmark-relative anyway. (Note: Misery is +5% spell DAMAGE,
+# not hit — it is deliberately NOT a hit source here.) Melee has no detectable raid hit buff → gear-only.
 SPELL_HIT_PER_PCT = 12.6    # spell hit rating per 1% (TBC)
 PHYS_HIT_PER_PCT = 15.77    # melee/ranged hit rating per 1% (TBC)
 HIT_CAP = {"spell": 16.0, "melee": 9.0, "ranged": 8.0}  # textbook gear hit caps (the target ceiling)
+IMP_FAERIE_FIRE_HIT = 3.0   # Improved Faerie Fire (Balance Druid): +3% spell hit, raid-wide boss debuff
 
 
 def _hit_kind(cls, spec, role):
@@ -328,10 +332,20 @@ def _hit_kind(cls, spec, role):
     return "melee"
 
 
-def stat_audit(directory, role_map, spec_map, class_map, allow_names):
-    """Per-raider gear-sourced Hit% + Expertise from combatantInfo.stats, scoped to the shared-boss
-    roster (healers excluded — no hit itemization). Hit rating → % via the spell/physical constant; we
-    take the MAX across the night so a one-off resist/threat-set swap doesn't understate real hit gear."""
+def spell_hit_env(roster):
+    """Raid-wide spell-hit a side's casters get from its composition, beyond gear. Only the reliably
+    detectable source: Improved Faerie Fire (+3%), inferred from a Balance Druid in the roster (boomkins
+    talent it ~universally, and it's a raid-wide boss debuff so every caster benefits). ToW / Heroic
+    Presence / talents are deliberately excluded (party-scoped or invisible — see the section note)."""
+    return IMP_FAERIE_FIRE_HIT if any(p["class"] == "Druid" and "Balance" in (p["spec"] or "")
+                                      for p in roster) else 0.0
+
+
+def stat_audit(directory, role_map, spec_map, class_map, allow_names, spell_env=0.0):
+    """Per-raider gear Hit% + EFFECTIVE Hit% (+ Expertise) from combatantInfo.stats, scoped to the
+    shared-boss roster (healers excluded — no hit itemization). Hit rating → % via the spell/physical
+    constant; MAX across the night so a one-off resist/threat-set swap doesn't understate real hit gear.
+    `spell_env` (raid Imp FF) is added to spell casters' gear hit → effective hit; melee/ranged get none."""
     pd = read_json(os.path.join(directory, "playerdetails.json"))
     pd = pd["reportData"]["report"]["playerDetails"]["data"]["playerDetails"]
     allow = set(allow_names)
@@ -350,23 +364,27 @@ def stat_audit(directory, role_map, spec_map, class_map, allow_names):
             seen.add(nm)
             per = SPELL_HIT_PER_PCT if kind == "spell" else PHYS_HIT_PER_PCT
             hit_rating = int((stats.get("Hit") or {}).get("max", 0) or 0)
+            hit_pct = round(hit_rating / per, 1)
+            env = spell_env if kind == "spell" else 0.0  # raid Imp FF — casters only
             exp = int((stats.get("Expertise") or {}).get("max", 0) or 0)
             out.append({
                 "name": nm, "class": cls, "spec": spec_map.get(nm) or "", "role": role_map.get(nm),
-                "hitType": kind, "hitRating": hit_rating, "hitPct": round(hit_rating / per, 1),
+                "hitType": kind, "hitRating": hit_rating, "hitPct": hit_pct,
+                "env": round(env, 1), "effPct": round(hit_pct + env, 1),
                 "cap": HIT_CAP[kind], "expertise": exp, "physical": kind != "spell",
             })
     return out
 
 
 def stat_audit_compare(ours, theirs):
-    """Attach each raider's practical hit TARGET (= benchmark same-spec avg, capped at the textbook cap)
-    + benchmark expertise, and flag raiders a clear margin under target. Benchmark-relative so talent /
-    raid-debuff hit (which the snapshot can't see) is handled implicitly. Sorted worst hit gap first."""
+    """Attach each raider's practical hit TARGET (= benchmark same-spec EFFECTIVE hit, capped at the
+    textbook cap) + benchmark expertise, and flag raiders a clear margin under target. Compares on
+    EFFECTIVE hit (gear + each side's raid Imp FF) so a buff asymmetry — e.g. we run boomkins and the
+    benchmark doesn't — doesn't wrongly flag our (effectively-capped) casters. Sorted worst hit gap first."""
     bench = {}
     for p in theirs:
         b = bench.setdefault((p["class"], p["spec"]), {"hit": [], "exp": []})
-        b["hit"].append(p["hitPct"])
+        b["hit"].append(p["effPct"])  # benchmark's EFFECTIVE hit (their gear + their raid Imp FF)
         if p["physical"]:
             b["exp"].append(p["expertise"])
     rows, n_under = [], 0
@@ -375,27 +393,31 @@ def stat_audit_compare(ours, theirs):
         bh, be = b.get("hit") or [], b.get("exp") or []
         bench_hit = round(sum(bh) / len(bh), 1) if bh else None
         bench_exp = round(sum(be) / len(be)) if be else None
-        # Target = benchmark same-spec gear hit, never above the textbook cap; fall back to the cap when
-        # the benchmark didn't field this spec. Flag = a clear margin under target (2% vs a real benchmark,
-        # 3% against the bare cap — wider, since the cap ignores talent/debuff hit reductions).
+        # Target = benchmark same-spec EFFECTIVE hit, never above the textbook cap; fall back to the cap
+        # when the benchmark didn't field this spec. Flag = a clear margin under target (2% vs a real
+        # benchmark, 3% against the bare cap — wider, since the cap ignores talent hit reductions).
         if bench_hit is not None:
             target, margin = min(bench_hit, p["cap"]), 2.0
         else:
             target, margin = p["cap"], 3.0
-        under = p["hitPct"] < target - margin
+        under = p["effPct"] < target - margin
         n_under += 1 if under else 0
         rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp,
-                     "target": round(target, 1), "under": under, "gap": round(target - p["hitPct"], 1)})
+                     "target": round(target, 1), "under": under, "gap": round(target - p["effPct"], 1)})
     rows.sort(key=lambda r: (not r["under"], -r["gap"]))
 
     def _avg_type(rs, t):
-        v = [r["hitPct"] for r in rs if r["hitType"] == t]
+        v = [r["effPct"] for r in rs if r["hitType"] == t]  # effective (gear + raid Imp FF)
         return round(sum(v) / len(v), 1) if v else None
+
+    def _env(rs):  # the side's spell-hit environment (Imp FF), read off any spell caster
+        return next((r["env"] for r in rs if r["hitType"] == "spell"), 0.0)
     summary = {
         "oursUnder": n_under, "playerCount": len(rows),
         "spell": {"ours": _avg_type(ours, "spell"), "theirs": _avg_type(theirs, "spell")},
         "melee": {"ours": _avg_type(ours, "melee"), "theirs": _avg_type(theirs, "melee")},
         "ranged": {"ours": _avg_type(ours, "ranged"), "theirs": _avg_type(theirs, "ranged")},
+        "spellEnv": {"ours": _env(ours), "theirs": _env(theirs)},
     }
     return {"players": rows, "summary": summary}
 
@@ -3363,11 +3385,13 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Per-spec activity (active-GCD uptime) gap — EXPERIMENTAL. The spec-level decomposition of the
     # raid-wide Activity figure (names which spec is actually losing the uptime).
     tier_activity = tier_activity_gap(tier_o_act, tier_t_act)
-    # Hit / Expertise itemization audit (combatantInfo.stats) — EXPERIMENTAL. Benchmark-relative so the
-    # talent/raid-debuff hit the snapshot can't see is absorbed by comparing to their same-spec gear hit.
+    # Hit / Expertise itemization audit (combatantInfo.stats) — EXPERIMENTAL. The snapshot is GEAR hit;
+    # we fold in each side's detectable raid spell-hit (Improved Faerie Fire, +3% when a Balance Druid is
+    # in the roster) → effective hit, and compare effective-to-effective so a buff asymmetry (we run
+    # boomkins, the benchmark doesn't) doesn't wrongly flag our effectively-capped casters.
     stat_audit_payload = stat_audit_compare(
-        stat_audit(ours_dir, ours_role, ours_spec, ours_cls, ours_roster_names),
-        stat_audit(theirs_dir, theirs_role, theirs_spec, theirs_cls, theirs_roster_names))
+        stat_audit(ours_dir, ours_role, ours_spec, ours_cls, ours_roster_names, spell_hit_env(ours_roster)),
+        stat_audit(theirs_dir, theirs_role, theirs_spec, theirs_cls, theirs_roster_names, spell_hit_env(theirs_roster)))
     # Time lost to deaths (EXPERIMENTAL) — the TIME companion to "What's Killing Us": output-minutes
     # burned by deaths, by cause + raid total. % base = roster × total shared-boss fight time.
     o_avail = len(ours_roster) * (o_dur_sum / 1000.0)

@@ -225,6 +225,34 @@ an ambiguous ability name into an actionable assignment ("kill the Coilfang Guar
 before they cleave"). Source NPC name is in `death.damage.sources[0].name` — already
 fetched, no extra API call needed.
 
+## TODO: "What's Killing Us" — break out one row per boss instead of grouping all bosses
+
+> In the "What's Killing Us" table, have one row per boss with the count instead of
+> grouping all bosses together for the same ability. E.g. "Melee | 11 | 2 | +9 |
+> Fathom-Lord, Maulgar, Vashj, Leotheras" should split into four separate rows,
+> one per boss.
+
+Per the soul's "go one level deeper than the count" rule: the current table surfaces
+the *what* (Melee) but buries the *where* (Vashj vs Maulgar). A pooled total of 11
+Melee deaths across 4 bosses could mean 9 deaths on one boss (fixable, focus here)
+or 2–3 scattered evenly (a different kind of problem). Splitting into per-boss rows
+makes the delta immediately actionable — a leader sees "Melee on Vashj: 7 vs
+benchmark's 0" and knows where to put the assignment call, not just "Melee is bad
+across the tier."
+
+**Implementation:** `death_causes` in `build_deepdive.py` already iterates per boss;
+instead of accumulating into a single count across all bosses, emit one `(cause, boss)`
+pair per boss. `death_cause_compare` then sorts these (ability, boss) pairs by
+improvable delta — same ranking logic, just finer grain. The display key becomes
+`cause + bossName` instead of `cause` alone. No extra data fetch; all per-boss death
+counts are already in `per_boss[].deaths`.
+
+**Design note:** this overlaps with the per-boss Deaths sub-tab (which already shows
+individual deaths per boss). The tier-wide view earns its place by ranking the
+*relative* gap vs benchmark per (ability, boss) — that cross-guild comparison doesn't
+exist in the per-boss tab. Keep the sort by improvable delta (ours−theirs), just at
+the (ability, boss) grain, so the highest-leverage fix floats to the top.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

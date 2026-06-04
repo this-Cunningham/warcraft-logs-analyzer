@@ -619,21 +619,28 @@ function hitCapView(d){
     `<span class="vcol"><span class="v ours">${ov}</span><span class="vlab ours">${oT}</span></span>`+
     `<span class="vcol"><span class="v theirs">${tv}</span><span class="vlab theirs">${tT}</span></span>`+
     (dl?`<span class="delta ${dl.cls}">${dl.txt}</span>`:"")+`</div></div>`;
-  // One avg-hit card per hit type actually present (caster spell / melee / ranged), ours vs benchmark.
+  // One avg-hit card per hit type present (caster spell / melee / ranged) — EFFECTIVE hit, ours vs bench.
   const tcard=(label,o)=> (o&&o.ours!=null)?
     acard(label,o.ours+"%",(o.theirs!=null?o.theirs+"%":"—"),(o.theirs!=null?deltaHigh(o.ours,o.theirs):null)):"";
   let cards=tcard("Avg Caster Spell Hit",s.spell)+tcard("Avg Melee Hit",s.melee)+tcard("Avg Ranged Hit",s.ranged);
   cards+=`<div class="card"><div class="label">Raiders Under Hit Target</div><div class="vals"><span class="v ${s.oursUnder>0?'theirs':'ours'}">${s.oursUnder}</span><span class="num">/ ${s.playerCount}</span></div></div>`;
-  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Gear-sourced <b>hit rating</b> per raider (from the <code>combatantInfo</code> stat snapshot), converted to %: casters use spell hit (12.6 rtg/%), melee &amp; hunters use melee/ranged hit (15.77 rtg/%). Healers are excluded (they don't itemize hit). Under-hit means missed casts/attacks — lost throughput that's fixable with gems, enchants, or gear. The <b>Target</b> is the benchmark's same-spec gear hit, capped at the textbook cap (spell 16% · melee 9% · ranged 8%): comparing same-spec absorbs the talent &amp; raid-debuff hit (Misery, Imp. Faerie Fire) the snapshot can't see. Expertise (melee/tanks, reduces the boss's dodge/parry) is shown for context. <b>Experimental</b> — a snapshot can miss a mid-fight swap, so treat a borderline row as a prompt to check, not a verdict.</span></h2>
-  <div class="cards">${cards}</div>
+  // Effective hit is gear + talent + raid; note the per-side raid spell-hit so the breakdown is transparent.
+  const env=s.spellEnv||{ours:0,theirs:0};
+  const envTxt=p=>p>0?`+${p}% Imp. Faerie Fire`:"none";
+  const envNote=`<p class="srcs" style="margin:8px 0 0"><b>Effective hit = gear + talent + raid.</b> <b>Talent</b> is the spec's standard PvE build, assumed in full (e.g. Shadow Focus +10%, Balance of Power +4%, Precision +5%). <b>Raid</b> spell-hit (Imp. Faerie Fire) — <span class="cours">${oT}</span>: ${envTxt(env.ours)} · <span class="cthe">${tT}</span>: ${envTxt(env.theirs)}. Not modeled (party-scoped / partial, and they cancel between similar raids): Totem of Wrath, Heroic Presence, Warlock Suppression.</p>`;
+  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> — <b>gear + talent + raid</b> — vs the benchmark's same spec. <b>Gear</b> is the <code>combatantInfo</code> rating (÷ 12.6 casters, ÷ 15.77 melee/hunters). <b>Talent</b> is the spec's standard-build hit talent, assumed taken (it's invisible in the data — an assumption from the meta). <b>Raid</b> is Improved Faerie Fire (+3% spell hit, when a Balance Druid is in the roster). Under-hit means missed casts/attacks — throughput fixable with gems, enchants, or gear. <b>Target</b> = the benchmark's same-spec effective hit, capped at the textbook cap (spell 16% · melee 9% · ranged 8%). Melee/ranged have no modeled raid hit; healers excluded. Expertise (reduces the boss's dodge/parry) is benchmark-relative context. <b>Experimental</b> — a snapshot can miss a mid-fight swap, and talent is assumed, so treat a borderline row as a prompt to check.</span></h2>
+  <div class="cards">${cards}</div>${envNote}
   <h4 class="ours">${oT} — hit &amp; expertise by raider</h4>
-  <table><thead><tr><th>Player</th><th>Spec</th><th>Gear Hit</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
+  <table><thead><tr><th>Player</th><th>Spec</th><th>Gear</th><th>Talent</th><th>Raid</th><th>Effective</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
   for(const p of pls){
-    const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.hitPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
+    const pct=v=>v>0?v+"%":'<span class="cna">—</span>';   // 0 sources read as a muted dash
+    const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.effPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
     const tgtCell=`${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
     const expCell=p.physical?(`${p.expertise}`+(p.benchExp!=null?` <span class="num">(bench ${p.benchExp})</span>`:"")):'<span class="cna">—</span>';
     h+=`<tr class="${p.under?'isgap':''}"><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
-      <td class="num">${esc(p.spec)}</td><td>${hitCell}</td><td>${tgtCell}</td><td class="num">${expCell}</td></tr>`;
+      <td class="num">${esc(p.spec)}</td>
+      <td class="num">${p.gearPct}%</td><td class="num">${pct(p.talentPct)}</td><td class="num">${pct(p.raidPct)}</td>
+      <td>${hitCell}</td><td>${tgtCell}</td><td class="num">${expCell}</td></tr>`;
   }
   return h+`</tbody></table>`;
 }

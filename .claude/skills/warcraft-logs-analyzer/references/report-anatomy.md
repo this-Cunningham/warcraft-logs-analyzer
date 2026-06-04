@@ -106,17 +106,27 @@ the honest version.)
   auras (NOT aggregate Buffs — WF is group-scoped; match "Windfury"/`WINDFURY_IDS`). A
   melee w/ WF but no oil is covered (✓ WF). Graceful: no consumes → no upgrades. (Gem
   count dropped — no socket count to flag empties.)
-- **Hit & Expertise** (`stat_audit`/`stat_audit_compare` → `hitCapView`) — **EXPERIMENTAL**, the
-  first new modality off `combatantInfo.stats` (a per-pull Hit/Expertise/Crit/Haste snapshot the report
-  never read). Per-raider gear-sourced **hit %** (rating ÷ 12.6 for casters, ÷ 15.77 for melee/ranged;
-  healers excluded — no hit itemization), worst-first, the one per-player view outside Optimize (it's a
-  gear FIX, not a skill judgment). **Honesty:** the cap a raider actually needs depends on talents
-  (Elemental Precision/Suppression/Shadow Focus) + raid debuffs (Misery/Imp. Faerie Fire = +3% raid-wide)
-  the snapshot can't see — so the **Target** is the *benchmark's same-spec* gear hit (those contributions
-  cancel same-spec-to-same-spec), capped at the textbook cap (`HIT_CAP`: spell 16 · melee 9 · ranged 8).
-  Flag = a clear margin under target (2pp vs a real benchmark, 3pp vs the bare cap). Hit `max` across the
-  night (a one-off resist/threat-set swap shouldn't understate real hit gear). Expertise shown
-  benchmark-relative only (unit is ambiguous, so no absolute cap claim). Graceful "" on older folders.
+- **Hit & Expertise** (`stat_audit`/`stat_audit_compare`/`spell_hit_env` → `hitCapView`) — **EXPERIMENTAL**,
+  the first new modality off `combatantInfo.stats` (a per-pull Hit/Expertise/Crit/Haste snapshot the report
+  never read). Per-raider **effective hit %** = **gear + talent + raid**, broken into those three columns,
+  worst-first — the one per-player view outside Optimize (a gear FIX, not a skill judgment).
+  - **gear**: the snapshot rating ÷ 12.6 (casters) / ÷ 15.77 (melee+ranged), `max` across the night.
+  - **talent**: the spec's standard-build hit talent, assumed taken in full (`SPEC_TALENT_HIT` — Shadow
+    Focus +10, Balance of Power +4, Elemental Precision +3 [Fire/Frost mage], Nature's Guidance +3 [Elem &
+    Enh shaman], Precision +5 [all rogue specs] / +3 [Arms/Fury warrior], Surefooted +3 [Survival hunter]).
+    Invisible in the data (TBC talents are placeholders), so it's a meta assumption, not a read. Omitted
+    (no standard hit talent / partial): Warlock Affliction (Suppression helps DoTs not Shadow Bolt — they
+    gear to the SB cap), Destruction/Demo Warlock, Mage Arcane (EP is Fire/Frost only), BM/Marksmanship
+    Hunter, Ret, Feral, and the TANKS (Prot Warrior/Pala, bear — they itemize to ~9% without a talent).
+  - **raid**: Improved Faerie Fire (+3% spell hit, `IMP_FAERIE_FIRE_HIT`) via `spell_hit_env`, credited when
+    a Balance Druid is in that side's roster (raid-wide boss debuff). NOT modeled: Totem of Wrath / Heroic
+    Presence (party-scoped), Misery (it's +5% spell DAMAGE, not hit). Melee/ranged raid = 0.
+  **Target** = the *benchmark's same-spec EFFECTIVE* hit, capped at the textbook cap (`HIT_CAP`: spell 16 ·
+  melee 9 · ranged 8); same-spec so talents (shared) cancel and a raid buff asymmetry (we run boomkins,
+  they don't) doesn't wrongly flag our capped casters. Flag = a clear margin under target (2pp vs a real
+  benchmark, 3pp vs the bare cap). Talent's real payoff is an HONEST effective-vs-cap read — a Shadow
+  Priest at 6% gear is capped via Shadow Focus, not under (under-flag count 7→2 on the sample). Expertise
+  shown benchmark-relative only (unit ambiguous, no absolute cap claim). Graceful "" on older folders.
 - **Item level** — raid avg (`fights.averageItemLevel`) + **by role** (`role_ilvl`:
   dps/healer/tank from dd/heal/dt) so an under-geared role stands out.
 

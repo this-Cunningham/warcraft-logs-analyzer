@@ -95,7 +95,12 @@ def main():
         subprocess.run(["git", "commit", "-m", f"docs: publish {dest.name}"], check=True)
         subprocess.run(["git", "push"], check=True)
 
-    # Pages URL — derive owner/repo from the git remote (no `gh` dependency, which isn't always present).
+    # Links. Two facts make the bare Pages URL unreliable as the "view it now" link, and they bite every
+    # publish: (1) the report builds its whole body from an inline <script>, so a sandboxed file preview
+    # that blocks scripts shows a BLANK page — it must be opened where JS runs (a real browser); (2) Pages
+    # builds from the default branch (main), so a report published on a feature branch is NOT on Pages
+    # until merged. The fix is raw.githack pinned to the commit we just pushed: it renders the report in a
+    # browser IMMEDIATELY, from any branch, no merge — and being commit-pinned it's immutable (never stale).
     owner, repo = "", "warcraft-logs-analyzer"
     try:
         remote = subprocess.run(["git", "remote", "get-url", "origin"],
@@ -105,9 +110,20 @@ def main():
             owner, repo = m.group(1).lower(), m.group(2)
     except (OSError, subprocess.CalledProcessError):
         pass
+
+    def _git(*args):
+        try:
+            return subprocess.run(["git", *args], capture_output=True, text=True, cwd=ROOT, check=True).stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            return ""
+    sha, branch = _git("rev-parse", "HEAD"), _git("rev-parse", "--abbrev-ref", "HEAD")
+
+    if owner and sha:
+        # The link to actually click — works now, no merge, renders in-browser (raw.githack production CDN).
+        print(f"\n▶ View now (no merge needed):\n  https://raw.githack.com/{owner}/{repo}/{sha}/docs/{dest.name}")
     pages_base = f"https://{owner}.github.io/{repo}" if owner else "(set GitHub Pages owner)"
-    print(f"\nReport live at:\n  {pages_base}/{dest.name}")
-    print(f"\nIndex:\n  {pages_base}/")
+    merged_note = "" if branch in ("main", "master", "") else f" — only after '{branch}' is merged to main"
+    print(f"\nOn GitHub Pages{merged_note}:\n  {pages_base}/{dest.name}\n  index: {pages_base}/")
 
 
 if __name__ == "__main__":

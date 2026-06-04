@@ -106,43 +106,39 @@ Per the soul, a **data-integrity** fix: the leaked-interrupts view should name
 actionable mechanics, not casts that were never really kickable. Applies equally to
 the per-boss Interrupts view (`unkicked_compare`), which reads the same source.
 
-## TODO: Optimize tab — pool rotation across all shared bosses, not just one
+## TODO: Optimize tab — pool rotation across ALL shared bosses for both sides
 
-> The world-best Ret Paladin benchmark shows "High King Maulgar · 4.4k DPS" but our
-> raid was primarily SSC — Maulgar was just one side fight. The benchmark should use
-> the boss/zone where we have the most overlap, and the rotation comparison should
-> average across ALL shared bosses, not just one.
+> Update: use every single overlapping boss in the report — pool the rotation across
+> all shared boss fights for each spec. The world-best benchmark is still one top
+> same-faction player per spec (derived the same way we already do), but their casts
+> should be summed across every shared boss they killed, just like our raiders' side.
 
-Two separate fixes, both in `fetch_worldbest.py` + `build_optimize`:
+**What to build** (`fetch_worldbest.py` + `build_optimize`):
 
-1. **Better benchmark selection (world-best side).** Currently `fetch_worldbest` walks
-   `shared_encs` in encounter-ID order and stops at the first boss with a same-faction
-   ranking. Maulgar (enc 50649) sorts before SSC bosses and wins even though it's a
-   side fight. Fix: prefer the boss where we have the **most** shared-boss overlap with
-   the world player's report — or simply pick the boss in `shared_encs` with the
-   highest world-ranking count (most parses = the tier's primary content). Could also
-   just pick the boss with the highest encounter ID among the shared set, which in TBC
-   roughly correlates with tier/difficulty ordering.
+- **World-best side:** currently `fetch_worldbest` finds the top same-faction player
+  for a spec on ONE boss (first in encounter-ID order) and fetches their casts for
+  that fight only. Instead: run `characterRankings` for **each** shared encounter,
+  collect the top same-faction player's `report{code, fightID}` entry per boss, then
+  fetch their Casts table for EVERY shared boss they appear in. Sum ability totals
+  across all those fights — the same pooling logic `tier_rotation` already uses for
+  our side. One Casts fetch per (world-player report, boss) — ~N×spec calls total, but
+  the world-player for a spec may be the same person across multiple bosses (same
+  report code), so many fetches may be one extra table call on an already-fetched
+  report.
 
-2. **Pool casts across all shared bosses (both sides).** Currently the benchmark is
-   measured on one fight and our raiders are also compared on that one fight. The
-   honest rotation signal is the **averaged cast share across every boss both sides
-   killed** — the same pooling the existing tier Rotation view already does for
-   spec-vs-spec. For the world-best player: fetch their Casts from each shared boss's
-   `report{code, fightID}` entry and sum the ability totals (one more API call per
-   extra boss — ~N×specs calls vs current 1×specs). For our raiders: already done via
-   `build_optimize` reading from all `boss-<enc>.json` files; just extend `_casts_for`
-   to accumulate across all shared encounters, not just the benchmark boss.
+- **Our raiders' side:** `build_optimize` currently restricts to the one boss the
+  world-best ranked on. Change `_casts_for` to accumulate across ALL shared
+  `boss-<enc>.json` files — already present on disk, no extra API calls. This matches
+  how `rotation_buckets` / `tier_rotation` pool our side in the existing Rotation view.
 
-   **Design note:** for the world-best player we only have one ranked report (their
-   best kill), so they can contribute at most one fight per boss. That's fine — cast
-   share normalises for fight length. The pooled benchmark = sum(ability counts across
-   all available shared bosses), same as how `tier_rotation` sums our own side.
+- **Benchmark label:** instead of "World #1 Horde Ret Paladin on High King Maulgar",
+  show "World #1 Horde Ret Paladin — N bosses" (or list the bosses) so a reader knows
+  the comparison is tier-wide, not a snapshot of one fight.
 
-Per the soul: a single-boss sample on a side-fight is *falsely precise* — it reads as
-"your rotation vs the world's best" when really it's "your rotation on Maulgar vs
-someone who happened to top-parse Maulgar." Pooling across the tier's main content
-gives the honest, representative rotation benchmark.
+Per the soul: a single-boss sample is *falsely precise* — it reads as "your rotation
+vs the world's best" when it's really one fight. Pooling across the whole tier gives
+the honest, representative rotation signal, and is already how every other tier-wide
+view in the report works.
 
 ## TODO: Trash zone filter — exclude incidental outdoor pulls mislabeled as wrong zones
 

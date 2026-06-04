@@ -49,6 +49,26 @@ Two separate issues uncovered by investigation:
    note in the UI ("missing doesn't always mean didn't use — WCL occasionally
    misses instant-item casts") but not a code fix.
 
+## TODO: Roster role should follow the majority spec, not first-seen
+
+> In the Prep tab's per-player preparation audit, Papparadeli is labelled "healer"
+> but he only healed 1 boss fight in the raid — he played a different role for the
+> majority of bosses. Label players by whatever spec/role was the majority of the
+> boss fights they played, not a one-off.
+
+Confirmed bug: `get_roster` (build_deepdive.py) already sets **spec** to the
+player's primary (most-frequent) via `primary_spec_map`, but sets **role** with
+"first-seen role wins" (`"role": p["role"]` from the first encounter iterated). So
+a player who healed the first-iterated boss but DPS'd the rest reads as "healer" —
+spec and role disagree. Fix: derive role from the majority too (a `primary_role_map`,
+or take the role implied by the primary spec), so role is consistent with spec and
+order-independent. Per the soul, this is a **data-integrity / honesty** fix — a
+mislabeled role makes the prep audit (and any role-split table) quietly wrong, and a
+leader can't trust "is this healer under-enchanted?" if the player isn't really a
+healer. Note: the roster role feeds more than the enchant audit (per-player
+consumables labels, healer/DPS table splits), so the fix lands in one place but
+ripples usefully across the report.
+
 ---
 
 _Last pass shipped: removed the shaded edge-fade on scrolling

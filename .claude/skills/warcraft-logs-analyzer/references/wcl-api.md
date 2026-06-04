@@ -98,6 +98,15 @@ Reusable queries live in `queries/`:
   avoid false "missing" flags. Empty slots (`id:0`) are skipped.
 - Gem *socket count* isn't exposed (only gems-used totals), so gem prep can't be
   audited reliably — intentionally not surfaced.
+- **`combatantInfo.stats` is a per-pull stat SNAPSHOT** (`{Hit, Expertise, Crit, Haste, Intellect,
+  Agility, …}`, each `{min, max}` across the player's pulls). Powers the **Hit & Expertise** audit
+  (`stat_audit`). `Hit` is a **rating** — convert to % with the TBC constants (spell 12.6 rtg/%, melee/
+  ranged 15.77 rtg/%). Two caveats: (1) it reflects only **gear** hit, not the talent (Elemental
+  Precision/Suppression/Shadow Focus) or raid-debuff (Misery/Imp. Faerie Fire, +3% raid-wide) hit that
+  also counts toward a raider's cap — so the actual cap a raider needs is unknowable from the snapshot;
+  compare **benchmark same-spec** (those cancel) rather than asserting an absolute cap. (2) `Expertise`'s
+  unit (rating vs expertise points) is ambiguous, so it's surfaced benchmark-relative only, never as a
+  cap distance. Healers don't itemize hit and are excluded.
 - `table(Buffs/Debuffs)` uptime is **raid-aggregate**, not per-player.
 - Clear-efficiency uses kills only, so "Out of Boss" time includes trash + wipes.
 - Composition (from parses) and the Enchants audit (from playerDetails) share the

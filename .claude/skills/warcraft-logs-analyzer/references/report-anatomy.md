@@ -106,6 +106,17 @@ the honest version.)
   auras (NOT aggregate Buffs — WF is group-scoped; match "Windfury"/`WINDFURY_IDS`). A
   melee w/ WF but no oil is covered (✓ WF). Graceful: no consumes → no upgrades. (Gem
   count dropped — no socket count to flag empties.)
+- **Hit & Expertise** (`stat_audit`/`stat_audit_compare` → `hitCapView`) — **EXPERIMENTAL**, the
+  first new modality off `combatantInfo.stats` (a per-pull Hit/Expertise/Crit/Haste snapshot the report
+  never read). Per-raider gear-sourced **hit %** (rating ÷ 12.6 for casters, ÷ 15.77 for melee/ranged;
+  healers excluded — no hit itemization), worst-first, the one per-player view outside Optimize (it's a
+  gear FIX, not a skill judgment). **Honesty:** the cap a raider actually needs depends on talents
+  (Elemental Precision/Suppression/Shadow Focus) + raid debuffs (Misery/Imp. Faerie Fire = +3% raid-wide)
+  the snapshot can't see — so the **Target** is the *benchmark's same-spec* gear hit (those contributions
+  cancel same-spec-to-same-spec), capped at the textbook cap (`HIT_CAP`: spell 16 · melee 9 · ranged 8).
+  Flag = a clear margin under target (2pp vs a real benchmark, 3pp vs the bare cap). Hit `max` across the
+  night (a one-off resist/threat-set swap shouldn't understate real hit gear). Expertise shown
+  benchmark-relative only (unit is ambiguous, so no absolute cap claim). Graceful "" on older folders.
 - **Item level** — raid avg (`fights.averageItemLevel`) + **by role** (`role_ilvl`:
   dps/healer/tank from dd/heal/dt) so an under-geared role stands out.
 
@@ -116,11 +127,36 @@ the honest version.)
 - **What's Killing Us** (`death_cause_compare` → `deathCausesView`) — killing-blow
   names across all shared bosses, ranked by **biggest avoidable delta** (ours−theirs;
   floats the mechanic the benchmark solved). Top row feeds the scorecard.
+- **Time Lost to Deaths** (`death_time_compare` → `deathTimeView`) — **EXPERIMENTAL**, the *time*
+  companion to What's Killing Us: each death costs `(fight end − death time)` player-seconds of lost
+  output, summed across the clear into **player-minutes** by killing-blow cause (reusing
+  `_death_cause_label`, so an add's blow carries its mob in parens), plus a raid headline (minutes lost +
+  **effective uptime** = 100 − lost%, base = roster × total shared-boss fight time). Ranks by the mechanic
+  burning the most output-time — a death at 90% boss HP costs far more than one at 2%, which a raw count
+  misses. **Upper bound** (assumes a downed raider stays down; a battle-res reduces it) — labeled as such.
 - **Lowest-Hanging DPS — Spec Gaps** (`tier_spec_gap` → `tierSpecGapView`) — DPS
   pooled by (class, spec) across shared bosses, ranked by per-player deficit. Mirrored
   bars; one-raid-only specs noted.
+- **Activity by Spec** (`activity_buckets`/`tier_activity_gap` → `activityGapView`) — **EXPERIMENTAL**,
+  sits right under the spec DPS gap as its uptime decomposition. Each **DPS** spec's avg per-player
+  activity (`dd.activeTime` ÷ fight dur — the share of the fight spent actively dealing damage) pooled
+  across shared bosses, ours vs benchmark same spec, mirrored bars. Idle GCDs (movement/swaps/range) are
+  throughput recoverable *without* gear, so a trailing spec is high-leverage coaching — it names which
+  spec is losing the uptime behind the raid-wide Activity number. **Healers excluded on purpose:** their
+  "active" time isn't a clean better/worse signal (less healing can just mean the raid took less damage);
+  tanks excluded too (activeTime conflates tanking with incidental DPS). Clean better/worse for DPS.
+- **DPS Ramp** (`dps_ramp` → `dpsRampView`) — **EXPERIMENTAL**, per boss: seconds to first reach 90% of
+  the fight's **median** (cruising) DPS — how fast the raid got up to pace after the pull (median is robust
+  to the opener and any execute spike). Coarse (binned to the timeline buckets), ours vs benchmark, lower
+  better. Complements the per-boss opener caption with a tier-wide "who starts slow" read.
 - **Buff & Debuff Coverage Gaps** (`tier_uptime_gap` → `tierUptimeGapView`) — each
   aura's avg uptime, listing only where we trail (biggest deficit first).
+- **Debuff Ramp & Continuity** (`debuff_timing`/`tier_debuff_timing` → `debuffTimingView`) —
+  **EXPERIMENTAL**, the two time dimensions a flat uptime % hides: per key debuff (`KEY_DEBUFFS`), **when
+  it was first established** (first `band` start, sec into fight) and its **longest continuous gap** after,
+  averaged across shared bosses, slowest-to-establish first. Casters/melee lose damage until CoE / Sunder /
+  Misery / Judgement land. Benchmark-relative on purpose — a phased fight delays the boss debuff on **both**
+  sides, so the **Δ** (not the raw seconds) is the signal; only debuffs both raids applied are shown.
 - **Interrupts Leaked** (`leaked_casts`/`leaked_interrupts_gap` →
   `leakedInterruptsView`) — interruptible casts that went off, tier-wide. **Soundness:**
   no "interruptible" flag exists; the Interrupts table only lists abilities kicked ≥1×,
@@ -135,6 +171,16 @@ the honest version.)
   events** — only buffs w/ `totalUses` → read per-player buff `uses` (`COOLDOWN_NAMES`).
   Trinkets are the inverse: *use* logs as a cast under item name, buff renamed to effect
   ("Haste") → read from Casts (`TRINKET_NAMES`). Disjoint, no double-count.
+- **Bloodlust — Timing & Payoff** (`lust_window_mult` + per-boss `lust_sec` → `bloodlustView`) —
+  **EXPERIMENTAL**, per boss: **when** each raid popped Bloodlust/Heroism (`lust_sec`, seconds into the
+  fight) and the **window payoff** — raid DPS in the 40s lust window ÷ the fight-average DPS (binned off
+  the timeline curve), so >1× = cooldowns/trinkets stacked into the haste window. Timing is **descriptive**
+  (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target);
+  the payoff has a clean direction (higher = better-aligned burst). A third column, **CDs in window**
+  (`cooldown_lust_alignment`), is the share of major DPS cooldown TYPES (`COOLDOWN_NAMES`) whose buff
+  `band` overlapped the lust window — did the burst actually coincide with lust (counts types, not
+  activations: you can't hold a 2-min cooldown for one window). Graceful "—" when a side didn't lust /
+  has no timeline. Assembled from the per-boss `oursLustSec`/`oursLustMult`/`oursLustCd` fields.
 - **Rotation — Ability Mix** (`rotation_buckets`/`tier_rotation` → `rotationView`) —
   per spec both raids fielded, **share** of casts per ability (from the **Casts** table;
   `dd.abilities` only covers damaging). DPS + Healer sub-tabs (`data-rtab`). Specs
@@ -166,6 +212,12 @@ the honest version.)
   **scoped to shared bosses** on each side (filters fights to shared encounters — the bug
   fix: the old full-report span was meaningless when the two reports covered different
   content).
+- **Wipe Recovery** (`wipe_recovery`/`wipe_recovery_compare` → `wipeRecoveryView`) — **EXPERIMENTAL**,
+  per boss: average wall-clock between a **wipe ending and the next pull starting** — the raid's reset/
+  rebuff/re-pull pace on progression, plus a raid aggregate + each boss's worst gap. Needs `attempts.json`
+  with `startTime`/`endTime` (added to the attempts query; older folders without them → graceful empty).
+  The gap includes breaks/strategy, so it's **directional** (tighter = more attempts a night), not a pure
+  reset. Largely **first-party** — a benchmark on farm wipes little, so its column is often "—".
 
 ## Execution — per-boss drill-down
 
@@ -289,8 +341,10 @@ the trinket half of Cooldown Usage; `threat` powers Early Aggro; focus-fire need
 `phaseTransitions` + `report.phases` ride the cheap `fights` query (all kills).
 
 **Wipe/attempt + depth** — one cheap query per report
-(`fights(killType:Encounters){encounterID kill fightPercentage lastPhase}` → `attempts.json`);
-`attempt_map` tallies kills vs wipes + closest wipe's depth/phase. Graceful without the file.
+(`fights(killType:Encounters){id encounterID kill startTime endTime fightPercentage lastPhase}` →
+`attempts.json`); `attempt_map` tallies kills vs wipes + closest wipe's depth/phase, and `wipe_recovery`
+uses the `startTime`/`endTime` (added for the Wipe Recovery view) to measure the gap between a wipe and the
+next pull. Graceful without the file (and older `attempts.json` without timestamps → Wipe Recovery empty).
 
 **Timeline curves** (`timeline-<enc>.json`, shared bosses) — `_binned_curves` pages DamageDone +
 Healing events, bins `amount` into 40 buckets ÷ width → exact DPS/HPS-over-time. **From events on

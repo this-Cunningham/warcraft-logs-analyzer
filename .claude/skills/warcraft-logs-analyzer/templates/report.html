@@ -90,6 +90,11 @@
   .tag2.gap{background:rgba(248,114,114,.18);color:#ffb4b4}
   .tag2.edge{background:rgba(78,161,255,.18);color:#bcdcff}
   .tag2.ok{background:rgba(54,211,153,.15);color:#9af0cf}
+  /* "Experimental" chip — marks a newer, less-proven insight (e.g. hit-cap audit, per-spec activity).
+     Violet so it reads as beta/provisional without looking like a gap (red) or a win (green). Inline in
+     an h2.section title; not a `.hint`, so the section-title styling leaves it as a pill. */
+  .xp{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:6px;
+    background:rgba(148,130,201,.18);color:#ccbff2;border:1px solid rgba(148,130,201,.4);vertical-align:middle;margin-left:8px}
 
   .upt{position:relative;height:16px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:90px}
   .upt .f{position:absolute;top:0;bottom:0;left:0}
@@ -589,6 +594,9 @@ function renderEnchants(d){
   }
   h+=`</tbody></table>`;
 
+  /* Hit & Expertise (EXPERIMENTAL) — gear-sourced hit% per raider vs the benchmark's same-spec target. */
+  h+=hitCapView(d);
+
   /* Item level by role — is a specific role (often healers) under-geared, vs one raid-wide avg? */
   const ob=dp.outputBreakdown;
   if(ob&&ob.oursRoleIlvl){
@@ -600,6 +608,36 @@ function renderEnchants(d){
   return h;
 }
 
+/* ---------- HIT & EXPERTISE (combatantInfo.stats) — EXPERIMENTAL ---------- */
+// Per-raider gear-sourced hit% vs the benchmark's same-spec target (capped at the textbook hit cap).
+// The one report view (besides Optimize) that's per-raider — a gear FIX, not a skill judgment.
+function hitCapView(d){
+  const sa=d.deep&&d.deep.statAudit; const pls=sa?rowsOf(sa.players):[];
+  if(!pls.length) return "";
+  const s=sa.summary, oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const acard=(label,ov,tv,dl)=>`<div class="card"><div class="label">${label}</div><div class="vals">`+
+    `<span class="vcol"><span class="v ours">${ov}</span><span class="vlab ours">${oT}</span></span>`+
+    `<span class="vcol"><span class="v theirs">${tv}</span><span class="vlab theirs">${tT}</span></span>`+
+    (dl?`<span class="delta ${dl.cls}">${dl.txt}</span>`:"")+`</div></div>`;
+  // One avg-hit card per hit type actually present (caster spell / melee / ranged), ours vs benchmark.
+  const tcard=(label,o)=> (o&&o.ours!=null)?
+    acard(label,o.ours+"%",(o.theirs!=null?o.theirs+"%":"—"),(o.theirs!=null?deltaHigh(o.ours,o.theirs):null)):"";
+  let cards=tcard("Avg Caster Spell Hit",s.spell)+tcard("Avg Melee Hit",s.melee)+tcard("Avg Ranged Hit",s.ranged);
+  cards+=`<div class="card"><div class="label">Raiders Under Hit Target</div><div class="vals"><span class="v ${s.oursUnder>0?'theirs':'ours'}">${s.oursUnder}</span><span class="num">/ ${s.playerCount}</span></div></div>`;
+  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Gear-sourced <b>hit rating</b> per raider (from the <code>combatantInfo</code> stat snapshot), converted to %: casters use spell hit (12.6 rtg/%), melee &amp; hunters use melee/ranged hit (15.77 rtg/%). Healers are excluded (they don't itemize hit). Under-hit means missed casts/attacks — lost throughput that's fixable with gems, enchants, or gear. The <b>Target</b> is the benchmark's same-spec gear hit, capped at the textbook cap (spell 16% · melee 9% · ranged 8%): comparing same-spec absorbs the talent &amp; raid-debuff hit (Misery, Imp. Faerie Fire) the snapshot can't see. Expertise (melee/tanks, reduces the boss's dodge/parry) is shown for context. <b>Experimental</b> — a snapshot can miss a mid-fight swap, so treat a borderline row as a prompt to check, not a verdict.</span></h2>
+  <div class="cards">${cards}</div>
+  <h4 class="ours">${oT} — hit &amp; expertise by raider</h4>
+  <table><thead><tr><th>Player</th><th>Spec</th><th>Gear Hit</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
+  for(const p of pls){
+    const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.hitPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
+    const tgtCell=`${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
+    const expCell=p.physical?(`${p.expertise}`+(p.benchExp!=null?` <span class="num">(bench ${p.benchExp})</span>`:"")):'<span class="cna">—</span>';
+    h+=`<tr class="${p.under?'isgap':''}"><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
+      <td class="num">${esc(p.spec)}</td><td>${hitCell}</td><td>${tgtCell}</td><td class="num">${expCell}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+
 /* ---------- EXECUTION (raid-wide gaps) ---------- */
 // Raid-wide execution gaps across the whole shared clear. The per-boss drill-down moved to the Bosses tab.
 function renderExecution(d){
@@ -609,17 +647,32 @@ function renderExecution(d){
   /* 1. What's killing us — killing blows aggregated across the whole shared clear. */
   h+=deathCausesView(d);
 
+  /* 1b. Time lost to deaths (EXPERIMENTAL) — the output-time companion to the count above. */
+  h+=deathTimeView(d);
+
   /* 2. Lowest-hanging DPS — per-spec gap pooled across every shared boss. */
   h+=tierSpecGapView(d);
 
+  /* 2b. Activity by spec (EXPERIMENTAL) — the uptime decomposition of the DPS gap above. */
+  h+=activityGapView(d);
+
+  /* 2c. DPS ramp (EXPERIMENTAL) — how fast each raid reached cruising DPS, per boss. */
+  h+=dpsRampView(d);
+
   /* 3. Buff & debuff coverage gaps — uptime averaged across bosses, biggest deficit first. */
   h+=tierUptimeGapView(d);
+
+  /* 3a-ii. Debuff ramp & continuity (EXPERIMENTAL) — WHEN debuffs land + their longest drop. */
+  h+=debuffTimingView(d);
 
   /* 3b. Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
   h+=leakedInterruptsView(d);
 
   /* 3c. Cooldown usage (clean better/worse), from Casts + buffs. */
   h+=cdUsageView(d);
+
+  /* 3c-ii. Bloodlust timing + window payoff (EXPERIMENTAL) — when you burst and how much you got. */
+  h+=bloodlustView(d);
 
   /* 3d. Early aggro (threat pulls), focus concentration, and per-target engagement — new modalities. */
   h+=threatPullsView(d);
@@ -662,6 +715,9 @@ function renderExecution(d){
       <div class="card"><div class="label">Out of Boss (trash/wipes)</div><div class="vals"><span class="v ours">${fmtMin(e.ours.downtimeMs)}</span><span class="v theirs">${fmtMin(e.theirs.downtimeMs)}</span><span class="delta ${dtD.cls}">${dtD.txt}m</span></div></div>
     </div>`;
   }
+
+  /* 6. Wipe recovery (EXPERIMENTAL) — how fast the raid reset between wipes (progression pacing). */
+  h+=wipeRecoveryView(d);
 
   return h;
 }
@@ -822,6 +878,33 @@ function deathCausesView(d){
   }
   return h+`</tbody></table>`;
 }
+// Time lost to deaths (EXPERIMENTAL): output-minutes burned by deaths, by killing-blow cause + raid
+// total. The TIME companion to What's Killing Us — a death at 90% boss HP costs far more than one at 2%.
+function deathTimeView(d){
+  const dt=d.deep&&d.deep.deathTime; if(!dt) return "";
+  const rows=rowsOf(dt.rows); if(!rows.length && !dt.oursMin && !dt.theirsMin) return "";
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const lostD=deltaLow(dt.oursMin,dt.theirsMin);                 // fewer minutes lost is better
+  const upD=deltaHigh(100-dt.oursPct,100-dt.theirsPct);          // higher effective uptime is better
+  const vc=(v,side,lab)=>`<span class="vcol"><span class="v ${side}">${v}</span><span class="vlab ${side}">${lab}</span></span>`;
+  let h=`<h2 class="section">Time Lost to Deaths<span class="xp">Experimental</span><span class="hint">The TIME companion to “What's Killing Us”: each death costs the output from when it happened to the kill, summed across the clear into <b>player-minutes</b> of lost throughput — and as a share of total player-combat-time (→ effective uptime). A death at 90% boss HP costs far more than one at 2%, so this ranks the mechanic burning the most output-time, not just the most frequent. <b>Upper bound</b> — assumes a downed raider stays down; a battle-res reduces it. <b>Experimental.</b></span></h2>
+    <div class="cards">
+      <div class="card"><div class="label">Output Time Lost</div><div class="vals">${vc(dt.oursMin+"m","ours",oT)}${vc(dt.theirsMin+"m","theirs",tT)}<span class="delta ${lostD.cls}">${lostD.txt}m</span></div></div>
+      <div class="card"><div class="label">Effective Uptime</div><div class="vals">${vc((100-dt.oursPct).toFixed(1)+"%","ours",oT)}${vc((100-dt.theirsPct).toFixed(1)+"%","theirs",tT)}<span class="delta ${upD.cls}">${upD.txt}</span></div></div>
+    </div>`;
+  if(rows.length){
+    h+=`<table><thead><tr><th>Killing blow</th><th>${oT}</th><th>${tT}</th><th>Δ</th></tr></thead><tbody>`;
+    for(const r of rows){
+      const dl=deltaLow(r.oursMin,r.theirsMin);
+      h+=`<tr><td style="font-weight:600">${esc(r.cause)}</td>
+        <td class="num" style="color:var(--ours);font-weight:600">${r.oursMin}m</td>
+        <td class="num" style="color:var(--theirs);font-weight:600">${r.theirsMin}m</td>
+        <td class="delta ${dl.cls}">${dl.txt}m</td></tr>`;
+    }
+    h+=`</tbody></table>`;
+  }
+  return h;
+}
 // DPS gaps by spec: per-spec avg DPS pooled across all bosses, biggest deficit first.
 function tierSpecGapView(d){
   const all=rowsOf(d.deep&&d.deep.tierSpecGap);
@@ -851,6 +934,82 @@ function tierSpecGapView(d){
     if(note.length) h+=`<p class="srcs" style="margin-top:8px">${note.join(" &nbsp;·&nbsp; ")}</p>`;
   }
   return h;
+}
+// Activity by spec (EXPERIMENTAL): each DPS spec's average active-GCD uptime, ours vs benchmark same spec.
+// The per-spec decomposition of the raid-wide Activity figure — names which spec is leaking the uptime.
+function activityGapView(d){
+  const both=rowsOf(d.deep&&d.deep.tierActivityGap).filter(r=>r.both);
+  if(!both.length) return "";
+  const w=v=>Math.max(2,Math.round(v)); // already a 0-100 %, honest absolute bar scale
+  let h=`<h2 class="section">Activity by Spec<span class="xp">Experimental</span><span class="hint">Each DPS spec's average per-player <b>activity</b> — the share of the fight spent actively dealing damage — pooled across shared bosses, ours vs the benchmark's same spec. Idle GCDs from movement, target swaps, or being out of range are throughput you recover <i>without</i> more gear, so a trailing spec (red) is high-leverage coaching. This breaks the raid-wide Activity figure down to the spec actually losing the uptime. <b>Experimental.</b></span></h2>
+    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg activity %, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
+  for(const r of both){
+    const dl=deltaHigh(r.ours,r.theirs); // higher activity better
+    h+=`<div class="dval lo">${r.ours}%</div>
+      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
+      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
+      <div class="dval ro">${r.theirs}%</div>`;
+  }
+  return h+`</div></div>`;
+}
+// DPS ramp (EXPERIMENTAL): per boss, seconds to reach 90% of the fight's median (cruising) DPS.
+function dpsRampView(d){
+  const rows=rowsOf(d.deep&&d.deep.dpsRamp);
+  if(!rows.length) return "";
+  const sec=s=>s==null?"—":(s+"s");
+  let h=`<h2 class="section">DPS Ramp<span class="xp">Experimental</span><span class="hint">Seconds to reach <b>90% of the fight's cruising DPS</b> (its median) — how fast the raid got up to pace after the pull. A slow ramp leaves opener damage on the table; the benchmark is the bar. Coarse (binned to the timeline). <b>Experimental.</b> Lower is better.</span></h2>
+  <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=(r.ours!=null&&r.theirs!=null)?deltaLow(r.ours,r.theirs):null;
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours)">${sec(r.ours)}</td>
+      <td class="num" style="color:var(--theirs)">${sec(r.theirs)}</td>
+      <td>${dl?`<span class="delta ${dl.cls}">${dl.txt}s</span>`:""}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Debuff ramp & continuity (EXPERIMENTAL): WHEN key debuffs first land + their longest continuous drop,
+// tier-wide ours vs benchmark — the two time dimensions a flat uptime % hides.
+function debuffTimingView(d){
+  const rows=rowsOf(d.deep&&d.deep.debuffTiming);
+  if(!rows.length) return "";
+  const t=s=>fmtTime(s*1000);
+  let h=`<h2 class="section">Debuff Ramp &amp; Continuity<span class="xp">Experimental</span><span class="hint">For each key raid debuff: <b>when it was first established</b> (time into the fight before it landed) and its <b>longest continuous gap</b> after that — the two time dimensions a flat uptime % hides. Averaged across shared bosses, slowest-to-establish first. Casters and melee lose damage until CoE / Sunder / Misery / Judgement are up. A phased fight delays the boss debuff on both sides, so the <b>Δ</b> (not the raw seconds) is the signal. <b>Experimental.</b></span></h2>
+  <table><thead><tr><th>Debuff</th><th>Established (you)</th><th>(bench)</th><th>Δ</th><th>Longest gap · you / bench</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaLow(r.oursEst,r.theirsEst); // establishing sooner is better
+    h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
+      <td class="num" style="color:var(--ours)">${t(r.oursEst)}</td>
+      <td class="num" style="color:var(--theirs)">${t(r.theirsEst)}</td>
+      <td><span class="delta ${dl.cls}">${dl.txt}s</span></td>
+      <td class="num">${t(r.oursGap)} <span style="opacity:.6">/ ${t(r.theirsGap)}</span></td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Wipe recovery (EXPERIMENTAL): wall-clock reset time between a wipe and the next pull, per boss. Largely
+// first-party — a benchmark on farm wipes little, so its column is often "—".
+function wipeRecoveryView(d){
+  const wr=d.deep&&d.deep.wipeRecovery; const rows=wr?rowsOf(wr.rows):[];
+  if(!rows.length) return "";
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const mmss=s=>s==null?"—":fmtTime(s*1000);
+  let h=`<h2 class="section">Wipe Recovery<span class="xp">Experimental</span><span class="hint">Average wall-clock time between a <b>wipe ending and the next pull starting</b> — how fast the raid resets, rebuffs, and re-pulls on progression. Includes any break/strategy talk, so it's directional (tighter = more attempts a night), not a pure mechanical reset. Largely a <b>first-party</b> pace check — a benchmark on farm wipes little, so its column is often “—”. <b>Experimental.</b></span></h2>`;
+  if(wr.oursAvg!=null){
+    const aggD=(wr.theirsAvg!=null)?deltaLow(wr.oursAvg,wr.theirsAvg):null;
+    const bench=wr.theirsAvg!=null
+      ? `<span class="vcol"><span class="v theirs">${mmss(wr.theirsAvg)}</span><span class="vlab theirs">${tT} · ${wr.theirsWipes}w</span></span><span class="delta ${aggD.cls}">${aggD.txt}s</span>`
+      : `<span class="num" style="margin-left:8px">benchmark: no wipes on shared bosses</span>`;
+    h+=`<div class="cards"><div class="card"><div class="label">Avg Reset After a Wipe</div><div class="vals"><span class="vcol"><span class="v ours">${mmss(wr.oursAvg)}</span><span class="vlab ours">${oT} · ${wr.oursWipes}w</span></span>${bench}</div></div></div>`;
+  }
+  h+=`<table><thead><tr><th>Boss</th><th>${oT} reset · avg / max</th><th>Wipes</th><th>${tT}</th></tr></thead><tbody>`;
+  for(const r of rows){
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours)">${mmss(r.oursAvg)} <span style="opacity:.6">/ ${mmss(r.oursMax)}</span></td>
+      <td class="num">${r.oursWipes}</td>
+      <td class="num" style="color:var(--theirs)">${r.theirsAvg!=null?mmss(r.theirsAvg):"—"}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
 }
 // Buff/debuff coverage gaps across all bosses: where we most consistently trail on maintaining an aura.
 function tierUptimeGapView(d){
@@ -911,6 +1070,28 @@ function cdUsageView(d){
       <div class="dval ro">${fmtC(r.theirs)}</div>`;
   }
   return h+`</div></div>`;
+}
+// Bloodlust timing + window payoff (EXPERIMENTAL): per boss, WHEN each raid popped lust and the DPS
+// multiplier in the 40s window after — did the burst actually align with the haste window?
+function bloodlustView(d){
+  const rows=rowsOf(d.deep&&d.deep.bloodlust&&d.deep.bloodlust.rows);
+  if(!rows.length) return "";
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const tsec=s=>s==null?"—":fmtTime(s*1000);          // seconds-into-fight → m:ss
+  const mult=m=>m==null?'<span class="cna">—</span>':("×"+m);
+  const cdp=p=>p==null?'<span class="cna">—</span>':(p+"%");
+  let h=`<h2 class="section">Bloodlust — Timing &amp; Payoff<span class="xp">Experimental</span><span class="hint">When each raid popped <b>Bloodlust / Heroism</b> (time into the fight), the <b>window payoff</b> — raid DPS in the 40s lust window ÷ the fight average, so &gt;1× means cooldowns and trinkets were stacked into the haste window — and <b>CDs in window</b>: the share of major DPS cooldowns that actually fired during that window (did your burst coincide with lust). Timing is <b>descriptive</b> (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target). <b>Experimental</b> — payoff is binned coarsely.</span></h2>
+  <table><thead><tr><th>Boss</th><th>${oT} lust</th><th>Payoff</th><th>${tT} lust</th><th>Payoff</th><th>CDs in window · you / bench</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=(r.oursMult!=null&&r.theirsMult!=null)?deltaHigh(r.oursMult,r.theirsMult):null; // higher payoff better
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours)">${tsec(r.oursSec)}</td>
+      <td>${mult(r.oursMult)}${dl?` <span class="delta ${dl.cls}">${dl.txt}</span>`:""}</td>
+      <td class="num" style="color:var(--theirs)">${tsec(r.theirsSec)}</td>
+      <td class="num">${mult(r.theirsMult)}</td>
+      <td class="num"><span style="color:var(--ours)">${cdp(r.oursCdPct)}</span> <span style="opacity:.6">/ ${cdp(r.theirsCdPct)}</span></td></tr>`;
+  }
+  return h+`</tbody></table>`;
 }
 // Early aggro — non-tank players who held the BOSS's aggro (a threat pull). Tier-wide, ours vs benchmark.
 function threatPullsView(d){

@@ -343,7 +343,7 @@ def fetch(code, out_dir, full_encounters=None):
     #     how far the best attempt got, so progression walls surface ("best Kael'thas: 21.6%, P5").
     attempts_q = (
         "query A($code:String!){reportData{report(code:$code){"
-        "fights(killType:Encounters){encounterID kill fightPercentage lastPhase}}}}"
+        "fights(killType:Encounters){id encounterID kill startTime endTime fightPercentage lastPhase}}}}"
     )
     attempts = lib.invoke_query(attempts_q, {"code": code})
     _save(attempts, os.path.join(out_dir, "attempts.json"))

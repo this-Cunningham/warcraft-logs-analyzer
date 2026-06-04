@@ -26,33 +26,42 @@ the "descriptive, not scored" framing; the sharper move is to make the compariso
 like-for-like (or drop it) so every gap the tab shows is a real rotational one.
 Inherited from the same blind spot in the existing Rotation — Ability Mix view.
 
-## TODO: In-Combat matrix — mana pot WCL logging gap (+ optional Mage Mana Gem column)
+## TODO: In-Combat matrix — fix healthstones, drop Health Potion column, keep Super Mana Pot
 
-> i used a bunch of mana potions in this raid (madslippery) and i am not seeing it
-> in Per-Player Consumables — In Combat
+> We care about Super Mana Potion usage (keep it). Healthstones aren't being recorded
+> properly in Per-Player Consumables — In Combat. And drop the Health Potion column —
+> no one uses those.
 
-Corrected after investigation — the original "Replenish Mana name bug" was a false
-lead (Replenish Mana is a Mage **Mana Gem**, not a potion; the code is right to
-exclude it). What's actually going on:
+Four findings (per_player_incombat in build_deepdive.py + inCombatMatrix in report.html):
 
-1. **`"Replenish Mana"` is the Mage Mana Emerald/Mana Gem (guid 27103), NOT a mana
-   potion — do NOT add it to `MANA_POTION_NAMES`.** The real mana potion is
-   `"Restore Mana"` (guid 28499), and the code already catches it correctly. Byrdman
-   (Mage) shows BOTH: `Restore Mana` (his Super Mana Pots — tracked fine, 2 on
-   Leotheras, 3 on Vashj) AND `Replenish Mana` (his Mana Gem — correctly ignored).
-   Adding Replenish Mana would mislabel a free, reusable class ability as a consumable.
-   **No code change here — current behavior is correct.** *(Optional enhancement: a
-   separate "Mana Gem" column for mages could be a usage view, but it's a class
-   ability, not a prep/consumable gap, so it doesn't belong in the consumables matrix
-   as a pass/fail.)*
+1. **Healthstone (HS) is read from the wrong table — REAL BUG.** The matrix reads HS
+   from the **Casts** table (`_is_healthstone` over `_entries(rep,"casts")`), but in
+   this data a healthstone use logs ONLY in the **Healing** table as `Master
+   Healthstone` (guid 27237), attributed to the **consumer** (the player who
+   self-healed). There are zero healthstone casts — but many heal-table entries
+   (Papparadeli, Deadmoth, Kaver, …). So the HS column is always empty. **Fix:** read
+   HS from the `heal` alias, per-player by entry name, matching ability name containing
+   "Healthstone". Count: the heal-table ability carries only `total` (healing amount),
+   no `uses`/`hitCount`, so for an exact pop-count read it from Healing **events** (one
+   event per pop); or, simpler for a usage matrix, show presence (✓ if total>0) rather
+   than a count. (This corrects the wcl-api.md note claiming healthstones log as casts —
+   verified false here; they log as heals.)
 
-2. **WCL data gap — madslippery's pots never logged.** Madslippery (Holy Priest,
-   sourceID 23) has zero mana potion events of any kind in the Casts table, buff
-   events, or resource events across all 7 boss kills — WCL simply didn't record
-   the item usage for this player. The In-Combat matrix correctly shows nothing
-   because there's nothing to show; the gap is upstream, not in our code. **This is
-   the real (non-)issue behind the report:** worth a UI note ("missing doesn't always
-   mean didn't use — WCL occasionally misses instant-item casts") but not a code fix.
+2. **Drop the Health Potion (HP) column.** Per the user, nobody runs health potions in
+   TBC raids — and the data agrees: zero `Restore Health` casts all night. Remove the
+   HP sub-column from both `per_player_incombat` (the cell dict) and the `inCombatMatrix`
+   SUB header in report.html. Leaves P (throughput potion) · MP (mana pot) · HS
+   (healthstone) — a leaner, all-meaningful matrix.
+
+3. **Super Mana Potion (MP) — keep, already correct.** `Restore Mana` (guid 28499) is
+   the Super Mana Pot and is tracked correctly. No change. (Note: `Replenish Mana`
+   guid 27103 is the Mage **Mana Gem**, a class ability — correctly excluded; do NOT
+   add it to `MANA_POTION_NAMES`.)
+
+4. **WCL data gap — madslippery's pots never logged.** Madslippery (Holy Priest) has
+   zero mana-pot events of any kind across all 7 kills — WCL didn't record them, so the
+   matrix correctly shows nothing. Upstream gap, not our code. Worth a UI note
+   ("missing ≠ didn't use — WCL occasionally misses instant-item casts").
 
 ## TODO: "What's Killing Us" hint should state it's kill-pull deaths only
 

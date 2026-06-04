@@ -656,8 +656,14 @@ function renderExecution(d){
   /* 2b. Activity by spec (EXPERIMENTAL) — the uptime decomposition of the DPS gap above. */
   h+=activityGapView(d);
 
+  /* 2c. DPS ramp (EXPERIMENTAL) — how fast each raid reached cruising DPS, per boss. */
+  h+=dpsRampView(d);
+
   /* 3. Buff & debuff coverage gaps — uptime averaged across bosses, biggest deficit first. */
   h+=tierUptimeGapView(d);
+
+  /* 3a-ii. Debuff ramp & continuity (EXPERIMENTAL) — WHEN debuffs land + their longest drop. */
+  h+=debuffTimingView(d);
 
   /* 3b. Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
   h+=leakedInterruptsView(d);
@@ -709,6 +715,9 @@ function renderExecution(d){
       <div class="card"><div class="label">Out of Boss (trash/wipes)</div><div class="vals"><span class="v ours">${fmtMin(e.ours.downtimeMs)}</span><span class="v theirs">${fmtMin(e.theirs.downtimeMs)}</span><span class="delta ${dtD.cls}">${dtD.txt}m</span></div></div>
     </div>`;
   }
+
+  /* 6. Wipe recovery (EXPERIMENTAL) — how fast the raid reset between wipes (progression pacing). */
+  h+=wipeRecoveryView(d);
 
   return h;
 }
@@ -944,6 +953,64 @@ function activityGapView(d){
   }
   return h+`</div></div>`;
 }
+// DPS ramp (EXPERIMENTAL): per boss, seconds to reach 90% of the fight's median (cruising) DPS.
+function dpsRampView(d){
+  const rows=rowsOf(d.deep&&d.deep.dpsRamp);
+  if(!rows.length) return "";
+  const sec=s=>s==null?"—":(s+"s");
+  let h=`<h2 class="section">DPS Ramp<span class="xp">Experimental</span><span class="hint">Seconds to reach <b>90% of the fight's cruising DPS</b> (its median) — how fast the raid got up to pace after the pull. A slow ramp leaves opener damage on the table; the benchmark is the bar. Coarse (binned to the timeline). <b>Experimental.</b> Lower is better.</span></h2>
+  <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=(r.ours!=null&&r.theirs!=null)?deltaLow(r.ours,r.theirs):null;
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours)">${sec(r.ours)}</td>
+      <td class="num" style="color:var(--theirs)">${sec(r.theirs)}</td>
+      <td>${dl?`<span class="delta ${dl.cls}">${dl.txt}s</span>`:""}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Debuff ramp & continuity (EXPERIMENTAL): WHEN key debuffs first land + their longest continuous drop,
+// tier-wide ours vs benchmark — the two time dimensions a flat uptime % hides.
+function debuffTimingView(d){
+  const rows=rowsOf(d.deep&&d.deep.debuffTiming);
+  if(!rows.length) return "";
+  const t=s=>fmtTime(s*1000);
+  let h=`<h2 class="section">Debuff Ramp &amp; Continuity<span class="xp">Experimental</span><span class="hint">For each key raid debuff: <b>when it was first established</b> (time into the fight before it landed) and its <b>longest continuous gap</b> after that — the two time dimensions a flat uptime % hides. Averaged across shared bosses, slowest-to-establish first. Casters and melee lose damage until CoE / Sunder / Misery / Judgement are up. A phased fight delays the boss debuff on both sides, so the <b>Δ</b> (not the raw seconds) is the signal. <b>Experimental.</b></span></h2>
+  <table><thead><tr><th>Debuff</th><th>Established (you)</th><th>(bench)</th><th>Δ</th><th>Longest gap · you / bench</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const dl=deltaLow(r.oursEst,r.theirsEst); // establishing sooner is better
+    h+=`<tr><td style="font-weight:600">${esc(r.name)}</td>
+      <td class="num" style="color:var(--ours)">${t(r.oursEst)}</td>
+      <td class="num" style="color:var(--theirs)">${t(r.theirsEst)}</td>
+      <td><span class="delta ${dl.cls}">${dl.txt}s</span></td>
+      <td class="num">${t(r.oursGap)} <span style="opacity:.6">/ ${t(r.theirsGap)}</span></td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
+// Wipe recovery (EXPERIMENTAL): wall-clock reset time between a wipe and the next pull, per boss. Largely
+// first-party — a benchmark on farm wipes little, so its column is often "—".
+function wipeRecoveryView(d){
+  const wr=d.deep&&d.deep.wipeRecovery; const rows=wr?rowsOf(wr.rows):[];
+  if(!rows.length) return "";
+  const oT=esc(d.ours.title), tT=esc(d.theirs.title);
+  const mmss=s=>s==null?"—":fmtTime(s*1000);
+  let h=`<h2 class="section">Wipe Recovery<span class="xp">Experimental</span><span class="hint">Average wall-clock time between a <b>wipe ending and the next pull starting</b> — how fast the raid resets, rebuffs, and re-pulls on progression. Includes any break/strategy talk, so it's directional (tighter = more attempts a night), not a pure mechanical reset. Largely a <b>first-party</b> pace check — a benchmark on farm wipes little, so its column is often “—”. <b>Experimental.</b></span></h2>`;
+  if(wr.oursAvg!=null){
+    const aggD=(wr.theirsAvg!=null)?deltaLow(wr.oursAvg,wr.theirsAvg):null;
+    const bench=wr.theirsAvg!=null
+      ? `<span class="vcol"><span class="v theirs">${mmss(wr.theirsAvg)}</span><span class="vlab theirs">${tT} · ${wr.theirsWipes}w</span></span><span class="delta ${aggD.cls}">${aggD.txt}s</span>`
+      : `<span class="num" style="margin-left:8px">benchmark: no wipes on shared bosses</span>`;
+    h+=`<div class="cards"><div class="card"><div class="label">Avg Reset After a Wipe</div><div class="vals"><span class="vcol"><span class="v ours">${mmss(wr.oursAvg)}</span><span class="vlab ours">${oT} · ${wr.oursWipes}w</span></span>${bench}</div></div></div>`;
+  }
+  h+=`<table><thead><tr><th>Boss</th><th>${oT} reset · avg / max</th><th>Wipes</th><th>${tT}</th></tr></thead><tbody>`;
+  for(const r of rows){
+    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
+      <td class="num" style="color:var(--ours)">${mmss(r.oursAvg)} <span style="opacity:.6">/ ${mmss(r.oursMax)}</span></td>
+      <td class="num">${r.oursWipes}</td>
+      <td class="num" style="color:var(--theirs)">${r.theirsAvg!=null?mmss(r.theirsAvg):"—"}</td></tr>`;
+  }
+  return h+`</tbody></table>`;
+}
 // Buff/debuff coverage gaps across all bosses: where we most consistently trail on maintaining an aura.
 function tierUptimeGapView(d){
   const rows=rowsOf(d.deep&&d.deep.tierUptimeGap);
@@ -1012,15 +1079,17 @@ function bloodlustView(d){
   const oT=esc(d.ours.title), tT=esc(d.theirs.title);
   const tsec=s=>s==null?"—":fmtTime(s*1000);          // seconds-into-fight → m:ss
   const mult=m=>m==null?'<span class="cna">—</span>':("×"+m);
-  let h=`<h2 class="section">Bloodlust — Timing &amp; Payoff<span class="xp">Experimental</span><span class="hint">When each raid popped <b>Bloodlust / Heroism</b> (time into the fight) and the <b>window payoff</b> — raid DPS in the 40s lust window ÷ the fight average, so &gt;1× means cooldowns and trinkets were stacked into the haste window. Timing is <b>descriptive</b> (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target); a low payoff means lust was up but the burst wasn't aligned with it. <b>Experimental</b> — payoff is binned coarsely.</span></h2>
-  <table><thead><tr><th>Boss</th><th>${oT} lust</th><th>Payoff</th><th>${tT} lust</th><th>Payoff</th></tr></thead><tbody>`;
+  const cdp=p=>p==null?'<span class="cna">—</span>':(p+"%");
+  let h=`<h2 class="section">Bloodlust — Timing &amp; Payoff<span class="xp">Experimental</span><span class="hint">When each raid popped <b>Bloodlust / Heroism</b> (time into the fight), the <b>window payoff</b> — raid DPS in the 40s lust window ÷ the fight average, so &gt;1× means cooldowns and trinkets were stacked into the haste window — and <b>CDs in window</b>: the share of major DPS cooldowns that actually fired during that window (did your burst coincide with lust). Timing is <b>descriptive</b> (on-pull for burn-now fights, saved for a phase on others — the benchmark is the reference, not a target). <b>Experimental</b> — payoff is binned coarsely.</span></h2>
+  <table><thead><tr><th>Boss</th><th>${oT} lust</th><th>Payoff</th><th>${tT} lust</th><th>Payoff</th><th>CDs in window · you / bench</th></tr></thead><tbody>`;
   for(const r of rows){
     const dl=(r.oursMult!=null&&r.theirsMult!=null)?deltaHigh(r.oursMult,r.theirsMult):null; // higher payoff better
     h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
       <td class="num" style="color:var(--ours)">${tsec(r.oursSec)}</td>
       <td>${mult(r.oursMult)}${dl?` <span class="delta ${dl.cls}">${dl.txt}</span>`:""}</td>
       <td class="num" style="color:var(--theirs)">${tsec(r.theirsSec)}</td>
-      <td class="num">${mult(r.theirsMult)}</td></tr>`;
+      <td class="num">${mult(r.theirsMult)}</td>
+      <td class="num"><span style="color:var(--ours)">${cdp(r.oursCdPct)}</span> <span style="opacity:.6">/ ${cdp(r.theirsCdPct)}</span></td></tr>`;
   }
   return h+`</tbody></table>`;
 }

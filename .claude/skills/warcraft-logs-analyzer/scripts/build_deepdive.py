@@ -952,6 +952,70 @@ def lust_window_mult(tl, lust, window=40):
     return round((sum(seg) / len(seg)) / avg, 2)
 
 
+def cooldown_lust_alignment(buff_auras, lust_sec_val, fight_start, window=40):
+    """Share of major DPS cooldown TYPES (COOLDOWN_NAMES) that had a band overlapping the Bloodlust
+    window — did the raid's burst cooldowns coincide with the haste window — EXPERIMENTAL. Counts cooldown
+    TYPES, not activations (you can't hold a 2-min cooldown for one window, so 'did you get this cooldown
+    into the window at least once' is the right question). None when no lust was used / no cooldowns fired."""
+    if lust_sec_val is None:
+        return None
+    lo = fight_start + lust_sec_val * 1000
+    hi = lo + window * 1000
+    used = aligned = 0
+    for a in buff_auras:
+        if a.get("name") not in COOLDOWN_NAMES:
+            continue
+        bands = a.get("bands") or []
+        if not bands:
+            continue
+        used += 1
+        if any(b["startTime"] < hi and b["endTime"] > lo for b in bands):
+            aligned += 1
+    if not used:
+        return None
+    return {"aligned": aligned, "used": used, "pct": round(100 * aligned / used)}
+
+
+def dps_ramp(tl, frac=0.9):
+    """Seconds to first reach `frac` of the fight's MEDIAN bucket DPS — how fast the raid got up to its
+    cruising pace (a slow opener leaves damage on the table). Median is robust to the opener and any
+    execute spike. Coarse (binned to the timeline buckets). EXPERIMENTAL. None without a timeline."""
+    if not tl:
+        return None
+    dps = tl.get("dps") or []
+    n = len(dps)
+    dur = (tl.get("durMs") or 0) / 1000.0
+    if not n or dur <= 0:
+        return None
+    med = sorted(dps)[n // 2]
+    if med <= 0:
+        return None
+    tgt = frac * med
+    w = dur / n
+    idx = next((i for i, v in enumerate(dps) if v >= tgt), None)
+    return round(idx * w) if idx is not None else None
+
+
+def debuff_timing(auras, fight_start, dur_ms, names):
+    """Per key debuff: when it was first ESTABLISHED (sec into fight) and its longest continuous GAP after
+    that (sec) — the two TIME dimensions a flat uptime % misses. From the aura `bands` (start/end
+    intervals). EXPERIMENTAL. Returns {name: {"est", "gap"}} for the debuffs actually present."""
+    out = {}
+    for nm in names:
+        a = next((x for x in auras if x.get("name") == nm), None)
+        bands = sorted((a or {}).get("bands") or [], key=lambda b: b["startTime"])
+        if not bands:
+            continue
+        est = max(0, round((bands[0]["startTime"] - fight_start) / 1000))
+        gap = 0
+        for i in range(len(bands) - 1):
+            g = bands[i + 1]["startTime"] - bands[i]["endTime"]
+            if g > gap:
+                gap = g
+        out[nm] = {"est": est, "gap": round(gap / 1000)}
+    return out
+
+
 def load_boss(directory, enc):
     p = os.path.join(directory, "boss-{}.json".format(enc))
     if not os.path.isfile(p):
@@ -1437,6 +1501,55 @@ def attempt_map(directory):
     return out
 
 
+def wipe_recovery(directory):
+    """Per encounter, the average wall-clock gap between a WIPE ending and the next pull starting — how
+    long the raid takes to reset/rebuff/re-pull (a raid-night pacing read on progression). EXPERIMENTAL.
+    Needs attempts.json with startTime/endTime (older folders without them → empty, graceful). The gap is
+    recovery + prep + any break, so it's directional (less = tighter), not a pure mechanical reset."""
+    path = os.path.join(directory, "attempts.json")
+    if not os.path.isfile(path):
+        return {}
+    fights = read_json(path)["reportData"]["report"]["fights"]
+    by_enc = {}
+    for f in fights:
+        enc = str(f.get("encounterID"))
+        if not enc or enc == "0" or f.get("startTime") is None or f.get("endTime") is None:
+            continue
+        by_enc.setdefault(enc, []).append(f)
+    out = {}
+    for enc, fl in by_enc.items():
+        fl.sort(key=lambda f: f["startTime"])
+        gaps = [(fl[i + 1]["startTime"] - fl[i]["endTime"]) / 1000.0
+                for i in range(len(fl) - 1) if not fl[i].get("kill")]  # gap after each wipe pull
+        gaps = [g for g in gaps if g >= 0]
+        if gaps:
+            out[enc] = {"avgSec": round(sum(gaps) / len(gaps)), "maxSec": round(max(gaps)), "wipes": len(gaps)}
+    return out
+
+
+def wipe_recovery_compare(o_rec, t_rec, enc_names):
+    """Per-boss wipe-recovery rows (bosses WE wiped), ours vs benchmark where they also wiped, slowest
+    reset first, plus a raid aggregate. Largely a FIRST-PARTY pacing view — a benchmark on farm wipes
+    little, so theirs is often absent (shown '—'); that's expected, not a hole. EXPERIMENTAL."""
+    rows = []
+    o_tot_gap = o_tot_n = t_tot_gap = t_tot_n = 0
+    for enc, o in o_rec.items():
+        t = t_rec.get(enc)
+        rows.append({"boss": enc_names.get(enc, enc), "oursAvg": o["avgSec"], "oursMax": o["maxSec"],
+                     "oursWipes": o["wipes"], "theirsAvg": (t or {}).get("avgSec"),
+                     "theirsWipes": (t or {}).get("wipes")})
+        o_tot_gap += o["avgSec"] * o["wipes"]
+        o_tot_n += o["wipes"]
+        if t:
+            t_tot_gap += t["avgSec"] * t["wipes"]
+            t_tot_n += t["wipes"]
+    rows.sort(key=lambda r: -r["oursAvg"])
+    return {"rows": rows,
+            "oursAvg": round(o_tot_gap / o_tot_n) if o_tot_n else None,
+            "theirsAvg": round(t_tot_gap / t_tot_n) if t_tot_n else None,
+            "oursWipes": o_tot_n, "theirsWipes": t_tot_n}
+
+
 # ---------- TIER-WIDE GAP ROLLUPS (stitch per-boss data into one comprehensive view) ----------
 def tier_spec_gap(o_pool, t_pool):
     """Comprehensive "lowest-hanging fruit" view: pool every DPS player's per-boss DPS by spec across
@@ -1495,6 +1608,27 @@ def tier_uptime_gap(acc):
         rows.append({"name": name, "kind": rec["kind"], "ours": o_avg, "theirs": t_avg,
                      "deficit": t_avg - o_avg})
     rows.sort(key=lambda r: -r["deficit"])
+    return rows
+
+
+def tier_debuff_timing(acc):
+    """Debuff RAMP + CONTINUITY across the shared bosses — EXPERIMENTAL. Per key debuff, average the
+    establish-time (sec into fight before it first lands) and the longest continuous gap, ours vs theirs,
+    over the bosses each side ran it on. Ranked by the biggest establish-delay deficit (we're slowest to
+    get it up). The benchmark column is the honest frame: a phased fight delays the boss debuff on BOTH
+    sides, so the DELTA — not the raw seconds — is the signal. Only debuffs both raids actually applied."""
+    rows = []
+    for nm, r in acc.items():
+        if not (r["o_est"] and r["t_est"]):
+            continue  # need both sides for a fair ramp comparison
+        rows.append({
+            "name": nm,
+            "oursEst": round(sum(r["o_est"]) / len(r["o_est"])),
+            "theirsEst": round(sum(r["t_est"]) / len(r["t_est"])),
+            "oursGap": round(sum(r["o_gap"]) / len(r["o_gap"])) if r["o_gap"] else 0,
+            "theirsGap": round(sum(r["t_gap"]) / len(r["t_gap"])) if r["t_gap"] else 0,
+        })
+    rows.sort(key=lambda r: -(r["oursEst"] - r["theirsEst"]))
     return rows
 
 
@@ -3052,6 +3186,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     tier_o_spec, tier_t_spec = {}, {}
     tier_o_act, tier_t_act = {}, {}  # per-spec activity (active-GCD uptime) pools — EXPERIMENTAL
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
+    tier_dtime = {}  # debuff name -> {"o_est":[],"o_gap":[],"t_est":[],"t_gap":[]} — ramp/continuity, EXPERIMENTAL
     o_leaked_acc, t_leaked_acc = {}, {}  # ability -> {"kicked","leaked"}, pooled tier-wide
     per_boss = []
     for b in bosses:
@@ -3087,6 +3222,17 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             if o_u == 0 and t_u == 0:
                 continue
             debuff_rows.append({"name": name, "ours": o_u, "theirs": t_u})
+        # Debuff RAMP + CONTINUITY (EXPERIMENTAL): when each key debuff first landed + its longest gap.
+        o_dt = debuff_timing(_auras(o_b, "debuffs"), ours_fights[enc]["start"], o_dur, KEY_DEBUFFS)
+        t_dt = debuff_timing(_auras(t_b, "debuffs"), theirs_fights[enc]["start"], t_dur, KEY_DEBUFFS)
+        for nm, v in o_dt.items():
+            rec = tier_dtime.setdefault(nm, {"o_est": [], "o_gap": [], "t_est": [], "t_gap": []})
+            rec["o_est"].append(v["est"])
+            rec["o_gap"].append(v["gap"])
+        for nm, v in t_dt.items():
+            rec = tier_dtime.setdefault(nm, {"o_est": [], "o_gap": [], "t_est": [], "t_gap": []})
+            rec["t_est"].append(v["est"])
+            rec["t_gap"].append(v["gap"])
 
         o_dmg = dmg_taken_ex_tanks(o_b, ours_tank)
         t_dmg = dmg_taken_ex_tanks(t_b, theirs_tank)
@@ -3145,6 +3291,11 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             # Bloodlust window payoff (EXPERIMENTAL): DPS in the 40s lust window ÷ fight-average DPS.
             "oursLustMult": lust_window_mult(o_tl, o_lust),
             "theirsLustMult": lust_window_mult(t_tl, t_lust),
+            # Cooldown↔lust alignment (EXPERIMENTAL): share of major cooldowns that fired in the lust window.
+            "oursLustCd": cooldown_lust_alignment(_auras(o_b, "buffs"), o_lust, ours_fights[enc]["start"]),
+            "theirsLustCd": cooldown_lust_alignment(_auras(t_b, "buffs"), t_lust, theirs_fights[enc]["start"]),
+            # DPS ramp (EXPERIMENTAL): seconds to reach 90% of the fight's median (cruising) DPS.
+            "oursRamp": dps_ramp(o_tl), "theirsRamp": dps_ramp(t_tl),
             "oursRaidDps": rate(o_raid_dmg, o_dur), "theirsRaidDps": rate(t_raid_dmg, t_dur),
             "oursRaidHps": rate(o_raid_heal, o_dur), "theirsRaidHps": rate(t_raid_heal, t_dur),
             "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
@@ -3222,11 +3373,22 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     o_avail = len(ours_roster) * (o_dur_sum / 1000.0)
     t_avail = len(theirs_roster) * (t_dur_sum / 1000.0)
     death_time = death_time_compare(per_boss, o_avail, t_avail)
-    # Bloodlust/Heroism timing + window payoff (EXPERIMENTAL), assembled from the per-boss lust data.
+    # Bloodlust/Heroism timing + window payoff + cooldown alignment (EXPERIMENTAL), from per-boss lust data.
+    def _cdpct(cd):
+        return cd.get("pct") if isinstance(cd, dict) else None
     bloodlust = {"rows": [{"boss": p["name"], "oursSec": p["oursLustSec"], "theirsSec": p["theirsLustSec"],
-                           "oursMult": p.get("oursLustMult"), "theirsMult": p.get("theirsLustMult")}
+                           "oursMult": p.get("oursLustMult"), "theirsMult": p.get("theirsLustMult"),
+                           "oursCdPct": _cdpct(p.get("oursLustCd")), "theirsCdPct": _cdpct(p.get("theirsLustCd"))}
                           for p in per_boss
                           if p["oursLustSec"] is not None or p["theirsLustSec"] is not None]}
+    # DPS ramp (EXPERIMENTAL): per-boss seconds to reach 90% of the fight's median (cruising) DPS.
+    dps_ramp_rows = [{"boss": p["name"], "ours": p.get("oursRamp"), "theirs": p.get("theirsRamp")}
+                     for p in per_boss if p.get("oursRamp") is not None or p.get("theirsRamp") is not None]
+    # Debuff ramp + continuity (EXPERIMENTAL): tier-wide establish-time + longest gap per key debuff.
+    debuff_timing_rows = tier_debuff_timing(tier_dtime)
+    # Wipe recovery (EXPERIMENTAL): wall-clock reset time between a wipe and the next pull, per boss.
+    enc_names = {str(b["encounterID"]): b["name"] for b in bosses}
+    wipe_rec = wipe_recovery_compare(wipe_recovery(ours_dir), wipe_recovery(theirs_dir), enc_names)
     # Tier-wide leaked interrupts (proven-interruptible casts that went off un-kicked, ours vs benchmark).
     leaked_rows = leaked_interrupts_gap(o_leaked_acc, t_leaked_acc)
     # Tier-wide cooldown/trinket usage (clean better/worse; buff- + cast-sourced). cd_usage_pool reads the
@@ -3283,6 +3445,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "deathCauses": death_causes_rows, "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,
                  "deathTime": death_time, "bloodlust": bloodlust,
+                 "dpsRamp": dps_ramp_rows, "debuffTiming": debuff_timing_rows, "wipeRecovery": wipe_rec,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,

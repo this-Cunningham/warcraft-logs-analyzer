@@ -1536,6 +1536,27 @@ def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
                          "sec": round(r["sec"])} for r in raiders[:5]]}
 
 
+def _interp_parse(x, anchors):
+    """A ROUGH ghost parse-percentile for a DPS amount, interpolated from (amount, parse) anchors we already
+    have for free — our own raiders of that spec on that boss. Coarse by design (few anchors + a nonlinear
+    curve), so it's a BAND, not a measurement — only used for first-minute deaths (the biggest, clearest
+    cases) and labelled rough. Monotonic; clamps to [0, 99]. None when <2 anchors (no basis to interpolate)."""
+    pts = sorted(((float(a), float(p)) for a, p in anchors if a and p is not None), key=lambda z: z[0])
+    if len(pts) < 2:
+        return None
+    if x <= pts[0][0]:
+        return round(pts[0][1])
+    if x >= pts[-1][0]:
+        return min(99, round(pts[-1][1]))
+    for i in range(len(pts) - 1):
+        a0, p0 = pts[i]
+        a1, p1 = pts[i + 1]
+        if a0 <= x <= a1:
+            t = (x - a0) / (a1 - a0) if a1 > a0 else 0
+            return max(0, min(99, round(p0 + t * (p1 - p0))))
+    return round(pts[-1][1])
+
+
 def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
     """Tier-wide avoidable damage by MECHANIC — the damage analog of What's Killing Us (which counts the
     deaths). Pools each non-tank damage-taken ABILITY across the shared bosses, ours vs benchmark, as a
@@ -3886,8 +3907,27 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     ghost_bosses = []
     for p in per_boss:
         gb = ghost_run_for_boss(p["deaths"]["ours"], p["oursDurMs"], p["oursRaidDps"], avg_dps)
-        if gb:
-            ghost_bosses.append(dict(gb, boss=p["name"]))
+        if not gb:
+            continue
+        # Rough ghost-PARSE band for FIRST-MINUTE deaths only (the costliest, clearest cases) — zero extra
+        # API cost: interpolate the ghost DPS against (amount, parse) anchors we already fetched (our own
+        # raiders of that spec on that boss). Coarse + labelled; only when ≥2 anchors and it'd be a lift.
+        enc = str(p["encounterID"])
+        players = (ours_idx.get(enc) or {}).get("players") or []
+        dur_sec = (p["oursDurMs"] or 0) / 1000.0
+        for r in gb["raiders"]:
+            if r.get("sec", 999) >= 60 or dur_sec <= 0:
+                continue  # first-minute deaths only
+            pl = next((x for x in players if x.get("name") == r["name"]), None)
+            if not pl or not pl.get("amount") or pl.get("parse", -1) < 0:
+                continue
+            anchors = [(x["amount"], x["parse"]) for x in players
+                       if x.get("class") == pl["class"] and x.get("spec") == pl["spec"]
+                       and x.get("amount") and x.get("parse", -1) >= 0]
+            est = _interp_parse(pl["amount"] + r["dmg"] / dur_sec, anchors)
+            if est is not None and est > pl["parse"]:
+                r["actualParse"], r["ghostParse"] = pl["parse"], est
+        ghost_bosses.append(dict(gb, boss=p["name"]))
     ghost_run = {"bosses": ghost_bosses,
                  "totalTimeSavedSec": ssum([b["timeSavedSec"] for b in ghost_bosses]),
                  "totalForfeitedDmg": ssum([b["forfeitedDmg"] for b in ghost_bosses])}

@@ -54,27 +54,40 @@ sentence for every feature you keep; the absence of one is the loudest signal to
    "needs clarity" feedback is really *"I won't trust this until I know it's not
    skewed."*)
 
-## The value ladder — inform → motivate (aim as high as the data allows)
+## The value ladder — does the reader ever have to ask "so what?"
 
 Passing the gates makes a feature *legitimate*; this ladder is how **good** it is. The
-job isn't to inform — it's to **change behavior**. Push every feature as high up as the
-data honestly supports, and on a KEEP always ask "is there a rung above this?"
+apex is **meaning that moves someone to act** — an insight that closes the loop
+**data → meaning → move** so the reader never does the "so what do I do, and why should
+I care?" homework themselves. The apex is **NOT a particular form** (see the warning).
 
-- **Rung 0 — Tally.** A raw count ("23 interrupts"). Scoreboard. Cut or climb.
-- **Rung 1 — Decomposed gap.** The count by who/what (spec, mechanic) vs a frame. This
-  is the *baseline* bar most features should clear.
-- **Rung 2 — + when/where/why.** The gap plus its **moment** (phase, pull-type, on the
-  pull) and, where the data shows it, its **cause**. Now it's a callout, not a topic.
-- **Rung 3 — Derived / counterfactual consequence (the golden tier).** It quantifies
-  what the gap **cost**, in a currency the team *feels* — a kill, a parse, time. The
-  archetype is a **"ghost run"**: *"these deaths cost ~1:34 of kill time; at that ghost
-  kill your raid was doing X DPS, and here's the output each raider forfeited."* This is
-  what turns a stat into a behavior change ("now I understand why not dying matters").
-  When you can derive a consequence number like this from data already in hand, it is
-  almost always the highest-leverage thing you can build.
+- **Rung 0 — Tally.** A raw count ("23 interrupts"). No meaning. Cut or climb.
+- **Rung 1 — Located gap.** True and decomposed (who/what vs a frame) — but the reader
+  still has to supply the "so what do I do." *Useful, not yet the bar.* ("Shadow Word:
+  Death 95/s vs 0", "Rogues idle 8% more" — located, but now what?)
+- **Rung 2 — The move is obvious.** It names the specific lever AND the action is
+  instant — no translation needed. **This is the bar.** ("CC that mob on that boss",
+  "kick that cast", "land CoE sooner.")
+- **Rung 3 — The move is obvious *and* the stakes are felt.** It also makes the reader
+  *care* — the cost lands in a currency they feel, so they actually change the behavior.
+  The **form varies with the data** — pick whichever fits:
+  - a **counterfactual cost** ("these deaths cost you the kill by ~1:34") — fits deaths;
+  - **proof it's solvable** ("the benchmark takes *zero* of this cast — it's LoS-able");
+  - a **cause diagnosis** that links two facts ("low rogue activity *and* 4× the melee
+    damage → it's positioning, not skill");
+  - **quantified waste + when** ("~5 unused Arcane Powers per Kael — pop it on pull");
+  - a **progress frame** ("you reset 20s slower than last week").
 
-> When auditing, name the rung each feature sits on and the rung it *could* reach. A
-> "SHARPEN" is usually "this is at Rung 1; the data supports Rung 2 or 3 — here's how."
+> ⚠️ **Do not overfit on form.** A clever derivation (a counterfactual, a fancy stat) is
+> NOT automatically valuable — if the reader still asks "so what do I do?", it's a Rung-1
+> number wearing a costume. And a plain, un-derived line — *"they sheep the Legionnaire
+> every pull; you never do"* — can be **Rung 3** because the move and the stakes are both
+> instantly clear. **Fancy ≠ valuable; plain ≠ trivial.** The only test is the loop:
+> *data → meaning → move, with no "so what?" left for the reader.*
+
+> When auditing, name the rung each feature sits on and the rung it *could* reach — and
+> the **form** the upgrade should take (it is rarely "add a counterfactual"). A "SHARPEN"
+> is usually "this is a located gap at Rung 1; here's the move/stakes that gets it to 2–3."
 
 ## Then rank the survivors by leverage
 

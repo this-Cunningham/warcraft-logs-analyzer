@@ -11,10 +11,11 @@ a dead-end" conclusion). With it on, every *resourced* event gains:
 | field | meaning |
 |---|---|
 | `x`, `y` | world position (WCL units — not raw yards; see coordinate-system.md) |
-| `facing` | heading (integer; unit unconfirmed) |
+| `facing` | actor heading in **centiradians** (rad×100) → bearing in the x/y frame via `heading ≈ −facing/100`; see coordinate-system.md |
 | `mapID` | the Blizzard UiMap id (e.g. 334 = Tempest Keep) |
 | `hitPoints`/`maxHitPoints` | **NPCs absolute; players reported as a 0–100 %** |
 | `resourceActor` | **which actor the above describe**: `1`=source, `2`=target |
+| `targetInstance`/`sourceInstance` | 1..N counter splitting multiple instances of one NPC (they share a single actor id) — group by `(actorID, instance)`; don't separate by HP |
 | `classResources` | mana/energy — **garbled in TBC, do not trust** (`type` is not a clean power enum) |
 
 ## The attribution rule (critical)

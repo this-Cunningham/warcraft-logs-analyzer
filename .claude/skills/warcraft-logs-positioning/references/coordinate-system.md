@@ -68,3 +68,25 @@ unknown. Two ways to pin it, **once per map**:
 
 Store a small `{mapID → (texture, world_bounds, wcl_to_world_affine)}` table. TBC is
 only ~7 raid maps (Kara, Gruul/Mag, SSC, TK, Hyjal, BT, Sunwell).
+
+## Facing (decoded — confirmed 2026-06-05)
+
+`facing` is an integer in **centiradians** (radians × 100). Decode to a heading — a
+bearing in the WCL x/y frame:
+
+```python
+import math
+heading = -facing / 100.0                  # radians; sign −1, zero-offset ≈ 0°
+# relative bearing of `other` vs the actor's heading (0 = dead ahead, ±pi = directly behind):
+rel = (math.atan2(oy - ay, ox - ax) - heading + math.pi) % (2 * math.pi) - math.pi
+```
+
+Verified against the ground truth *"a boss faces its current target"*: pooled
+boss→tank pairs over 4 TBC bosses; the clean stationary case (Void Reaver, tank
+centered) fits at **R=0.93, ~22° spread, offset ≈ 0°**; global median error ~6°
+(residual is proxy noise — bosses that face ranged cast targets fit worse — not a
+decode error). This heading lives **inside** the x/y frame, so *relative* bearings
+(rear arc, cleave-facing) are exact even though the map's absolute compass
+orientation stays provisional. `facing` rides every resourced event, so coverage
+equals position coverage; a rarely-hit actor's facing can be stale (same as its
+position).

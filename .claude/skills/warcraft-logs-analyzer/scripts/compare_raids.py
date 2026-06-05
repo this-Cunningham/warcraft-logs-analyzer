@@ -154,8 +154,8 @@ def main(argv=None):
     theirs_code = get_code(args.theirs_url)
 
     print("Resolving reports ({}, {})...".format(ours_code, theirs_code))
-    ours_meta = get_meta(ours_code)
-    theirs_meta = get_meta(theirs_code)
+    # Both metadata lookups are independent one-shot queries → fetch them together.
+    ours_meta, theirs_meta = lib.parallel_map(get_meta, [ours_code, theirs_code])
 
     # Shared bosses = encounter-ID intersection (fully deterministic).
     theirs_set = set(theirs_meta["encounters"])
@@ -181,19 +181,31 @@ def main(argv=None):
               for code in (ours_code, theirs_code)}
 
     # Parses (per-player percentile rankings) — fetched first so we can name each side by its GUILD.
+    # Each side needs two independent queries (the DPS-metric parses + the HPS-metric overlay for
+    # healers); across both uncached reports that's up to four queries with no dependencies between
+    # them, so we fan them all out and merge per side. The written JSON is identical to the serial path.
     parse_obj = {}
+
+    def fetch_parses(code):
+        default_obj, hps_obj = lib.parallel_map(
+            lambda q: lib.invoke_query(q, {"code": code}), (PARSE_Q, HPS_PARSE_Q))
+        # Healers' parses default to DPS; overwrite them with the real HPS-metric parse.
+        return merge_healer_hps(default_obj, hps_obj)
+
+    to_fetch = []
     for code, path in ((ours_code, ours_parses), (theirs_code, theirs_parses)):
         if cached[code]:
             print("Using cached parses for {}.".format(code))
             with open(path, encoding="utf-8") as fh:
                 parse_obj[code] = json.load(fh)
-            continue
-        print("Fetching parses for {}...".format(code))
-        parse_obj[code] = lib.invoke_query(PARSE_Q, {"code": code})
-        # Healers' parses default to DPS; overwrite them with the real HPS-metric parse.
-        merge_healer_hps(parse_obj[code], lib.invoke_query(HPS_PARSE_Q, {"code": code}))
+        else:
+            print("Fetching parses for {}...".format(code))
+            to_fetch.append((code, path))
+
+    for (code, path), obj in zip(to_fetch, lib.parallel_map(lambda cp: fetch_parses(cp[0]), to_fetch)):
+        parse_obj[code] = obj
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump(parse_obj[code], fh, indent=2, ensure_ascii=False)
+            json.dump(obj, fh, indent=2, ensure_ascii=False)
 
     # Name each side by its guild (the report's identity). Ours shows the guild name; theirs is framed
     # "Benchmark (Guild)" so a reader who didn't generate the report still knows which side to aspire to.
@@ -212,27 +224,24 @@ def main(argv=None):
     out_file = args.out_file or os.path.join(
         root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))
 
-    # Deep data (heavy output tables only for the shared bosses) — the bulk of the API cost. Reuse the
-    # cached dir when valid; otherwise fetch and stamp the shared set so the next run can reuse it.
-    for code, directory in ((ours_code, ours_dir), (theirs_code, theirs_dir)):
-        if cached[code]:
-            print("Using cached deep data for {}.".format(code))
-            continue
-        print("Fetching deep data for {}...".format(code))
+    # Deep data (heavy output tables only for the shared bosses) — the bulk of the API cost — plus the
+    # same-faction world-best rotations for the Optimize tab. These three jobs (our deep data, their deep
+    # data, world-best) are fully independent: each writes a disjoint set of files and world-best reads
+    # only ours_parses, already on disk. So we collect the uncached ones and run them concurrently; each
+    # job also parallelizes internally, all throttled by lib's global request semaphore. Reuse cached
+    # data/dirs when valid; otherwise fetch and stamp the shared set so the next run can reuse it.
+    def deep_task(code, directory):
         fetch_report.fetch(code, directory, shared)
         with open(os.path.join(directory, ".shared.json"), "w", encoding="utf-8") as fh:
             json.dump(sorted(shared), fh)
 
-    # Same-faction world-best rotations for our raid's specs (powers the Optimize tab). Keyed by OUR
-    # roster + faction + shared bosses, so it lives in ours_dir alongside the deep data. Re-fetched when
-    # our data isn't cached, when --refresh is passed, or when an older cached dir predates this file
-    # (so re-running over a cached report backfills the new tab). A failure here is non-fatal — the rest
-    # of the report still builds; the Optimize tab just renders empty.
+    # World-best is keyed by OUR roster + faction + shared bosses, so it lives in ours_dir alongside the
+    # deep data. Re-fetched when our data isn't cached, when --refresh is passed, or when an older cached
+    # dir predates this file (so re-running over a cached report backfills the tab). A failure here is
+    # non-fatal — the rest of the report still builds; the Optimize tab just renders empty.
     worldbest_path = os.path.join(ours_dir, "worldbest.json")
-    if cached[ours_code] and os.path.isfile(worldbest_path) and not args.refresh:
-        print("Using cached world-best rotations.")
-    else:
-        print("Fetching same-faction world-best rotations...")
+
+    def worldbest_task():
         enc_names = {int(k): v["name"] for k, v in
                      build_deepdive.index_by_encounter(build_deepdive.get_fights(ours_parses)).items()
                      if int(k) in shared}
@@ -240,6 +249,22 @@ def main(argv=None):
             fetch_worldbest.fetch_for_report(ours_code, ours_parses, shared, enc_names, worldbest_path)
         except Exception as exc:
             print("  world-best fetch failed ({}); Optimize tab will render empty.".format(exc))
+
+    heavy_jobs = []
+    for code, directory in ((ours_code, ours_dir), (theirs_code, theirs_dir)):
+        if cached[code]:
+            print("Using cached deep data for {}.".format(code))
+        else:
+            print("Fetching deep data for {}...".format(code))
+            heavy_jobs.append(lambda code=code, directory=directory: deep_task(code, directory))
+
+    if cached[ours_code] and os.path.isfile(worldbest_path) and not args.refresh:
+        print("Using cached world-best rotations.")
+    else:
+        print("Fetching same-faction world-best rotations...")
+        heavy_jobs.append(worldbest_task)
+
+    lib.parallel_map(lambda job: job(), heavy_jobs)
 
     # Build the report (pure Python + static template - deterministic).
     print("Building report...")

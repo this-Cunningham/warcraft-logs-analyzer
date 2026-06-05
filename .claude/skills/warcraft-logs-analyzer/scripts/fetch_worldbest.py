@@ -114,39 +114,51 @@ def fetch(ours_code, specs, shared_encs, enc_names, out_path):
 
     want = fid - 1  # GameFaction id (1/2) -> ranking-entry faction int (0/1)
     print("  [worldbest] our faction: {} (id {}) -> ranking faction int {}".format(fname, fid, want))
-    out_specs = []
-    for sp in specs:
+
+    # PER BOSS: the top same-faction player for this spec ON THAT BOSS (may be a different person per
+    # boss), with their casts on that boss's fight. The build compares our raiders to that boss's
+    # benchmark on the SAME encounter — an apples-to-apples per-boss rotation read, not one pooled
+    # across the whole tier. Every (spec, boss) lookup is independent (a rankings call + a casts call),
+    # so the whole grid fans out in parallel; lib.parallel_map preserves input order, so we reassemble
+    # the per-spec `bosses` lists in the exact shared_encs order — byte-identical to the serial output.
+    def benchmark(item):
+        sp, enc = item
         cls, spec, role = sp["class"], sp["spec"], sp["role"]
         metric = "hps" if role == "healer" else "dps"
-        # PER BOSS: the top same-faction player for this spec ON THAT BOSS (may be a different person per
-        # boss), with their casts on that boss's fight. The build compares our raiders to that boss's
-        # benchmark on the SAME encounter — an apples-to-apples per-boss rotation read, not one pooled
-        # across the whole tier. (Was: only the first shared boss with a ranking was benchmarked.)
-        bosses_out = []
-        for enc in shared_encs:
-            hit = _best_same_faction(enc, cls, spec, metric, want)
-            if not hit:
-                continue
-            e = hit["entry"]
-            rep = e.get("report") or {}
-            abilities = _world_casts(rep.get("code"), rep.get("fightID"), e.get("name"))
-            bosses_out.append({
-                "encounterID": enc, "name": enc_names.get(enc, str(enc)), "metric": metric,
-                "player": {
-                    "name": e.get("name"),
-                    "guild": (e.get("guild") or {}).get("name"),
-                    "server": (e.get("server") or {}).get("name"),
-                    "region": (e.get("server") or {}).get("region"),
-                    "amount": e.get("amount"),
-                    "globalRank": hit["globalRank"],
-                    "reportCode": rep.get("code"), "fightID": rep.get("fightID"),
-                },
-                "abilities": abilities,
-            })
-            p = bosses_out[-1]["player"]
-            print("  [worldbest] {} {} on {}: #{} {} ({}) — {} casts".format(
-                spec, cls, bosses_out[-1]["name"], p["globalRank"], p["name"],
-                p["guild"] or "no guild", len(abilities)))
+        hit = _best_same_faction(enc, cls, spec, metric, want)
+        if not hit:
+            return None
+        e = hit["entry"]
+        rep = e.get("report") or {}
+        abilities = _world_casts(rep.get("code"), rep.get("fightID"), e.get("name"))
+        boss = {
+            "encounterID": enc, "name": enc_names.get(enc, str(enc)), "metric": metric,
+            "player": {
+                "name": e.get("name"),
+                "guild": (e.get("guild") or {}).get("name"),
+                "server": (e.get("server") or {}).get("name"),
+                "region": (e.get("server") or {}).get("region"),
+                "amount": e.get("amount"),
+                "globalRank": hit["globalRank"],
+                "reportCode": rep.get("code"), "fightID": rep.get("fightID"),
+            },
+            "abilities": abilities,
+        }
+        p = boss["player"]
+        print("  [worldbest] {} {} on {}: #{} {} ({}) — {} casts".format(
+            spec, cls, boss["name"], p["globalRank"], p["name"],
+            p["guild"] or "no guild", len(abilities)))
+        return boss
+
+    pairs = [(sp, enc) for sp in specs for enc in shared_encs]
+    results = lib.parallel_map(benchmark, pairs)  # order matches `pairs`
+
+    out_specs = []
+    n_enc = len(shared_encs)
+    for i, sp in enumerate(specs):
+        cls, spec, role = sp["class"], sp["spec"], sp["role"]
+        metric = "hps" if role == "healer" else "dps"
+        bosses_out = [b for b in results[i * n_enc:(i + 1) * n_enc] if b is not None]
         if not bosses_out:
             print("  [worldbest] {} {}: no same-faction ranking on any shared boss".format(spec, cls))
         out_specs.append({"class": cls, "spec": spec, "role": role, "metric": metric, "bosses": bosses_out})

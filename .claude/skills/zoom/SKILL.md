@@ -52,18 +52,25 @@ diverged and needs a human.
    - **Honesty check:** if there's *no* honest dimension to decompose by, say so —
      the soul treats that as a sign the metric may be a scoreboard, not an insight
      (and maybe a `/remove` candidate instead).
-2. **Ground the section.** Skim
+2. **Judge it as a consumer first.** Before reasoning from code, view the named
+   section in the **rendered HTML** as a raid leader would — start the preview server
+   (`report-preview` in `.claude/launch.json`) against a report under `reports/`
+   (regenerate via the analyzer pipeline if none exists), navigate to the section, and
+   screenshot/snapshot it. Seeing how the *current* grain actually reads is what tells
+   you which deeper cut would genuinely help — and whether the gap even looks worth it.
+   *Only then* ground it: skim
    `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` (and grep the
    builder `scripts/build_deepdive.py` / renderer `templates/report.html` if useful)
-   to name the section precisely and note its builder→renderer symbols, so the item
-   is concrete rather than vague.
+   to name the section's builder→renderer symbols, so the item is concrete.
 3. **Sync, then read `TODO.md`.** Run the sync in *Always write to `main`* above, then
    read `TODO.md` (repo-root path) to match its style (`## TODO:` headers, a `>`
    blockquote restating the ask, then notes).
 4. **Place the item.** A `## TODO: <section> — zoom in` header (or an existing
    zoom-ins section), a `>` blockquote with the user's ask in their framing, then a
    short note: **current grain → proposed deeper grain**, the **leader decision** it
-   serves, the magnitude/legibility caveat, and any honest-dimension open question.
+   serves, the magnitude/legibility caveat, any honest-dimension open question, and a
+   reminder to **judge it as a consumer first** (view the rendered section before
+   implementing the deeper cut, not code-first).
 5. **Edit `TODO.md`** to insert it. Keep it lightweight; do not rewrite or reorder
    existing items. Newest at the bottom of its section.
 6. **Commit + push to `main`:**

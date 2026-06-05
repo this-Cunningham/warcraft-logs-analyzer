@@ -3569,7 +3569,7 @@ def wipe_analysis(directory, enc_names, phase_names):
         first_causes, blow_causes, tracked = {}, {}, 0
         cause_mech, cause_sust, mech_names = 0, 0, {}  # death-cause disambiguation: mechanics vs sustained
         for f in wipes:
-            ds = sorted(deaths_by_fight.get(int(f["id"]), []), key=lambda d: d.get("timestamp", 0))
+            ds = sorted(deaths_by_fight.get(f.get("id"), []), key=lambda d: d.get("timestamp", 0))
             if not ds:
                 continue
             tracked += 1

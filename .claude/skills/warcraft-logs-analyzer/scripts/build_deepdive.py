@@ -3996,15 +3996,17 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         gb = ghost_run_for_boss(dps_deaths, p["oursDurMs"], p["oursRaidDps"], avg_dps)
         if not gb:
             continue
-        # Rough ghost-PARSE band for FIRST-MINUTE deaths only (the costliest, clearest cases) — zero extra
-        # API cost: interpolate the ghost DPS against (amount, parse) anchors we already fetched (our own
-        # raiders of that spec on that boss). Coarse + labelled; only when ≥2 anchors and it'd be a lift.
+        # Rough ghost-PARSE band for EVERY death — zero extra API cost: interpolate the ghost DPS against
+        # (amount, parse) anchors we already fetched (our own raiders of that spec on that boss). The
+        # distribution constants are already baked in, so projecting a parse is free. No time cutoff: the
+        # `est > parse + 2` lift guard below self-drops late deaths (the raider was alive most of the fight,
+        # so ghost ≈ actual → no lift), surfacing a band only where staying alive would actually have mattered.
         enc = str(p["encounterID"])
         players = (ours_idx.get(enc) or {}).get("players") or []
         dur_sec = (p["oursDurMs"] or 0) / 1000.0
         for r in gb["raiders"]:
-            if r.get("sec", 999) >= 90 or dur_sec <= 0:
-                continue  # first 90 seconds only (the costliest, clearest early deaths)
+            if dur_sec <= 0:
+                continue
             pl = next((x for x in players if x.get("name") == r["name"]), None)
             if not pl or not pl.get("amount") or pl.get("parse", -1) < 0:
                 continue

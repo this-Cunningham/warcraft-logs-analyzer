@@ -920,7 +920,7 @@ def potion_gap(o_pool, t_pool):
     # Overlap ONLY (set intersection): both raids fielded this spec. A spec one raid never ran is a
     # roster question (Composition tab), and comparing its potion rate would be apples-to-oranges — a
     # data-integrity violation the soul prohibits. The template re-checks oursPlayers/theirsPlayers > 0.
-    for key in set(o_pool) & set(t_pool):
+    for key in sorted(set(o_pool) & set(t_pool), key=repr):
         o, t = o_pool[key], t_pool[key]
         o_n, t_n = len(o["players"]), len(t["players"])
         rows.append({"class": o["class"], "spec": o["spec"], "role": o["role"],
@@ -1180,7 +1180,7 @@ def spec_timelines(o_tl, t_tl, o_args, t_args):
 
     o, t = side(o_tl, o_args), side(t_tl, t_args)
     rows = []
-    for key in set(o) & set(t):  # overlap only — both raids fielded this spec
+    for key in sorted(set(o) & set(t), key=repr):  # overlap only — both raids fielded this spec
         oc, tc = o[key], t[key]
         rows.append({"class": oc["class"], "spec": oc["spec"], "role": oc["role"], "metric": oc["metric"],
                      "ours": oc["curve"], "theirs": tc["curve"]})
@@ -1316,7 +1316,7 @@ def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
     oa = _targets_by_name(o_tl, o_npc, boss_name)
     ta = _targets_by_name(t_tl, t_npc, boss_name)
     rows = []
-    for nm in set(oa) | set(ta):
+    for nm in sorted(set(oa) | set(ta), key=repr):
         o, t = oa.get(nm), ta.get(nm)
         if (o and o.get("isBoss")) or (t and t.get("isBoss")):
             continue  # the boss itself — its span just restates kill time
@@ -1463,7 +1463,7 @@ def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o
     ob = spec_dps_buckets(o_report, o_spec, o_role, o_cls, o_dur)
     tb = spec_dps_buckets(t_report, t_spec, t_role, t_cls, t_dur)
     rows = []
-    for key in set(ob) | set(tb):
+    for key in sorted(set(ob) | set(tb), key=repr):
         o = ob.get(key)
         t = tb.get(key)
         ref = o or t
@@ -1555,7 +1555,7 @@ def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
     benchmark is the next thing to dodge — actionable at the ability grain. EXPERIMENTAL. (Ex-tanks via
     `ability_agg`; roster sizes differ slightly, an accepted minor caveat noted in the UI.)"""
     rows = []
-    for nm in set(o_acc) | set(t_acc):
+    for nm in sorted(set(o_acc) | set(t_acc), key=repr):
         o_ps = round(o_acc.get(nm, 0) * 1000 / o_dur_ms) if o_dur_ms > 0 else 0
         t_ps = round(t_acc.get(nm, 0) * 1000 / t_dur_ms) if t_dur_ms > 0 else 0
         if o_ps <= 0 and t_ps <= 0:
@@ -1574,7 +1574,7 @@ def death_cause_compare(per_boss):
     o = death_causes(per_boss, "ours")
     t = death_causes(per_boss, "theirs")
     rows = []
-    for key in set(o) | set(t):
+    for key in sorted(set(o) | set(t), key=repr):
         label, boss = key
         rows.append({"cause": label, "boss": boss, "ours": o.get(key, 0), "theirs": t.get(key, 0)})
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
@@ -1599,7 +1599,7 @@ def death_time_compare(per_boss, o_avail, t_avail):
         return agg
     o, t = by_cause("ours"), by_cause("theirs")
     rows = [{"cause": c, "oursMin": round(o.get(c, 0) / 60, 1), "theirsMin": round(t.get(c, 0) / 60, 1),
-             "deficitMin": round((o.get(c, 0) - t.get(c, 0)) / 60, 1)} for c in set(o) | set(t)]
+             "deficitMin": round((o.get(c, 0) - t.get(c, 0)) / 60, 1)} for c in sorted(set(o) | set(t), key=repr)]
     rows.sort(key=lambda r: (-r["deficitMin"], -r["oursMin"]))
     o_total, t_total = sum(o.values()), sum(t.values())
     return {"rows": rows[:15],
@@ -1694,7 +1694,7 @@ def tier_spec_gap(o_pool, t_pool):
     ALL shared bosses, then rank specs by the per-player deficit to the benchmark's same spec. Floats
     the spec that's most behind tier-wide to the top — that's where coaching pays off most."""
     rows = []
-    for key in set(o_pool) | set(t_pool):
+    for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o = o_pool.get(key)
         t = t_pool.get(key)
         ref = o or t
@@ -1717,7 +1717,7 @@ def tier_activity_gap(o_pool, t_pool):
     the per-player deficit to the benchmark's same spec. The per-spec decomposition of the raid-wide
     Activity figure — it names which spec is actually losing the uptime. EXPERIMENTAL."""
     rows = []
-    for key in set(o_pool) | set(t_pool):
+    for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o, t = o_pool.get(key), t_pool.get(key)
         ref = o or t
         o_v = o["vals"] if o else []
@@ -1843,7 +1843,7 @@ def tier_cd_usage(o_pool, t_pool):
     bosses, ours vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our
     cooldowns). Only specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap."""
     rows = []
-    for key in set(o_pool) | set(t_pool):
+    for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o, t = o_pool.get(key), t_pool.get(key)
         ref = o or t
         o_r = o["rates"] if o else []
@@ -1881,7 +1881,7 @@ def _rotation_diff(p_abil, w_abil, min_share, top):
     if p_tot <= 0 or w_tot <= 0:
         return None
     rows = []
-    for an in set(p_abil) | set(w_abil):
+    for an in sorted(set(p_abil) | set(w_abil), key=repr):
         o_pct = 100.0 * p_abil.get(an, 0) / p_tot
         t_pct = 100.0 * w_abil.get(an, 0) / w_tot
         if max(o_pct, t_pct) < min_share:
@@ -2061,13 +2061,13 @@ def int_compare(o_report, t_report, o_spec, t_spec):
     o = int_break(o_report, o_spec)
     t = int_break(t_report, t_spec)
     rows = []
-    for name in set(o) | set(t):
+    for name in sorted(set(o) | set(t), key=repr):
         orec = o.get(name, {"total": 0, "specs": {}})
         trec = t.get(name, {"total": 0, "specs": {}})
         specs = [{"spec": spec, "class": cls,
                   "ours": int(orec["specs"].get((spec, cls), 0)),
                   "theirs": int(trec["specs"].get((spec, cls), 0))}
-                 for (spec, cls) in set(orec["specs"]) | set(trec["specs"])]
+                 for (spec, cls) in sorted(set(orec["specs"]) | set(trec["specs"]), key=repr)]
         specs.sort(key=lambda s: (-max(s["ours"], s["theirs"]), s["class"], s["spec"]))
         rows.append({"name": name, "ours": int(orec["total"]), "theirs": int(trec["total"]), "specs": specs})
     rows.sort(key=lambda r: max(r["ours"], r["theirs"]), reverse=True)
@@ -2301,7 +2301,7 @@ def leaked_interrupts_gap(o_acc, t_acc):
     """Tier-wide leaked-interrupt rows, ours vs benchmark, ranked by our leaks then by improvable delta.
     Only abilities where at least one side LEAKED are returned (a 0/0-leak ability implies no action)."""
     rows = []
-    for n in set(o_acc) | set(t_acc):
+    for n in sorted(set(o_acc) | set(t_acc), key=repr):
         o = o_acc.get(n, {"kicked": 0, "leaked": 0})
         t = t_acc.get(n, {"kicked": 0, "leaked": 0})
         if o["leaked"] <= 0 and t["leaked"] <= 0:
@@ -2856,7 +2856,7 @@ def trash_death_causes(o, t, n=15, o_npc=None, t_npc=None):
             m[label] = m.get(label, 0) + 1
         return m
     oa, ta = agg(o, o_npc), agg(t, t_npc)
-    rows = [{"cause": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in set(oa) | set(ta)]
+    rows = [{"cause": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in sorted(set(oa) | set(ta), key=repr)]
     # Biggest improvable delta first (a death the benchmark avoids); ties → raw ours, then theirs.
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows[:n]
@@ -2875,7 +2875,7 @@ def trash_melee_by_mob(o, t):
             m[mob] = m.get(mob, 0) + 1
         return m
     oa, ta = agg(o, o["npc"]), agg(t, t["npc"])
-    rows = [{"mob": mb, "ours": oa.get(mb, 0), "theirs": ta.get(mb, 0)} for mb in set(oa) | set(ta)]
+    rows = [{"mob": mb, "ours": oa.get(mb, 0), "theirs": ta.get(mb, 0)} for mb in sorted(set(oa) | set(ta), key=repr)]
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
     return rows
 
@@ -2926,7 +2926,7 @@ def trash_cc_by_mob(o, t):
         return m
     oa, ta = agg(o), agg(t)
     rows = [{"mob": mob, "cc": lab, "ours": oa.get((mob, lab), 0), "theirs": ta.get((mob, lab), 0)}
-            for (mob, lab) in set(oa) | set(ta)]
+            for (mob, lab) in sorted(set(oa) | set(ta), key=repr)]
     mob_total = {}
     for r in rows:
         mob_total[r["mob"]] = mob_total.get(r["mob"], 0) + max(r["ours"], r["theirs"])
@@ -3028,7 +3028,7 @@ def trash_identical_packs(o_pulls, t_pulls):
 
     og, tg = by_sig(o_pulls), by_sig(t_pulls)
     rows = []
-    for sig in set(og) & set(tg):
+    for sig in sorted(set(og) & set(tg), key=repr):
         o_order, t_order = _typical_order(og[sig]), _typical_order(tg[sig])
         if len(o_order) < 2 or len(t_order) < 2:
             continue
@@ -3076,7 +3076,7 @@ def trash_kill_priority(o, t, min_samples=2):
     least `min_samples` multi-type pulls on either side; sorted by biggest divergence first."""
     oa, ta = _kill_priority_one(o), _kill_priority_one(t)
     rows = []
-    for mob in set(oa) | set(ta):
+    for mob in sorted(set(oa) | set(ta), key=repr):
         oi, osn = oa.get(mob, (None, 0))
         ti, tsn = ta.get(mob, (None, 0))
         if max(osn, tsn) < min_samples:
@@ -3108,7 +3108,7 @@ def trash_pairwise_priority(o_pulls, t_pulls, min_pulls=2):
     Each row orients the pair so `lead` is the mob the benchmark kills first more often."""
     ot, tt = _pair_table(o_pulls), _pair_table(t_pulls)
     rows = []
-    for key in set(ot) & set(tt):
+    for key in sorted(set(ot) & set(tt), key=repr):
         a, b = key
         o_first, o_tot = ot[key]
         t_first, t_tot = tt[key]
@@ -3306,7 +3306,7 @@ def tier_heal_eff_gap(o_pool, t_pool):
         den = (x["eff"] + x["over"]) if x else 0
         return round(100 * x["over"] / den, 1) if den > 0 else 0
     rows = []
-    for key in set(o_pool) | set(t_pool):
+    for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o, t = o_pool.get(key), t_pool.get(key)
         ref = o or t
         rows.append({"class": ref["class"], "spec": ref["spec"], "role": "healer",

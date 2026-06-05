@@ -1,0 +1,2805 @@
+{
+  "perPlayer": {
+    "1": [
+      {
+        "name": "Blessing of Sanctuary",
+        "guid": 27168,
+        "uses": 1
+      },
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of the Silver Crescent",
+        "guid": 35163,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 10
+      },
+      {
+        "name": "Greater Arcane Elixir",
+        "guid": 17539,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Power Word: Shield",
+        "guid": 25218,
+        "uses": 2
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 43
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Ancestral Fortitude",
+        "guid": 16237,
+        "uses": 3
+      },
+      {
+        "name": "Holy Shield",
+        "guid": 27179,
+        "uses": 1
+      },
+      {
+        "name": "Redoubt",
+        "guid": 20134,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33263,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 7
+      },
+      {
+        "name": "Earth Shield",
+        "guid": 32594,
+        "uses": 2
+      },
+      {
+        "name": "Seal of Righteousness",
+        "guid": 27155,
+        "uses": 8
+      },
+      {
+        "name": "Gift of Arthas",
+        "guid": 11371,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Renew",
+        "guid": 25222,
+        "uses": 1
+      },
+      {
+        "name": "Righteous Fury",
+        "guid": 25780,
+        "uses": 1
+      },
+      {
+        "name": "Devotion Aura",
+        "guid": 27149,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 15
+      },
+      {
+        "name": "Fear Ward",
+        "guid": 6346,
+        "uses": 1
+      },
+      {
+        "name": "Misdirection",
+        "guid": 35079,
+        "uses": 3
+      },
+      {
+        "name": "Avenging Wrath",
+        "guid": 31884,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Mending",
+        "guid": 41635,
+        "uses": 2
+      },
+      {
+        "name": "Spell Power",
+        "guid": 35337,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "3": [
+      {
+        "name": "Elixir of Draenic Wisdom",
+        "guid": 39627,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 3
+      },
+      {
+        "name": "Nature's Swiftness",
+        "guid": 17116,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      }
+    ],
+    "4": [
+      {
+        "name": "Leader of the Pack",
+        "guid": 24932,
+        "uses": 15
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Gift of Arthas",
+        "guid": 11371,
+        "uses": 1
+      },
+      {
+        "name": "Insight of the Qiraji",
+        "guid": 26481,
+        "uses": 6
+      },
+      {
+        "name": "Blessing of Light",
+        "guid": 27144,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Cat Form",
+        "guid": 768,
+        "uses": 15
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Mighty Agility",
+        "guid": 28497,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 46
+      },
+      {
+        "name": "Clearcasting",
+        "guid": 16870,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Dash",
+        "guid": 33357,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33261,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Badge of the Swarmguard",
+        "guid": 26480,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "5": [
+      {
+        "name": "Leader of the Pack",
+        "guid": 24932,
+        "uses": 15
+      },
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Bloodrage",
+        "guid": 29131,
+        "uses": 2
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 8
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 46
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of the Mongoose",
+        "guid": 17538,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Flurry",
+        "guid": 12970,
+        "uses": 57
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 20572,
+        "uses": 1
+      },
+      {
+        "name": "Badge of the Swarmguard",
+        "guid": 26480,
+        "uses": 1
+      },
+      {
+        "name": "Dragonspine Flurry",
+        "guid": 34775,
+        "uses": 2
+      },
+      {
+        "name": "Recklessness",
+        "guid": 1719,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Major Fortitude",
+        "guid": 39625,
+        "uses": 1
+      },
+      {
+        "name": "Insight of the Qiraji",
+        "guid": 26481,
+        "uses": 6
+      },
+      {
+        "name": "Haste",
+        "guid": 21165,
+        "uses": 6
+      },
+      {
+        "name": "Berserker Stance",
+        "guid": 2458,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Bloodbath",
+        "guid": 12292,
+        "uses": 1
+      },
+      {
+        "name": "Bloodthirst",
+        "guid": 30339,
+        "uses": 9
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 4
+      }
+    ],
+    "6": [
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Bloodrage",
+        "guid": 29131,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 43
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Ancestral Fortitude",
+        "guid": 16237,
+        "uses": 2
+      },
+      {
+        "name": "Elixir of the Mongoose",
+        "guid": 17538,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Flurry",
+        "guid": 12970,
+        "uses": 63
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 20572,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 3
+      },
+      {
+        "name": "Recklessness",
+        "guid": 1719,
+        "uses": 1
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Haste",
+        "guid": 21165,
+        "uses": 5
+      },
+      {
+        "name": "Unyielding Courage",
+        "guid": 34106,
+        "uses": 1
+      },
+      {
+        "name": "Berserker Stance",
+        "guid": 2458,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Devotion Aura",
+        "guid": 27149,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 15
+      },
+      {
+        "name": "Armor",
+        "guid": 33079,
+        "uses": 1
+      },
+      {
+        "name": "Bloodbath",
+        "guid": 12292,
+        "uses": 1
+      },
+      {
+        "name": "Bloodthirst",
+        "guid": 30339,
+        "uses": 8
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Mending",
+        "guid": 41635,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 4
+      }
+    ],
+    "8": [
+      {
+        "name": "Strength",
+        "guid": 12179,
+        "uses": 1
+      },
+      {
+        "name": "Major Strength",
+        "guid": 28490,
+        "uses": 1
+      },
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Berserking",
+        "guid": 26635,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 45
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 12174,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Shield",
+        "guid": 25472,
+        "uses": 1
+      },
+      {
+        "name": "Focused",
+        "guid": 43339,
+        "uses": 45
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Major Fortitude",
+        "guid": 39625,
+        "uses": 1
+      },
+      {
+        "name": "Abacus of Violent Odds",
+        "guid": 33807,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Flurry",
+        "guid": 16280,
+        "uses": 45
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 22
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Water Shield",
+        "guid": 33736,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 6
+      }
+    ],
+    "10": [
+      {
+        "name": "Blood Fury",
+        "guid": 33702,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of the Silver Crescent",
+        "guid": 35163,
+        "uses": 1
+      },
+      {
+        "name": "Fungal Frenzy",
+        "guid": 33370,
+        "uses": 2
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Draenic Wisdom",
+        "guid": 39627,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33263,
+        "uses": 1
+      },
+      {
+        "name": "Major Shadow Power",
+        "guid": 28503,
+        "uses": 1
+      },
+      {
+        "name": "Flameshadow",
+        "guid": 37379,
+        "uses": 2
+      }
+    ],
+    "11": [
+      {
+        "name": "Healing Power",
+        "guid": 28491,
+        "uses": 1
+      },
+      {
+        "name": "Greater Versatility",
+        "guid": 28509,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Inspiration",
+        "guid": 15359,
+        "uses": 1
+      },
+      {
+        "name": "Berserking",
+        "guid": 26635,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Ancestral Fortitude",
+        "guid": 16237,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 3
+      },
+      {
+        "name": "Water Shield",
+        "guid": 33736,
+        "uses": 2
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "13": [
+      {
+        "name": "Blood Fury",
+        "guid": 33702,
+        "uses": 1
+      },
+      {
+        "name": "Destruction",
+        "guid": 28508,
+        "uses": 1
+      },
+      {
+        "name": "Flask of Pure Death",
+        "guid": 28540,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of the Silver Crescent",
+        "guid": 35163,
+        "uses": 1
+      },
+      {
+        "name": "Fungal Frenzy",
+        "guid": 33370,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Power Word: Shield",
+        "guid": 25218,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 2
+      },
+      {
+        "name": "Flameshadow",
+        "guid": 37379,
+        "uses": 1
+      },
+      {
+        "name": "Earth Shield",
+        "guid": 32594,
+        "uses": 1
+      }
+    ],
+    "14": [
+      {
+        "name": "Healing Power",
+        "guid": 28491,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Greater Versatility",
+        "guid": 28509,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33268,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Essence of the Martyr",
+        "guid": 35165,
+        "uses": 1
+      },
+      {
+        "name": "Deep Meditation",
+        "guid": 40402,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Inspiration",
+        "guid": 15359,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      }
+    ],
+    "15": [
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Seal of Wisdom",
+        "guid": 27166,
+        "uses": 3
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Fungal Frenzy",
+        "guid": 33370,
+        "uses": 1
+      },
+      {
+        "name": "Distilled Wisdom",
+        "guid": 17627,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 43
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Devotion Aura",
+        "guid": 27149,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 15
+      },
+      {
+        "name": "Light's Grace",
+        "guid": 31834,
+        "uses": 16
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "16": [
+      {
+        "name": "Healing Power",
+        "guid": 28491,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33268,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Power Word: Shield",
+        "guid": 25218,
+        "uses": 2
+      },
+      {
+        "name": "Healing Trance",
+        "guid": 37722,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Draenic Wisdom",
+        "guid": 39627,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Ancestral Fortitude",
+        "guid": 16237,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of Lower City",
+        "guid": 37881,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 7
+      },
+      {
+        "name": "Regrowth",
+        "guid": 26980,
+        "uses": 1
+      },
+      {
+        "name": "Water Shield",
+        "guid": 33736,
+        "uses": 2
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "17": [
+      {
+        "name": "Mage Armor",
+        "guid": 27125,
+        "uses": 1
+      },
+      {
+        "name": "Electrical Charge",
+        "guid": 37658,
+        "uses": 12
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Power",
+        "guid": 12042,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of the Silver Crescent",
+        "guid": 35163,
+        "uses": 1
+      },
+      {
+        "name": "Inspiration",
+        "guid": 15359,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Berserking",
+        "guid": 26635,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Draenic Wisdom",
+        "guid": 39627,
+        "uses": 1
+      },
+      {
+        "name": "Clearcasting",
+        "guid": 12536,
+        "uses": 6
+      },
+      {
+        "name": "Icy Veins",
+        "guid": 12472,
+        "uses": 2
+      },
+      {
+        "name": "Arcane Madness",
+        "guid": 37444,
+        "uses": 19
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Innervate",
+        "guid": 29166,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Spellpower Elixir",
+        "guid": 33721,
+        "uses": 1
+      },
+      {
+        "name": "Presence of Mind",
+        "guid": 12043,
+        "uses": 1
+      }
+    ],
+    "18": [],
+    "20": [
+      {
+        "name": "Leader of the Pack",
+        "guid": 24932,
+        "uses": 15
+      },
+      {
+        "name": "Major Strength",
+        "guid": 28490,
+        "uses": 1
+      },
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 46
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Focused",
+        "guid": 43339,
+        "uses": 46
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 33697,
+        "uses": 1
+      },
+      {
+        "name": "Greater Versatility",
+        "guid": 28509,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Flurry",
+        "guid": 16280,
+        "uses": 47
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Rage of the Unraveller",
+        "guid": 33649,
+        "uses": 1
+      },
+      {
+        "name": "Water Shield",
+        "guid": 33736,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 6
+      }
+    ],
+    "21": [
+      {
+        "name": "Leader of the Pack",
+        "guid": 24932,
+        "uses": 15
+      },
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 8
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 46
+      },
+      {
+        "name": "Power Word: Shield",
+        "guid": 25218,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Dragonspine Flurry",
+        "guid": 34775,
+        "uses": 2
+      },
+      {
+        "name": "Seal of Blood",
+        "guid": 31892,
+        "uses": 16
+      },
+      {
+        "name": "Lionheart",
+        "guid": 34513,
+        "uses": 4
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 1
+      },
+      {
+        "name": "Nightmare Seed",
+        "guid": 28726,
+        "uses": 1
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Flask of Relentless Assault",
+        "guid": 28520,
+        "uses": 1
+      },
+      {
+        "name": "Vengeance",
+        "guid": 20055,
+        "uses": 45
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Seal of the Crusader",
+        "guid": 27158,
+        "uses": 1
+      },
+      {
+        "name": "Justice",
+        "guid": 34260,
+        "uses": 6
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Seal of Command",
+        "guid": 20375,
+        "uses": 15
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Avenging Wrath",
+        "guid": 31884,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Mending",
+        "guid": 41635,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 4
+      }
+    ],
+    "24": [
+      {
+        "name": "Mage Armor",
+        "guid": 27125,
+        "uses": 1
+      },
+      {
+        "name": "Destruction",
+        "guid": 28508,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Power",
+        "guid": 12042,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of the Silver Crescent",
+        "guid": 35163,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Berserking",
+        "guid": 26635,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Draenic Wisdom",
+        "guid": 39627,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Clearcasting",
+        "guid": 12536,
+        "uses": 8
+      },
+      {
+        "name": "Arcane Madness",
+        "guid": 37444,
+        "uses": 23
+      },
+      {
+        "name": "Icy Veins",
+        "guid": 12472,
+        "uses": 2
+      },
+      {
+        "name": "Innervate",
+        "guid": 29166,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33263,
+        "uses": 1
+      },
+      {
+        "name": "Mana Surge",
+        "guid": 37445,
+        "uses": 1
+      },
+      {
+        "name": "Spellpower Elixir",
+        "guid": 33721,
+        "uses": 1
+      },
+      {
+        "name": "Presence of Mind",
+        "guid": 12043,
+        "uses": 1
+      }
+    ],
+    "25": [
+      {
+        "name": "Blood Fury",
+        "guid": 33702,
+        "uses": 1
+      },
+      {
+        "name": "Destruction",
+        "guid": 28508,
+        "uses": 1
+      },
+      {
+        "name": "Flask of Pure Death",
+        "guid": 28540,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Fungal Frenzy",
+        "guid": 33370,
+        "uses": 1
+      },
+      {
+        "name": "Blessing of the Silver Crescent",
+        "guid": 35163,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33263,
+        "uses": 1
+      },
+      {
+        "name": "Flameshadow",
+        "guid": 37379,
+        "uses": 3
+      }
+    ],
+    "26": [
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 2
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Mighty Agility",
+        "guid": 28497,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 44
+      },
+      {
+        "name": "Quick Shots",
+        "guid": 6150,
+        "uses": 4
+      },
+      {
+        "name": "The Beast Within",
+        "guid": 34471,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33261,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 20572,
+        "uses": 1
+      },
+      {
+        "name": "Exploited Weakness",
+        "guid": 37482,
+        "uses": 12
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Greater Versatility",
+        "guid": 28509,
+        "uses": 1
+      },
+      {
+        "name": "Abacus of Violent Odds",
+        "guid": 33807,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Misdirection",
+        "guid": 34477,
+        "uses": 1
+      },
+      {
+        "name": "Rapid Fire",
+        "guid": 3045,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 22
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "27": [
+      {
+        "name": "Blood Fury",
+        "guid": 33702,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Wrath of the Astromancer",
+        "guid": 42787,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Draenic Wisdom",
+        "guid": 39627,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33263,
+        "uses": 1
+      },
+      {
+        "name": "Major Shadow Power",
+        "guid": 28503,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 1
+      },
+      {
+        "name": "Flameshadow",
+        "guid": 37379,
+        "uses": 1
+      },
+      {
+        "name": "Spell Power",
+        "guid": 35337,
+        "uses": 1
+      }
+    ],
+    "29": [
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Flask of Relentless Assault",
+        "guid": 28520,
+        "uses": 1
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 33697,
+        "uses": 1
+      },
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Flurry",
+        "guid": 16280,
+        "uses": 42
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 43
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Devotion Aura",
+        "guid": 27149,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 15
+      },
+      {
+        "name": "Focused",
+        "guid": 43339,
+        "uses": 43
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Water Shield",
+        "guid": 33736,
+        "uses": 1
+      },
+      {
+        "name": "Shamanistic Rage",
+        "guid": 30823,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 10
+      }
+    ],
+    "32": [
+      {
+        "name": "Strength",
+        "guid": 12179,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Bloodrage",
+        "guid": 29131,
+        "uses": 2
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 5
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Divine Spirit",
+        "guid": 25312,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 45
+      },
+      {
+        "name": "Mighty Rage",
+        "guid": 17528,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 12174,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of the Mongoose",
+        "guid": 17538,
+        "uses": 1
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 20572,
+        "uses": 1
+      },
+      {
+        "name": "Badge of the Swarmguard",
+        "guid": 26480,
+        "uses": 1
+      },
+      {
+        "name": "Flurry",
+        "guid": 12968,
+        "uses": 35
+      },
+      {
+        "name": "Lionheart",
+        "guid": 34513,
+        "uses": 5
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 1
+      },
+      {
+        "name": "Recklessness",
+        "guid": 1719,
+        "uses": 1
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Major Fortitude",
+        "guid": 39625,
+        "uses": 1
+      },
+      {
+        "name": "Insight of the Qiraji",
+        "guid": 26481,
+        "uses": 6
+      },
+      {
+        "name": "Berserker Stance",
+        "guid": 2458,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Berserker Rage",
+        "guid": 18499,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 22
+      },
+      {
+        "name": "Bloodbath",
+        "guid": 12292,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Mending",
+        "guid": 41635,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 5
+      }
+    ],
+    "35": [
+      {
+        "name": "Leader of the Pack",
+        "guid": 24932,
+        "uses": 15
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 4
+      },
+      {
+        "name": "Mighty Agility",
+        "guid": 28497,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 41
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Ancestral Fortitude",
+        "guid": 16237,
+        "uses": 1
+      },
+      {
+        "name": "Master Tactician",
+        "guid": 34837,
+        "uses": 4
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33261,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 20572,
+        "uses": 1
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 2
+      },
+      {
+        "name": "Exploited Weakness",
+        "guid": 37482,
+        "uses": 12
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Greater Versatility",
+        "guid": 28509,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Misdirection",
+        "guid": 34477,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Rapid Fire",
+        "guid": 3045,
+        "uses": 2
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Rage of the Unraveller",
+        "guid": 33649,
+        "uses": 2
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "37": [
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Ancient Power",
+        "guid": 35733,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 7
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Mighty Agility",
+        "guid": 28497,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 45
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33261,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Major Fortitude",
+        "guid": 39625,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 22
+      },
+      {
+        "name": "Slice and Dice",
+        "guid": 6774,
+        "uses": 3
+      },
+      {
+        "name": "Evasion",
+        "guid": 26669,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Adrenaline Rush",
+        "guid": 13750,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Blade Flurry",
+        "guid": 13877,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 7
+      }
+    ],
+    "61": [
+      {
+        "name": "Haste",
+        "guid": 28507,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Greater Versatility",
+        "guid": 28509,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Mighty Agility",
+        "guid": 28497,
+        "uses": 1
+      },
+      {
+        "name": "Misdirection",
+        "guid": 34477,
+        "uses": 1
+      },
+      {
+        "name": "Arcane Brilliance",
+        "guid": 27127,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Quick Shots",
+        "guid": 6150,
+        "uses": 3
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Rapid Fire",
+        "guid": 3045,
+        "uses": 1
+      },
+      {
+        "name": "The Beast Within",
+        "guid": 34471,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Devotion Aura",
+        "guid": 27149,
+        "uses": 1
+      },
+      {
+        "name": "Well Fed",
+        "guid": 33261,
+        "uses": 1
+      },
+      {
+        "name": "Burning Hatred",
+        "guid": 32362,
+        "uses": 1
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 15
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Blood Fury",
+        "guid": 20572,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      }
+    ],
+    "168": [
+      {
+        "name": "Well Fed",
+        "guid": 33256,
+        "uses": 1
+      },
+      {
+        "name": "Sanctity Aura",
+        "guid": 20218,
+        "uses": 1
+      },
+      {
+        "name": "Seal of Wisdom",
+        "guid": 27166,
+        "uses": 1
+      },
+      {
+        "name": "Windfury Attack",
+        "guid": 25584,
+        "uses": 7
+      },
+      {
+        "name": "Drums of Battle",
+        "guid": 35476,
+        "uses": 1
+      },
+      {
+        "name": "Mighty Agility",
+        "guid": 28497,
+        "uses": 1
+      },
+      {
+        "name": "Bloodlust",
+        "guid": 2825,
+        "uses": 1
+      },
+      {
+        "name": "Unleashed Rage",
+        "guid": 30807,
+        "uses": 45
+      },
+      {
+        "name": "Agility",
+        "guid": 33077,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Kings",
+        "guid": 25898,
+        "uses": 1
+      },
+      {
+        "name": "Prayer of Spirit",
+        "guid": 32999,
+        "uses": 1
+      },
+      {
+        "name": "Seal of Blood",
+        "guid": 31892,
+        "uses": 15
+      },
+      {
+        "name": "Lifebloom",
+        "guid": 33763,
+        "uses": 1
+      },
+      {
+        "name": "Lust for Battle",
+        "guid": 35166,
+        "uses": 1
+      },
+      {
+        "name": "Elixir of Major Fortitude",
+        "guid": 39625,
+        "uses": 1
+      },
+      {
+        "name": "Vengeance",
+        "guid": 20055,
+        "uses": 22
+      },
+      {
+        "name": "Greater Blessing of Wisdom",
+        "guid": 27143,
+        "uses": 1
+      },
+      {
+        "name": "Battle Shout",
+        "guid": 2048,
+        "uses": 1
+      },
+      {
+        "name": "Strength",
+        "guid": 33082,
+        "uses": 1
+      },
+      {
+        "name": "Seal of Command",
+        "guid": 20375,
+        "uses": 15
+      },
+      {
+        "name": "Ferocious Inspiration",
+        "guid": 34456,
+        "uses": 22
+      },
+      {
+        "name": "Greater Blessing of Salvation",
+        "guid": 25895,
+        "uses": 1
+      },
+      {
+        "name": "Avenging Wrath",
+        "guid": 31884,
+        "uses": 1
+      },
+      {
+        "name": "Rage of the Unraveller",
+        "guid": 33649,
+        "uses": 1
+      },
+      {
+        "name": "Greater Blessing of Might",
+        "guid": 27141,
+        "uses": 1
+      },
+      {
+        "name": "Lightning Speed",
+        "guid": 28093,
+        "uses": 4
+      }
+    ]
+  }
+}

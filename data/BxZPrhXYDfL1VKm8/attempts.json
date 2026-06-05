@@ -1,0 +1,98 @@
+{
+  "reportData": {
+    "report": {
+      "fights": [
+        {
+          "id": 6,
+          "encounterID": 100624,
+          "kill": true,
+          "startTime": 2108553,
+          "endTime": 2261321,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 8,
+          "encounterID": 100623,
+          "kill": true,
+          "startTime": 2365339,
+          "endTime": 2477101,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 11,
+          "encounterID": 100627,
+          "kill": true,
+          "startTime": 2806238,
+          "endTime": 2970924,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 19,
+          "encounterID": 100626,
+          "kill": true,
+          "startTime": 3388793,
+          "endTime": 3490819,
+          "fightPercentage": 18.5,
+          "lastPhase": 0
+        },
+        {
+          "id": 24,
+          "encounterID": 100625,
+          "kill": true,
+          "startTime": 3697900,
+          "endTime": 3838243,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 25,
+          "encounterID": 100628,
+          "kill": true,
+          "startTime": 4133505,
+          "endTime": 4518561,
+          "fightPercentage": 0.01,
+          "lastPhase": 3
+        },
+        {
+          "id": 33,
+          "encounterID": 100732,
+          "kill": true,
+          "startTime": 10084257,
+          "endTime": 10150684,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 35,
+          "encounterID": 100730,
+          "kill": true,
+          "startTime": 10292621,
+          "endTime": 10540078,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 42,
+          "encounterID": 100731,
+          "kill": true,
+          "startTime": 11070412,
+          "endTime": 11226334,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 48,
+          "encounterID": 100733,
+          "kill": true,
+          "startTime": 11630704,
+          "endTime": 12030607,
+          "fightPercentage": 0.01,
+          "lastPhase": 5
+        }
+      ]
+    }
+  }
+}

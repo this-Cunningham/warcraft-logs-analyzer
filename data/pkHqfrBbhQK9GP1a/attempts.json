@@ -1,0 +1,62 @@
+{
+  "reportData": {
+    "report": {
+      "fights": [
+        {
+          "id": 6,
+          "encounterID": 100730,
+          "kill": false,
+          "startTime": 1524050,
+          "endTime": 1697570,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 7,
+          "encounterID": 100730,
+          "kill": true,
+          "startTime": 1930378,
+          "endTime": 2378297,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 17,
+          "encounterID": 100731,
+          "kill": true,
+          "startTime": 3661523,
+          "endTime": 3854514,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 25,
+          "encounterID": 100732,
+          "kill": true,
+          "startTime": 4554106,
+          "endTime": 4693269,
+          "fightPercentage": 0.01,
+          "lastPhase": 0
+        },
+        {
+          "id": 34,
+          "encounterID": 100733,
+          "kill": false,
+          "startTime": 6064541,
+          "endTime": 6762285,
+          "fightPercentage": 21.6,
+          "lastPhase": 5
+        },
+        {
+          "id": 36,
+          "encounterID": 100733,
+          "kill": true,
+          "startTime": 7127181,
+          "endTime": 7673549,
+          "fightPercentage": 0.01,
+          "lastPhase": 5
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,475 @@
+{
+  "auras": [
+    {
+      "name": "Banish",
+      "guid": 18647,
+      "uses": 4
+    },
+    {
+      "name": "Banish",
+      "guid": 710,
+      "uses": 8
+    },
+    {
+      "name": "Repentance",
+      "guid": 20066,
+      "uses": 7
+    },
+    {
+      "name": "Polymorph",
+      "guid": 12826,
+      "uses": 46
+    }
+  ],
+  "events": {
+    "18647": [
+      {
+        "t": 10709748,
+        "targetID": 209,
+        "targetInstance": 2,
+        "sourceID": 25,
+        "fight": 38
+      },
+      {
+        "t": 10778120,
+        "targetID": 209,
+        "targetInstance": 2,
+        "sourceID": 25,
+        "fight": 39
+      },
+      {
+        "t": 10850077,
+        "targetID": 209,
+        "targetInstance": 1,
+        "sourceID": 25,
+        "fight": 40
+      },
+      {
+        "t": 10938325,
+        "targetID": 209,
+        "targetInstance": 2,
+        "sourceID": 25,
+        "fight": 41
+      }
+    ],
+    "710": [
+      {
+        "t": 10729898,
+        "targetID": 209,
+        "targetInstance": 1,
+        "sourceID": 13,
+        "fight": 38
+      },
+      {
+        "t": 10777829,
+        "targetID": 209,
+        "targetInstance": 1,
+        "sourceID": 13,
+        "fight": 39
+      },
+      {
+        "t": 10797953,
+        "targetID": 209,
+        "targetInstance": 1,
+        "sourceID": 13,
+        "fight": 39
+      },
+      {
+        "t": 10848931,
+        "targetID": 209,
+        "targetInstance": 2,
+        "sourceID": 13,
+        "fight": 40
+      },
+      {
+        "t": 10869554,
+        "targetID": 209,
+        "targetInstance": 2,
+        "sourceID": 13,
+        "fight": 40
+      },
+      {
+        "t": 10933171,
+        "targetID": 209,
+        "targetInstance": 1,
+        "sourceID": 13,
+        "fight": 41
+      },
+      {
+        "t": 10953610,
+        "targetID": 209,
+        "targetInstance": 1,
+        "sourceID": 13,
+        "fight": 41
+      }
+    ],
+    "20066": [
+      {
+        "t": 9812002,
+        "targetID": 169,
+        "targetInstance": 1,
+        "sourceID": 21,
+        "fight": 30
+      },
+      {
+        "t": 9999616,
+        "targetID": 169,
+        "targetInstance": 4,
+        "sourceID": 21,
+        "fight": 32
+      },
+      {
+        "t": 11309530,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 168,
+        "fight": 43
+      },
+      {
+        "t": 11312979,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 21,
+        "fight": 43
+      },
+      {
+        "t": 11382071,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 168,
+        "fight": 44
+      },
+      {
+        "t": 11492258,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 168,
+        "fight": 45
+      },
+      {
+        "t": 11524834,
+        "targetID": 211,
+        "targetInstance": null,
+        "sourceID": 21,
+        "fight": 46
+      }
+    ],
+    "12826": [
+      {
+        "t": 9311061,
+        "targetID": 169,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 26
+      },
+      {
+        "t": 9317402,
+        "targetID": 169,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 26
+      },
+      {
+        "t": 9427563,
+        "targetID": 169,
+        "targetInstance": 6,
+        "sourceID": 17,
+        "fight": 26
+      },
+      {
+        "t": 9429292,
+        "targetID": 169,
+        "targetInstance": 6,
+        "sourceID": 17,
+        "fight": 26
+      },
+      {
+        "t": 9430796,
+        "targetID": 169,
+        "targetInstance": 6,
+        "sourceID": 17,
+        "fight": 26
+      },
+      {
+        "t": 9432305,
+        "targetID": 169,
+        "targetInstance": 6,
+        "sourceID": 17,
+        "fight": 26
+      },
+      {
+        "t": 9813527,
+        "targetID": 169,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 30
+      },
+      {
+        "t": 11326414,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11327921,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11329428,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11330930,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11332446,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11333938,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11335451,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11336949,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11338456,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11339960,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11341455,
+        "targetID": 211,
+        "targetInstance": 3,
+        "sourceID": 17,
+        "fight": 43
+      },
+      {
+        "t": 11379722,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11392238,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11393739,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11395239,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11395471,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 24,
+        "fight": 44
+      },
+      {
+        "t": 11396753,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11398263,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11399776,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11401263,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 44
+      },
+      {
+        "t": 11439244,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11440171,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 24,
+        "fight": 45
+      },
+      {
+        "t": 11450842,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11452285,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11453703,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11455139,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11456555,
+        "targetID": 211,
+        "targetInstance": 1,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11479239,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11480737,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11482232,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11483735,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11485245,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11486761,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11488260,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11489762,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11491268,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11492769,
+        "targetID": 211,
+        "targetInstance": 2,
+        "sourceID": 17,
+        "fight": 45
+      },
+      {
+        "t": 11539411,
+        "targetID": 211,
+        "targetInstance": null,
+        "sourceID": 17,
+        "fight": 46
+      }
+    ]
+  }
+}

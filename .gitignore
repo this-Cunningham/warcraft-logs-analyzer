@@ -22,4 +22,13 @@ __pycache__/
 .wcl-token.json
 schema.json
 reports/
-data/
+# Fetched report data is ignored by default (an ad-hoc analysis of any report drops a folder here and
+# shouldn't be committed) — EXCEPT the pinned benchmark pair that /startup uses. Committing just those
+# two reports' data gives a fresh clone / new worktree / cloud session a WARM cache: /startup reads them
+# off disk (cached_for passes, world-best is within its TTL) instead of cold-fetching ~520 points from
+# the API. Keep this allow-list in sync with OURS_URL/THEIRS_URL in scripts/cloud_startup.py.
+data/*
+!data/pkHqfrBbhQK9GP1a/
+!data/BxZPrhXYDfL1VKm8/
+!data/pkHqfrBbhQK9GP1a-parses.json
+!data/BxZPrhXYDfL1VKm8-parses.json

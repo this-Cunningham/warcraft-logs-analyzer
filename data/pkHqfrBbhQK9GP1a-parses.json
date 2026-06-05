@@ -1,0 +1,2545 @@
+{
+  "reportData": {
+    "report": {
+      "rankings": {
+        "data": [
+          {
+            "fightID": 7,
+            "partition": 2,
+            "zone": 1056,
+            "encounter": {
+              "id": 100730,
+              "name": "Al'ar"
+            },
+            "difficulty": 3,
+            "size": 25,
+            "kill": 1,
+            "duration": 447919,
+            "bracketData": 118.68,
+            "deaths": 7,
+            "damageTakenExcludingTanks": 1085789,
+            "roles": {
+              "tanks": {
+                "name": "Tanks",
+                "characters": [
+                  {
+                    "id": 105946420,
+                    "name": "Cheddabiskit",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Justicar",
+                    "amount": 3.5140282059926,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~14352",
+                    "best": "-",
+                    "totalParses": 17940,
+                    "rankPercent": 20
+                  },
+                  {
+                    "id": 103883686,
+                    "name": "Teklamonster",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Protection",
+                    "amount": 306.45272917648,
+                    "bracketData": 125,
+                    "bracket": 0,
+                    "rank": "~1557",
+                    "best": "-",
+                    "totalParses": 11984,
+                    "rankPercent": 87
+                  }
+                ]
+              },
+              "healers": {
+                "name": "Healers",
+                "characters": [
+                  {
+                    "id": 106105348,
+                    "name": "Dendrophîlîa",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 533.75052185775,
+                    "bracketData": 114,
+                    "bracket": 0,
+                    "rank": "~815",
+                    "best": "-",
+                    "totalParses": 16302,
+                    "rankPercent": 58
+                  },
+                  {
+                    "id": 108782668,
+                    "name": "Taikkulol",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 498.46958936772,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~815",
+                    "best": "-",
+                    "totalParses": 16302,
+                    "rankPercent": 48
+                  },
+                  {
+                    "id": 105946422,
+                    "name": "Lollz",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 580.58041744155,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~18698",
+                    "best": "-",
+                    "totalParses": 25615,
+                    "rankPercent": 70
+                  },
+                  {
+                    "id": 109658684,
+                    "name": "Madslippery",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 349.00060055501,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~8196",
+                    "best": "-",
+                    "totalParses": 25615,
+                    "rankPercent": 10
+                  },
+                  {
+                    "id": 105946412,
+                    "name": "Shampadre",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Restoration",
+                    "amount": 471.46693933501,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~5604",
+                    "best": "-",
+                    "totalParses": 28024,
+                    "rankPercent": 70
+                  }
+                ]
+              },
+              "dps": {
+                "name": "Damage Dealers",
+                "characters": [
+                  {
+                    "id": 106944072,
+                    "name": "Bifton",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 714.26976752493,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~7196",
+                    "best": "-",
+                    "totalParses": 13085,
+                    "rankPercent": 45
+                  },
+                  {
+                    "id": 109084221,
+                    "name": "Turtlesjnr",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 742.08506448711,
+                    "bracketData": 120,
+                    "bracket": 0,
+                    "rank": "~6542",
+                    "best": "-",
+                    "totalParses": 13085,
+                    "rankPercent": 50
+                  },
+                  {
+                    "id": 105958808,
+                    "name": "Beartreebear",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Feral",
+                    "amount": 256.49950102586,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~5937",
+                    "best": "-",
+                    "totalParses": 7068,
+                    "rankPercent": 16
+                  },
+                  {
+                    "id": 104146025,
+                    "name": "Barnestsx",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 777.8973430464,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~22417",
+                    "best": "-",
+                    "totalParses": 37362,
+                    "rankPercent": 40
+                  },
+                  {
+                    "id": 109899037,
+                    "name": "Dupree",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 891.18791567225,
+                    "bracketData": 113,
+                    "bracket": 0,
+                    "rank": "~16439",
+                    "best": "-",
+                    "totalParses": 37362,
+                    "rankPercent": 56
+                  },
+                  {
+                    "id": 109827601,
+                    "name": "Slevihunt",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "Survival",
+                    "amount": 601.13993824776,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~8729",
+                    "best": "-",
+                    "totalParses": 10517,
+                    "rankPercent": 17
+                  },
+                  {
+                    "id": 105958812,
+                    "name": "ßyrdman",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1255.7828535963,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~8764",
+                    "best": "-",
+                    "totalParses": 43823,
+                    "rankPercent": 80
+                  },
+                  {
+                    "id": 108538985,
+                    "name": "Archinda",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 759.57929893575,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~33743",
+                    "best": "-",
+                    "totalParses": 43823,
+                    "rankPercent": 23
+                  },
+                  {
+                    "id": 105946414,
+                    "name": "Gorillatwist",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Retribution",
+                    "amount": 296.51119956957,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~13546",
+                    "best": "-",
+                    "totalParses": 14566,
+                    "rankPercent": 7
+                  },
+                  {
+                    "id": 105946416,
+                    "name": "Haisey",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Shadow",
+                    "amount": 820.86939826174,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~9424",
+                    "best": "-",
+                    "totalParses": 17452,
+                    "rankPercent": 46
+                  },
+                  {
+                    "id": 105958809,
+                    "name": "Polopeter",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 672.63724021531,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~12077",
+                    "best": "-",
+                    "totalParses": 23226,
+                    "rankPercent": 48
+                  },
+                  {
+                    "id": 106105246,
+                    "name": "Fizle",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 298.06505194019,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~21600",
+                    "best": "-",
+                    "totalParses": 23226,
+                    "rankPercent": 7
+                  },
+                  {
+                    "id": 105958811,
+                    "name": "Papparadeli",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Elemental",
+                    "amount": 760.59064250456,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~13230",
+                    "best": "-",
+                    "totalParses": 21689,
+                    "rankPercent": 39
+                  },
+                  {
+                    "id": 105946428,
+                    "name": "Kaver",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 547.21947494971,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~20652",
+                    "best": "-",
+                    "totalParses": 26143,
+                    "rankPercent": 21
+                  },
+                  {
+                    "id": 106454912,
+                    "name": "Vanpizzy",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 777.06906829137,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~9411",
+                    "best": "-",
+                    "totalParses": 26143,
+                    "rankPercent": 64
+                  },
+                  {
+                    "id": 105946429,
+                    "name": "Pifflock",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 972.52405010727,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~25989",
+                    "best": "-",
+                    "totalParses": 43315,
+                    "rankPercent": 40
+                  },
+                  {
+                    "id": 106762872,
+                    "name": "Deadmoth",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 1091.5768252742,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~19058",
+                    "best": "-",
+                    "totalParses": 43315,
+                    "rankPercent": 56
+                  },
+                  {
+                    "id": 105958807,
+                    "name": "Saqq",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Arms",
+                    "amount": 598.53009137813,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~6892",
+                    "best": "-",
+                    "totalParses": 10288,
+                    "rankPercent": 33
+                  }
+                ]
+              }
+            },
+            "bracket": 0,
+            "guild": {
+              "id": 815222,
+              "name": "Imminent",
+              "faction": 1,
+              "server": {
+                "id": 5213,
+                "name": "Nightslayer",
+                "region": "US"
+              }
+            },
+            "reportsBlacklistForCharacters": [],
+            "speed": {
+              "rank": "~22152",
+              "best": "~22152",
+              "totalParses": 34080,
+              "rankPercent": 35
+            },
+            "execution": {
+              "rank": "~28627",
+              "best": "~28627",
+              "totalParses": 34080,
+              "rankPercent": 16
+            }
+          },
+          {
+            "fightID": 17,
+            "partition": 2,
+            "zone": 1056,
+            "encounter": {
+              "id": 100731,
+              "name": "Void Reaver"
+            },
+            "difficulty": 3,
+            "size": 25,
+            "kill": 1,
+            "duration": 192991,
+            "bracketData": 118.68,
+            "deaths": 2,
+            "damageTakenExcludingTanks": 1578292,
+            "roles": {
+              "tanks": {
+                "name": "Tanks",
+                "characters": [
+                  {
+                    "id": 105958808,
+                    "name": "Beartreebear",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Guardian",
+                    "amount": 767.26894000238,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~5019",
+                    "best": "~5019",
+                    "totalParses": 14764,
+                    "rankPercent": 66
+                  },
+                  {
+                    "id": 105946420,
+                    "name": "Cheddabiskit",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Justicar",
+                    "amount": 359.59189806779,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~6730",
+                    "best": "~6730",
+                    "totalParses": 10517,
+                    "rankPercent": 36
+                  },
+                  {
+                    "id": 103883686,
+                    "name": "Teklamonster",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Protection",
+                    "amount": 558.52863605039,
+                    "bracketData": 125,
+                    "bracket": 0,
+                    "rank": "~1636",
+                    "best": "~1636",
+                    "totalParses": 5644,
+                    "rankPercent": 71
+                  }
+                ]
+              },
+              "healers": {
+                "name": "Healers",
+                "characters": [
+                  {
+                    "id": 106105348,
+                    "name": "Dendrophîlîa",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 1060.189335254,
+                    "bracketData": 114,
+                    "bracket": 0,
+                    "rank": "~3322",
+                    "best": "-",
+                    "totalParses": 16614,
+                    "rankPercent": 30
+                  },
+                  {
+                    "id": 108782668,
+                    "name": "Taikkulol",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 990.13425496526,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~3322",
+                    "best": "~3322",
+                    "totalParses": 16614,
+                    "rankPercent": 22
+                  },
+                  {
+                    "id": 105946422,
+                    "name": "Lollz",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 2456.2699815017,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~14214",
+                    "best": "~14214",
+                    "totalParses": 27335,
+                    "rankPercent": 77
+                  },
+                  {
+                    "id": 109658684,
+                    "name": "Madslippery",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 1946.3964640838,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~12847",
+                    "best": "~12847",
+                    "totalParses": 27335,
+                    "rankPercent": 41
+                  },
+                  {
+                    "id": 105946412,
+                    "name": "Shampadre",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Restoration",
+                    "amount": 1710.0072024084,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~11608",
+                    "best": "-",
+                    "totalParses": 29021,
+                    "rankPercent": 86
+                  }
+                ]
+              },
+              "dps": {
+                "name": "Damage Dealers",
+                "characters": [
+                  {
+                    "id": 106944072,
+                    "name": "Bifton",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 896.47703778933,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~7611",
+                    "best": "-",
+                    "totalParses": 13124,
+                    "rankPercent": 42
+                  },
+                  {
+                    "id": 109084221,
+                    "name": "Turtlesjnr",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 632.19528371789,
+                    "bracketData": 120,
+                    "bracket": 0,
+                    "rank": "~11549",
+                    "best": "-",
+                    "totalParses": 13124,
+                    "rankPercent": 12
+                  },
+                  {
+                    "id": 104146025,
+                    "name": "Barnestsx",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1442.0776098367,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~5269",
+                    "best": "~5269",
+                    "totalParses": 37640,
+                    "rankPercent": 86
+                  },
+                  {
+                    "id": 109899037,
+                    "name": "Dupree",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1475.0117881145,
+                    "bracketData": 113,
+                    "bracket": 0,
+                    "rank": "~4893",
+                    "best": "~4893",
+                    "totalParses": 37640,
+                    "rankPercent": 87
+                  },
+                  {
+                    "id": 109827601,
+                    "name": "Slevihunt",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "Survival",
+                    "amount": 759.73490991808,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~6665",
+                    "best": "~6665",
+                    "totalParses": 10751,
+                    "rankPercent": 38
+                  },
+                  {
+                    "id": 105958812,
+                    "name": "ßyrdman",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1867.1337005353,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~4342",
+                    "best": "~4342",
+                    "totalParses": 43421,
+                    "rankPercent": 90
+                  },
+                  {
+                    "id": 108538985,
+                    "name": "Archinda",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1500.479296962,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~13026",
+                    "best": "~13026",
+                    "totalParses": 43421,
+                    "rankPercent": 70
+                  },
+                  {
+                    "id": 105946414,
+                    "name": "Gorillatwist",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Retribution",
+                    "amount": 1568.8037265986,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~3296",
+                    "best": "~3296",
+                    "totalParses": 15697,
+                    "rankPercent": 79
+                  },
+                  {
+                    "id": 105946416,
+                    "name": "Haisey",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Shadow",
+                    "amount": 1160.9764185895,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~5052",
+                    "best": "~5052",
+                    "totalParses": 17424,
+                    "rankPercent": 71
+                  },
+                  {
+                    "id": 105958809,
+                    "name": "Polopeter",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 1175.9097574498,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~9911",
+                    "best": "~9911",
+                    "totalParses": 23599,
+                    "rankPercent": 58
+                  },
+                  {
+                    "id": 106105246,
+                    "name": "Fizle",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 1211.9943417051,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~8967",
+                    "best": "~8967",
+                    "totalParses": 23599,
+                    "rankPercent": 62
+                  },
+                  {
+                    "id": 105958811,
+                    "name": "Papparadeli",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Elemental",
+                    "amount": 1191.8742324772,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~5777",
+                    "best": "~5777",
+                    "totalParses": 21397,
+                    "rankPercent": 73
+                  },
+                  {
+                    "id": 105946428,
+                    "name": "Kaver",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 1405.6147696007,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~8675",
+                    "best": "~8675",
+                    "totalParses": 26288,
+                    "rankPercent": 67
+                  },
+                  {
+                    "id": 106454912,
+                    "name": "Vanpizzy",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 1431.2584524667,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~7886",
+                    "best": "~7886",
+                    "totalParses": 26288,
+                    "rankPercent": 70
+                  },
+                  {
+                    "id": 105946429,
+                    "name": "Pifflock",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 1157.9762786866,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~28490",
+                    "best": "-",
+                    "totalParses": 43832,
+                    "rankPercent": 35
+                  },
+                  {
+                    "id": 106762872,
+                    "name": "Deadmoth",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 1762.6780523444,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~4383",
+                    "best": "~4383",
+                    "totalParses": 43832,
+                    "rankPercent": 90
+                  },
+                  {
+                    "id": 105958807,
+                    "name": "Saqq",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Arms",
+                    "amount": 1245.8819323181,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~4659",
+                    "best": "~4659",
+                    "totalParses": 10836,
+                    "rankPercent": 57
+                  }
+                ]
+              }
+            },
+            "bracket": 0,
+            "guild": {
+              "id": 815222,
+              "name": "Imminent",
+              "faction": 1,
+              "server": {
+                "id": 5213,
+                "name": "Nightslayer",
+                "region": "US"
+              }
+            },
+            "reportsBlacklistForCharacters": [],
+            "speed": {
+              "rank": "~10760",
+              "best": "~10760",
+              "totalParses": 34711,
+              "rankPercent": 69
+            },
+            "execution": {
+              "rank": "~18049",
+              "best": "~18049",
+              "totalParses": 34711,
+              "rankPercent": 48
+            }
+          },
+          {
+            "fightID": 25,
+            "partition": 2,
+            "zone": 1056,
+            "encounter": {
+              "id": 100732,
+              "name": "High Astromancer Solarian"
+            },
+            "difficulty": 3,
+            "size": 25,
+            "kill": 1,
+            "duration": 139163,
+            "bracketData": 118.6,
+            "deaths": 4,
+            "damageTakenExcludingTanks": 395564,
+            "roles": {
+              "tanks": {
+                "name": "Tanks",
+                "characters": [
+                  {
+                    "id": 105958808,
+                    "name": "Beartreebear",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Guardian",
+                    "amount": 763.75185933043,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~1827",
+                    "best": "~1827",
+                    "totalParses": 9138,
+                    "rankPercent": 80
+                  },
+                  {
+                    "id": 105946420,
+                    "name": "Cheddabiskit",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Justicar",
+                    "amount": 308.69555844585,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~6219",
+                    "best": "-",
+                    "totalParses": 15948,
+                    "rankPercent": 61
+                  },
+                  {
+                    "id": 103883686,
+                    "name": "Teklamonster",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Gladiator",
+                    "amount": 591.48624275131,
+                    "bracketData": 124,
+                    "bracket": 0,
+                    "rank": "~556",
+                    "best": "~556",
+                    "totalParses": 5055,
+                    "rankPercent": 89
+                  }
+                ]
+              },
+              "healers": {
+                "name": "Healers",
+                "characters": [
+                  {
+                    "id": 106105348,
+                    "name": "Dendrophîlîa",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 330.56918864928,
+                    "bracketData": 114,
+                    "bracket": 0,
+                    "rank": "~821",
+                    "best": "-",
+                    "totalParses": 16437,
+                    "rankPercent": 29
+                  },
+                  {
+                    "id": 108782668,
+                    "name": "Taikkulol",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 405.60350093056,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~821",
+                    "best": "~821",
+                    "totalParses": 16437,
+                    "rankPercent": 51
+                  },
+                  {
+                    "id": 105946422,
+                    "name": "Lollz",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 830.25660556326,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~6519",
+                    "best": "-",
+                    "totalParses": 26078,
+                    "rankPercent": 76
+                  },
+                  {
+                    "id": 109658684,
+                    "name": "Madslippery",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 547.91144197811,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~8344",
+                    "best": "~8344",
+                    "totalParses": 26078,
+                    "rankPercent": 22
+                  },
+                  {
+                    "id": 105946412,
+                    "name": "Shampadre",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Restoration",
+                    "amount": 757.65109978946,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~11149",
+                    "best": "-",
+                    "totalParses": 27874,
+                    "rankPercent": 87
+                  }
+                ]
+              },
+              "dps": {
+                "name": "Damage Dealers",
+                "characters": [
+                  {
+                    "id": 106944072,
+                    "name": "Bifton",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 702.17658429324,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~10333",
+                    "best": "-",
+                    "totalParses": 13420,
+                    "rankPercent": 23
+                  },
+                  {
+                    "id": 109084221,
+                    "name": "Turtlesjnr",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 1009.8948714816,
+                    "bracketData": 120,
+                    "bracket": 0,
+                    "rank": "~3891",
+                    "best": "~3891",
+                    "totalParses": 13420,
+                    "rankPercent": 71
+                  },
+                  {
+                    "id": 104146025,
+                    "name": "Barnestsx",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1884.3658156263,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~3406",
+                    "best": "~3406",
+                    "totalParses": 37855,
+                    "rankPercent": 91
+                  },
+                  {
+                    "id": 109899037,
+                    "name": "Dupree",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1764.94470513,
+                    "bracketData": 113,
+                    "bracket": 0,
+                    "rank": "~5678",
+                    "best": "~5678",
+                    "totalParses": 37855,
+                    "rankPercent": 85
+                  },
+                  {
+                    "id": 109827601,
+                    "name": "Slevihunt",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "Survival",
+                    "amount": 843.88810244102,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~9214",
+                    "best": "~9214",
+                    "totalParses": 10591,
+                    "rankPercent": 13
+                  },
+                  {
+                    "id": 105958812,
+                    "name": "ßyrdman",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1549.4995077715,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~10436",
+                    "best": "-",
+                    "totalParses": 43484,
+                    "rankPercent": 76
+                  },
+                  {
+                    "id": 108538985,
+                    "name": "Archinda",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1627.2141301927,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~8261",
+                    "best": "~8261",
+                    "totalParses": 43484,
+                    "rankPercent": 81
+                  },
+                  {
+                    "id": 105946414,
+                    "name": "Gorillatwist",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Retribution",
+                    "amount": 1380.1154042382,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~4479",
+                    "best": "-",
+                    "totalParses": 15446,
+                    "rankPercent": 71
+                  },
+                  {
+                    "id": 105946416,
+                    "name": "Haisey",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Shadow",
+                    "amount": 1090.3832196776,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~3186",
+                    "best": "~3186",
+                    "totalParses": 17704,
+                    "rankPercent": 82
+                  },
+                  {
+                    "id": 105958809,
+                    "name": "Polopeter",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 1161.1275985715,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~9409",
+                    "best": "~9409",
+                    "totalParses": 23523,
+                    "rankPercent": 60
+                  },
+                  {
+                    "id": 106105246,
+                    "name": "Fizle",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 1327.8170203287,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~5410",
+                    "best": "~5410",
+                    "totalParses": 23523,
+                    "rankPercent": 77
+                  },
+                  {
+                    "id": 105958811,
+                    "name": "Papparadeli",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Elemental",
+                    "amount": 1117.73244325,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~5126",
+                    "best": "-",
+                    "totalParses": 22289,
+                    "rankPercent": 77
+                  },
+                  {
+                    "id": 105946428,
+                    "name": "Kaver",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 731.02764384211,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~23772",
+                    "best": "-",
+                    "totalParses": 26414,
+                    "rankPercent": 10
+                  },
+                  {
+                    "id": 106454912,
+                    "name": "Vanpizzy",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 1349.683464714,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~5811",
+                    "best": "~5811",
+                    "totalParses": 26414,
+                    "rankPercent": 78
+                  },
+                  {
+                    "id": 105946429,
+                    "name": "Pifflock",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 1174.0045845519,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~21982",
+                    "best": "-",
+                    "totalParses": 43964,
+                    "rankPercent": 50
+                  },
+                  {
+                    "id": 106762872,
+                    "name": "Deadmoth",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 1505.1198953745,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~6154",
+                    "best": "~6154",
+                    "totalParses": 43964,
+                    "rankPercent": 86
+                  },
+                  {
+                    "id": 105958807,
+                    "name": "Saqq",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Arms",
+                    "amount": 1098.5463090045,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~5880",
+                    "best": "~5880",
+                    "totalParses": 11308,
+                    "rankPercent": 48
+                  }
+                ]
+              }
+            },
+            "bracket": 0,
+            "guild": {
+              "id": 815222,
+              "name": "Imminent",
+              "faction": 1,
+              "server": {
+                "id": 5213,
+                "name": "Nightslayer",
+                "region": "US"
+              }
+            },
+            "reportsBlacklistForCharacters": [],
+            "speed": {
+              "rank": "~11054",
+              "best": "~11054",
+              "totalParses": 34545,
+              "rankPercent": 68
+            },
+            "execution": {
+              "rank": "~27636",
+              "best": "~27636",
+              "totalParses": 34545,
+              "rankPercent": 20
+            }
+          },
+          {
+            "fightID": 36,
+            "partition": 2,
+            "zone": 1056,
+            "encounter": {
+              "id": 100733,
+              "name": "Kael'thas Sunstrider"
+            },
+            "difficulty": 3,
+            "size": 25,
+            "kill": 1,
+            "duration": 546368,
+            "bracketData": 122.4,
+            "deaths": 4,
+            "damageTakenExcludingTanks": 1444396,
+            "roles": {
+              "tanks": {
+                "name": "Tanks",
+                "characters": [
+                  {
+                    "id": 105946420,
+                    "name": "Cheddabiskit",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Justicar",
+                    "amount": 192.21294072859,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~8711",
+                    "best": "-",
+                    "totalParses": 11772,
+                    "rankPercent": 26
+                  },
+                  {
+                    "id": 103883686,
+                    "name": "Teklamonster",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Protection",
+                    "amount": 408.32186365234,
+                    "bracketData": 131,
+                    "bracket": 0,
+                    "rank": "~1208",
+                    "best": "-",
+                    "totalParses": 8635,
+                    "rankPercent": 86
+                  }
+                ]
+              },
+              "healers": {
+                "name": "Healers",
+                "characters": [
+                  {
+                    "id": 106105348,
+                    "name": "Dendrophîlîa",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 505.71958826286,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~4219",
+                    "best": "-",
+                    "totalParses": 14064,
+                    "rankPercent": 39
+                  },
+                  {
+                    "id": 108782668,
+                    "name": "Taikkulol",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 507.17099098044,
+                    "bracketData": 120,
+                    "bracket": 0,
+                    "rank": "~4219",
+                    "best": "-",
+                    "totalParses": 14064,
+                    "rankPercent": 39
+                  },
+                  {
+                    "id": 105946422,
+                    "name": "Lollz",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 601.08022431768,
+                    "bracketData": 124,
+                    "bracket": 0,
+                    "rank": "~6231",
+                    "best": "-",
+                    "totalParses": 22257,
+                    "rankPercent": 47
+                  },
+                  {
+                    "id": 109658684,
+                    "name": "Madslippery",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 456.84776560853,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~8902",
+                    "best": "-",
+                    "totalParses": 22257,
+                    "rankPercent": 12
+                  },
+                  {
+                    "id": 105946412,
+                    "name": "Shampadre",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Restoration",
+                    "amount": 510.16530982781,
+                    "bracketData": 125,
+                    "bracket": 0,
+                    "rank": "~9688",
+                    "best": "-",
+                    "totalParses": 25496,
+                    "rankPercent": 53
+                  }
+                ]
+              },
+              "dps": {
+                "name": "Damage Dealers",
+                "characters": [
+                  {
+                    "id": 106944072,
+                    "name": "Bifton",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 581.60800046855,
+                    "bracketData": 124,
+                    "bracket": 0,
+                    "rank": "~8289",
+                    "best": "-",
+                    "totalParses": 11355,
+                    "rankPercent": 27
+                  },
+                  {
+                    "id": 109084221,
+                    "name": "Turtlesjnr",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 740.60340283472,
+                    "bracketData": 127,
+                    "bracket": 0,
+                    "rank": "~2952",
+                    "best": "-",
+                    "totalParses": 11355,
+                    "rankPercent": 74
+                  },
+                  {
+                    "id": 105958808,
+                    "name": "Beartreebear",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Feral",
+                    "amount": 405.85466205927,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~9569",
+                    "best": "-",
+                    "totalParses": 15434,
+                    "rankPercent": 38
+                  },
+                  {
+                    "id": 104146025,
+                    "name": "Barnestsx",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 867.1335070868,
+                    "bracketData": 127,
+                    "bracket": 0,
+                    "rank": "~14829",
+                    "best": "-",
+                    "totalParses": 32954,
+                    "rankPercent": 55
+                  },
+                  {
+                    "id": 109899037,
+                    "name": "Dupree",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1160.4358234743,
+                    "bracketData": 120,
+                    "bracket": 0,
+                    "rank": "~2636",
+                    "best": "-",
+                    "totalParses": 32954,
+                    "rankPercent": 92
+                  },
+                  {
+                    "id": 109827601,
+                    "name": "Slevihunt",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "Survival",
+                    "amount": 765.14180918355,
+                    "bracketData": 124,
+                    "bracket": 0,
+                    "rank": "~5332",
+                    "best": "-",
+                    "totalParses": 9522,
+                    "rankPercent": 44
+                  },
+                  {
+                    "id": 105958812,
+                    "name": "ßyrdman",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1087.841894108,
+                    "bracketData": 126,
+                    "bracket": 0,
+                    "rank": "~10996",
+                    "best": "-",
+                    "totalParses": 37918,
+                    "rankPercent": 71
+                  },
+                  {
+                    "id": 108538985,
+                    "name": "Archinda",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 363.45832845262,
+                    "bracketData": 125,
+                    "bracket": 0,
+                    "rank": "~37159",
+                    "best": "-",
+                    "totalParses": 37918,
+                    "rankPercent": 2
+                  },
+                  {
+                    "id": 105946414,
+                    "name": "Gorillatwist",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Retribution",
+                    "amount": 813.74824294249,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~5663",
+                    "best": "-",
+                    "totalParses": 13170,
+                    "rankPercent": 57
+                  },
+                  {
+                    "id": 105946416,
+                    "name": "Haisey",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Shadow",
+                    "amount": 731.81079419,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~7824",
+                    "best": "-",
+                    "totalParses": 15343,
+                    "rankPercent": 49
+                  },
+                  {
+                    "id": 105958809,
+                    "name": "Polopeter",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 610.66899964859,
+                    "bracketData": 124,
+                    "bracket": 0,
+                    "rank": "~12728",
+                    "best": "-",
+                    "totalParses": 19889,
+                    "rankPercent": 36
+                  },
+                  {
+                    "id": 106105246,
+                    "name": "Fizle",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 831.68121119831,
+                    "bracketData": 127,
+                    "bracket": 0,
+                    "rank": "~4773",
+                    "best": "-",
+                    "totalParses": 19889,
+                    "rankPercent": 76
+                  },
+                  {
+                    "id": 105958811,
+                    "name": "Papparadeli",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Elemental",
+                    "amount": 750.54541993675,
+                    "bracketData": 124,
+                    "bracket": 0,
+                    "rank": "~9048",
+                    "best": "-",
+                    "totalParses": 19253,
+                    "rankPercent": 53
+                  },
+                  {
+                    "id": 105946428,
+                    "name": "Kaver",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 785.58590547031,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~6450",
+                    "best": "-",
+                    "totalParses": 23037,
+                    "rankPercent": 72
+                  },
+                  {
+                    "id": 106454912,
+                    "name": "Vanpizzy",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 948.94100679396,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~921",
+                    "best": "-",
+                    "totalParses": 23037,
+                    "rankPercent": 96
+                  },
+                  {
+                    "id": 105946429,
+                    "name": "Pifflock",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 640.48589961345,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~33314",
+                    "best": "-",
+                    "totalParses": 38293,
+                    "rankPercent": 13
+                  },
+                  {
+                    "id": 106762872,
+                    "name": "Deadmoth",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 434.156099918,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~36761",
+                    "best": "-",
+                    "totalParses": 38293,
+                    "rankPercent": 4
+                  },
+                  {
+                    "id": 105958807,
+                    "name": "Saqq",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Arms",
+                    "amount": 970.7541437273,
+                    "bracketData": 126,
+                    "bracket": 0,
+                    "rank": "~956",
+                    "best": "-",
+                    "totalParses": 9567,
+                    "rankPercent": 90
+                  }
+                ]
+              }
+            },
+            "bracket": 0,
+            "guild": {
+              "id": 815222,
+              "name": "Imminent",
+              "faction": 1,
+              "server": {
+                "id": 5213,
+                "name": "Nightslayer",
+                "region": "US"
+              }
+            },
+            "reportsBlacklistForCharacters": [],
+            "speed": {
+              "rank": "~14919",
+              "best": "~14919",
+              "totalParses": 29839,
+              "rankPercent": 50
+            },
+            "execution": {
+              "rank": "~9250",
+              "best": "~9250",
+              "totalParses": 29839,
+              "rankPercent": 69
+            }
+          },
+          {
+            "fightID": 10000,
+            "partition": 2,
+            "zone": 1532,
+            "encounter": {
+              "id": 100703,
+              "name": "Tempest Keep"
+            },
+            "difficulty": 3,
+            "size": 25,
+            "kill": 1,
+            "duration": 7747283,
+            "bracketData": 118.68,
+            "deaths": 88,
+            "damageTakenExcludingTanks": 4504041,
+            "roles": {
+              "tanks": {
+                "name": "Tanks",
+                "characters": [
+                  {
+                    "id": 105946420,
+                    "name": "Cheddabiskit",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Justicar",
+                    "amount": 165.06576621199,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~11376",
+                    "best": "-",
+                    "totalParses": 13707,
+                    "rankPercent": 17
+                  },
+                  {
+                    "id": 103883686,
+                    "name": "Teklamonster",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Protection",
+                    "amount": 414.9932036178,
+                    "bracketData": 125,
+                    "bracket": 0,
+                    "rank": "~1407",
+                    "best": "-",
+                    "totalParses": 5629,
+                    "rankPercent": 75
+                  }
+                ]
+              },
+              "healers": {
+                "name": "Healers",
+                "characters": [
+                  {
+                    "id": 106105348,
+                    "name": "Dendrophîlîa",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 577.48214960183,
+                    "bracketData": 114,
+                    "bracket": 0,
+                    "rank": "~4917",
+                    "best": "-",
+                    "totalParses": 12293,
+                    "rankPercent": 35
+                  },
+                  {
+                    "id": 108782668,
+                    "name": "Taikkulol",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Restoration",
+                    "amount": 563.84565917368,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~4917",
+                    "best": "-",
+                    "totalParses": 12293,
+                    "rankPercent": 31
+                  },
+                  {
+                    "id": 105946422,
+                    "name": "Lollz",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 888.1231807521,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~9426",
+                    "best": "-",
+                    "totalParses": 20056,
+                    "rankPercent": 61
+                  },
+                  {
+                    "id": 109658684,
+                    "name": "Madslippery",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Holy",
+                    "amount": 646.70573361348,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~8423",
+                    "best": "-",
+                    "totalParses": 20056,
+                    "rankPercent": 12
+                  },
+                  {
+                    "id": 105946412,
+                    "name": "Shampadre",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Restoration",
+                    "amount": 697.63374322718,
+                    "bracketData": 122,
+                    "bracket": 0,
+                    "rank": "~11647",
+                    "best": "-",
+                    "totalParses": 22838,
+                    "rankPercent": 70
+                  }
+                ]
+              },
+              "dps": {
+                "name": "Damage Dealers",
+                "characters": [
+                  {
+                    "id": 106944072,
+                    "name": "Bifton",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 684.86725003223,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~7380",
+                    "best": "-",
+                    "totalParses": 10544,
+                    "rankPercent": 30
+                  },
+                  {
+                    "id": 109084221,
+                    "name": "Turtlesjnr",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Balance",
+                    "amount": 753.58346130736,
+                    "bracketData": 120,
+                    "bracket": 0,
+                    "rank": "~5588",
+                    "best": "-",
+                    "totalParses": 10544,
+                    "rankPercent": 47
+                  },
+                  {
+                    "id": 105958808,
+                    "name": "Beartreebear",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Druid",
+                    "spec": "Feral",
+                    "amount": 445.55242185668,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~9080",
+                    "best": "-",
+                    "totalParses": 11793,
+                    "rankPercent": 23
+                  },
+                  {
+                    "id": 104146025,
+                    "name": "Barnestsx",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1027.3740030653,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~11061",
+                    "best": "-",
+                    "totalParses": 29109,
+                    "rankPercent": 62
+                  },
+                  {
+                    "id": 109899037,
+                    "name": "Dupree",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "BeastMastery",
+                    "amount": 1178.7060261255,
+                    "bracketData": 113,
+                    "bracket": 0,
+                    "rank": "~5821",
+                    "best": "-",
+                    "totalParses": 29109,
+                    "rankPercent": 80
+                  },
+                  {
+                    "id": 109827601,
+                    "name": "Slevihunt",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Hunter",
+                    "spec": "Survival",
+                    "amount": 717.2358212691,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~6966",
+                    "best": "-",
+                    "totalParses": 8818,
+                    "rankPercent": 21
+                  },
+                  {
+                    "id": 105958812,
+                    "name": "ßyrdman",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 1306.370958075,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~7404",
+                    "best": "-",
+                    "totalParses": 33657,
+                    "rankPercent": 78
+                  },
+                  {
+                    "id": 108538985,
+                    "name": "Archinda",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Mage",
+                    "spec": "Arcane",
+                    "amount": 795.24004460055,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~28945",
+                    "best": "-",
+                    "totalParses": 33657,
+                    "rankPercent": 14
+                  },
+                  {
+                    "id": 105946414,
+                    "name": "Gorillatwist",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Paladin",
+                    "spec": "Retribution",
+                    "amount": 808.36237721844,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~8067",
+                    "best": "-",
+                    "totalParses": 12412,
+                    "rankPercent": 35
+                  },
+                  {
+                    "id": 105946416,
+                    "name": "Haisey",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Priest",
+                    "spec": "Shadow",
+                    "amount": 861.94561235667,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~6061",
+                    "best": "-",
+                    "totalParses": 14097,
+                    "rankPercent": 57
+                  },
+                  {
+                    "id": 105958809,
+                    "name": "Polopeter",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 771.58576974023,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~10294",
+                    "best": "-",
+                    "totalParses": 17449,
+                    "rankPercent": 41
+                  },
+                  {
+                    "id": 106105246,
+                    "name": "Fizle",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Rogue",
+                    "spec": "Combat",
+                    "amount": 758.87280323814,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~10643",
+                    "best": "-",
+                    "totalParses": 17449,
+                    "rankPercent": 39
+                  },
+                  {
+                    "id": 105958811,
+                    "name": "Papparadeli",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Elemental",
+                    "amount": 856.67210226463,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~8291",
+                    "best": "-",
+                    "totalParses": 17274,
+                    "rankPercent": 52
+                  },
+                  {
+                    "id": 105946428,
+                    "name": "Kaver",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 789.58053920227,
+                    "bracketData": 118,
+                    "bracket": 0,
+                    "rank": "~13834",
+                    "best": "-",
+                    "totalParses": 21617,
+                    "rankPercent": 36
+                  },
+                  {
+                    "id": 106454912,
+                    "name": "Vanpizzy",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Shaman",
+                    "spec": "Enhancement",
+                    "amount": 1003.1211339215,
+                    "bracketData": 116,
+                    "bracket": 0,
+                    "rank": "~4323",
+                    "best": "-",
+                    "totalParses": 21617,
+                    "rankPercent": 80
+                  },
+                  {
+                    "id": 105946429,
+                    "name": "Pifflock",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 883.87647848642,
+                    "bracketData": 117,
+                    "bracket": 0,
+                    "rank": "~26926",
+                    "best": "-",
+                    "totalParses": 34521,
+                    "rankPercent": 22
+                  },
+                  {
+                    "id": 106762872,
+                    "name": "Deadmoth",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warlock",
+                    "spec": "Destruction",
+                    "amount": 961.8105893892,
+                    "bracketData": 119,
+                    "bracket": 0,
+                    "rank": "~22783",
+                    "best": "-",
+                    "totalParses": 34521,
+                    "rankPercent": 34
+                  },
+                  {
+                    "id": 105958807,
+                    "name": "Saqq",
+                    "server": {
+                      "id": 5213,
+                      "name": "Nightslayer",
+                      "region": "US"
+                    },
+                    "class": "Warrior",
+                    "spec": "Arms",
+                    "amount": 898.49680460722,
+                    "bracketData": 121,
+                    "bracket": 0,
+                    "rank": "~3502",
+                    "best": "-",
+                    "totalParses": 8980,
+                    "rankPercent": 61
+                  }
+                ]
+              }
+            },
+            "bracket": 0,
+            "guild": {
+              "id": 815222,
+              "name": "Imminent",
+              "faction": 1,
+              "server": {
+                "id": 5213,
+                "name": "Nightslayer",
+                "region": "US"
+              }
+            },
+            "reportsBlacklistForCharacters": [],
+            "speed": {
+              "rank": "~18688",
+              "best": "~18688",
+              "totalParses": 23960,
+              "rankPercent": 22
+            },
+            "execution": {
+              "rank": "~14615",
+              "best": "~14615",
+              "totalParses": 23960,
+              "rankPercent": 39
+            }
+          }
+        ]
+      }
+    }
+  }
+}

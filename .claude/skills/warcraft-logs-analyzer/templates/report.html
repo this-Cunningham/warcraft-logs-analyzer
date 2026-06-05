@@ -980,7 +980,7 @@ function ghostRunView(d){
     const tops=rowsOf(b.raiders).slice(0,3).map(r=>
       `<span style="color:${cc(r.class)};font-weight:600">${esc(r.name)}</span> <span class="num" style="opacity:.65">(died ${mmss(r.sec)}, ${fmtM(r.dmg)})</span>`
     ).join(" · ");
-    h+=`<div style="padding:7px 0;border-top:1px solid var(--line)"><b>${esc(b.boss)}</b> — ${b.deaths} death${b.deaths!==1?"s":""} forfeited <b style="color:var(--bad)">${fmtM(b.forfeitedDmg)}</b> <span class="num" style="opacity:.7">(≈ ${b.pctOfRaid}% of your damage here · up to ~${mmss(b.timeSavedSec)} sooner)</span>${tops?`<div class="num" style="margin-top:3px;opacity:.9">most forfeited: ${tops}</div>`:""}</div>`;
+    h+=`<div style="padding:7px 0;border-top:1px solid var(--line)"><b>${esc(b.boss)}</b> — ${b.deaths} death${b.deaths!==1?"s":""} forfeited <b style="color:var(--bad)">${fmtM(b.forfeitedDmg)}</b> <span class="num" style="opacity:.7">(≈ ${b.pctOfRaid}% of your damage here · kill up to ~${mmss(b.timeSavedSec)} sooner)</span>${tops?`<div class="num" style="margin-top:3px;opacity:.9">most forfeited: ${tops}</div>`:""}</div>`;
   }
   return h+`</div>`;
 }

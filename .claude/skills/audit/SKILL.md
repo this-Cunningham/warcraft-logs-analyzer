@@ -1,204 +1,172 @@
 ---
 name: audit
-description: Ruthlessly audit existing report features (a tab, a section, or all of them) for whether each is ACTUALLY actionable and worth its space — not merely true, clean, or "fun." Returns a KEEP / SHARPEN / CUT verdict per feature with the one-line action it implies (or "none → cut") and a leverage tier. Use when the user asks "is this tab actually useful?", "are these insights actually helpful?", "what should we cut?", or "audit the ___ tab". Invoked as `/audit <tab | section | all>`.
+description: Audit existing report features (a tab, a section, or all of them) for whether each earns its place — whether it helps a raid leader lead, and whether it's honest. Returns a KEEP / SHARPEN / CUT verdict per feature with a short why and a leverage tier. Use when the user asks "is this tab actually useful?", "are these insights helpful?", "what should we cut?", or "audit the ___ tab". Invoked as `/audit <tab | section | all>`.
 allowed-tools: Read, Grep, Glob, Bash, Agent
 ---
 
 # audit
 
-You are grading the report's own features against one bar: **does each one change a
-decision, or is it just true?** This is the discipline behind every cut in
-`PRODUCT_MANAGER_SOUL.md`, applied as a ruthless per-feature checklist. The product
-is the report; the report's job is to point a raid leader at the highest-leverage
-thing to fix next. A feature that doesn't serve that is dead weight, however clever.
+You're judging the report's features against one question: **does this help a raid
+leader lead their raid?** That's the bar. Everything below is just how to apply it
+without fooling yourself, in either direction.
 
-**Read first, every run:** `PRODUCT_MANAGER_SOUL.md` (the philosophy you're enforcing)
-and `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` (the canonical
-list of what each tab ships, so you audit what's actually there — not what you imagine).
+Two things to hold onto, because they're the easy mistakes:
 
-## The one question that settles most of it
+- **The reader is an expert, not a helpless reader.** A good raid leader brings their own
+  judgment. The report does **not** have to pre-chew every number into a no-brainer
+  action to be worth its space. It earns its place by handing them something useful — and
+  "useful" has several shapes (below), not just "here is the exact move." Cutting a
+  feature because it's *only* awareness, *only* context, or an *obvious* tally is the
+  mistake this skill exists to avoid making.
+- **Accuracy is the floor, not a lever.** Everything that ships must be accurate — correct
+  numbers, no false precision, every caveat stated. That's table stakes for the whole
+  report, assumed of every feature; you never trade it away for a nicer-looking one. So it
+  isn't a *factor* in "does this earn its place" — it's the ground that question stands on.
+  *Whether* a feature earns its place is the real call, and it's a multi-factor judgment,
+  not a single test. (See *Accuracy — the floor*.)
 
-> **"What does the raid leader (or raider) DO differently next week because of this —
-> in one verb-first sentence — and would they actually do it?"**
+**Read first, every run:** `PRODUCT_MANAGER_SOUL.md` (the product judgment) and
+`.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` (the map of what each
+tab ships). The anatomy doc is a *map, not ground truth* — it drifts from the code. Before
+grading a feature, confirm it still ships by checking the builder
+(`scripts/build_deepdive.py`) and renderer (`templates/report.html`); flag anything the
+doc lists but the code dropped (or vice-versa) as its own finding.
 
-If you cannot write that sentence, the feature is **fun, not helpful.** Write the
-sentence for every feature you keep; the absence of one is the loudest signal to cut.
+## The shapes of "useful" — all legitimate
 
-## The two ways to be useless (both *feel* like analysis)
+A feature earns its place if it does any of these for a raid leader. Don't downgrade one
+just because it's the second, third, or fourth kind instead of the first.
 
-A feature can clear "is it actionable?" and still be worthless. Watch for both:
+- **Hands them an action** — a gap that maps to something the raid does differently next
+  week ("gem hit on the Ele Shaman", "CC that mob", "prepot on the pull"). The best of
+  these resolve an either/or the leader was unsure about — is the low number gear or play?
+  is the leaked kick unassigned or just failing? — and so point at *which* fix. That
+  disambiguation is the **ceiling to aim for when the data allows**, not a bar every
+  feature must clear.
+- **Gives at-a-glance awareness** — "how do we stack up?" is a real question a leader
+  asks, *including where we're ahead*. Seeing item level by role, or that the raid is
+  strong on flasks, is legitimate situational awareness even with no single action
+  attached. Being ahead of the benchmark is information, not vanity.
+- **Is a diagnostic breadcrumb** — a number the leader interprets with their own expertise
+  to decide where to look next ("rogues look low — oh, they have no expertise → check
+  their gear"). It doesn't have to close the loop itself; the leader closes it.
+- **Tallies a behavior the leader tracks** — a plain count of something the raid should be
+  doing (combat potions, healthstones) is useful even when the "should" is obvious and
+  even with no benchmark. The leader already knows people should pot; the value is *seeing
+  whether they did*. A tally like this is not a "scoreboard" to cut.
 
-- **Trivia** — true but implies no action ("focus concentration 78%").
-- **Obvious** — implies an action the leader would take *anyway* ("it's interruptible →
-  assign a kick"). There was no decision to inform. **The obviousness test:** *does the
-  reader already know this, or would they already do it?* If yes, it doesn't earn space —
-  no matter how cleanly it's derived.
+The throughline: **respect the leader's judgment.** Information that helps them lead
+counts — whether it hands them the answer or just the right thing to look at.
 
-## The test that separates real insight from "no duh": **disambiguation**
+## Accuracy — the floor
 
-The most valuable analysis (per how experienced raid leaders actually read logs) doesn't
-report a number — it **resolves an either/or the leader is genuinely unsure about**, and
-thereby tells them *which fix to apply*. An insight is "no duh" when the cause was never
-in doubt; it's gold when it answers **"which of these is it?"** The canonical ambiguities:
+Not one of the things you weigh — the prerequisite underneath all of them, and the
+soul's "line we don't cross." Everything that ships must be accurate; you never trade it
+away to keep a feature. A metric must:
 
-- **gear vs play** (a low number — is it the gear or the player?)
-- **positioning vs healing vs unavoidable** (a death — whose fix is it?)
-- **uptime/movement vs throughput** (low DPS — drill positioning, or gear/rotation?)
-- **assignment vs execution** (a leaked kick — unassigned, or assigned-but-failing?)
-- **symptom vs root cause** (wiped to enrage — *because* P2 ran long *because* lust mistimed)
-- **fine vs dropped-when-it-mattered** (94% uptime — irrelevant gap, or a critical one?)
+- **Be a clean signal, or honestly framed.** If a number implies "higher is better" but a
+  smart, hostile reader could say "higher isn't actually better here, because ___", it's
+  confounded — either it carries an honest frame for what it really is, or it doesn't ship.
+- **Never be falsely precise.** A proxy or aggregate is labeled as exactly what it is
+  ("raid-aggregate, not per-player"). Approximate-presented-as-exact is the cardinal sin.
+- **Pre-empt "wait, is this skewed by ___?" inline.** State what's included/excluded
+  (boss vs adds, tanks excluded, fight-length-normalized, …). A plausible skew left
+  unaddressed makes the number inaccurate — and an inaccurate number is worthless,
+  however useful its shape would otherwise be.
 
-> When auditing, ask of each feature: **what either/or does this resolve?** If the answer
-> is "none — the cause was never in question," it's an *obvious* insight; cut or rebuild it
-> so it disambiguates. ("Assign a kick" resolves nothing; *"you ARE assigned to kick it but
-> it still leaks — your kicker is out of range in the spread"* resolves assignment-vs-execution.)
+When accuracy is genuinely in doubt, **probe the real data** (`python3` over
+`data/<code>/…`, or the generated report's `DATA` blob) rather than guessing — the actual
+distribution settles whether the signal holds.
 
-## The 4 gates — a feature must pass ALL of them
+## What to actually cut
 
-1. **Action.** There is a real, verb-first thing someone does because of it (the
-   question above). Not "now I know X" — "now I *do* X."
-2. **Lever / grain — *and the moment*.** It names the **who / what / when / where**
-   (spec, mechanic, mob, phase, pull-type) — the level where a leader makes an
-   assignment or a callout. A top-level tally that counts without naming the lever is a
-   **scoreboard**. And a gap that only says **"do more / less"** (use cooldowns more,
-   take less damage) is only half-built: it must attach the **WHEN or WHERE** (which
-   phase, which pull-type, on the pull) or it isn't actionable. ("Go one level deeper
-   than the count" — *and one level deeper than "more.")*
-3. **Honesty + decompose the cause.** The direction is a clean better/worse signal AND
-   it's labeled for exactly what it is. Run the skeptic: **"Could a smart, hostile
-   reader say 'higher isn't actually better here, because ___'?"** If yes, the signal is
-   confounded — cut it unless it's clean. Where the data allows, go past *"you're behind
-   on X"* to *"behind on X **because** Y"* (the cause one rung down). Where the data
-   genuinely **can't** see the cause, say so plainly — never imply a cause you can't show.
-4. **Frame.** The number carries its own *"good vs what?"* — a benchmark Δ, an absolute
-   standard (a cap, "wrong vs correct"), **or self-vs-past-self** (week-over-week
-   progress is a first-class frame, especially for first-party/pacing metrics where the
-   benchmark is on farm and absent). A naked number with no frame is trivia.
-5. **Clarity = trust; an unaddressed confound is disqualifying.** A metric must
-   **pre-empt the "wait, is this skewed by ___?" question inline** — state what's
-   included/excluded (boss vs adds, in-combat vs between-pull breaks, fight-length- or
-   roster-normalized, tanks excluded, etc.). A *plausible* skew left unaddressed makes
-   the number untrustworthy, which makes it useless — treat "I'm not sure what this
-   measures or whether it's confounded" as a failing grade, not a docs nit. (Most
-   "needs clarity" feedback is really *"I won't trust this until I know it's not
-   skewed."*)
+Accuracy is the floor (fixed, not weighed); cut decisions are about everything *above* it.
+Reserve CUT for features that are genuinely dead weight, not merely un-fancy:
 
-## The value ladder — does the reader ever have to ask "so what?"
+- **Helps with nothing** — accurate, but serves none of the shapes above: no action, no
+  awareness, no breadcrumb, no tracked behavior. Real but inert.
+- **An unfixable confound** — can't be made into a clean signal, so it can't be made
+  accurate; the floor it would stand on isn't there. (See *Accuracy*.)
+- **Truly redundant** — the *same* signal already shown a click away. (Not "related"; the
+  same. Two views of one dataset from different angles can both earn their place.)
+- **A raw dump** — re-implements a Warcraft Logs table with no framing or interpretation,
+  giving the leader nothing they couldn't get from the log itself.
+- **Blame** — names-and-shames a person with no coaching purpose. (Per-player views are
+  fine when they exist to *fix* something — enchants, hit, consumables; the absolute
+  "wrong vs correct" prep checks the soul blesses are not blame.)
 
-Passing the gates makes a feature *legitimate*; this ladder is how **good** it is. The
-apex is **meaning that moves someone to act** — an insight that closes the loop
-**data → meaning → move** so the reader never does the "so what do I do, and why should
-I care?" homework themselves. The apex is **NOT a particular form** (see the warning).
+Being ahead of the benchmark, implying an "obvious" action, or being a simple tally are
+**not** cut reasons. If you catch yourself cutting for one of those, stop and re-read
+*The shapes of "useful"*.
 
-- **Rung 0 — Tally.** A raw count ("23 interrupts"). No meaning. Cut or climb.
-- **Rung 1 — Located gap.** True and decomposed (who/what vs a frame) — but the reader
-  still has to supply the "so what do I do." *Useful, not yet the bar.* ("Shadow Word:
-  Death 95/s vs 0", "Rogues idle 8% more" — located, but now what?)
-- **Rung 2 — The move is obvious.** It names the specific lever AND the action is
-  instant — no translation needed. **This is the bar.** ("CC that mob on that boss",
-  "kick that cast", "land CoE sooner.")
-- **Rung 3 — The move is obvious *and* the stakes are felt.** It also makes the reader
-  *care* — the cost lands in a currency they feel, so they actually change the behavior.
-  The **form varies with the data** — pick whichever fits:
-  - a **counterfactual cost** ("these deaths cost you the kill by ~1:34") — fits deaths;
-  - **proof it's solvable** ("the benchmark takes *zero* of this cast — it's LoS-able");
-  - a **cause diagnosis** that links two facts ("low rogue activity *and* 4× the melee
-    damage → it's positioning, not skill");
-  - **quantified waste + when** ("~5 unused Arcane Powers per Kael — pop it on pull");
-  - a **progress frame** ("you reset 20s slower than last week").
+## SHARPEN before you CUT
 
-> ⚠️ **Do not overfit on form.** A clever derivation (a counterfactual, a fancy stat) is
-> NOT automatically valuable — if the reader still asks "so what do I do?", it's a Rung-1
-> number wearing a costume. And a plain, un-derived line — *"they sheep the Legionnaire
-> every pull; you never do"* — can be **Rung 3** because the move and the stakes are both
-> instantly clear. **Fancy ≠ valuable; plain ≠ trivial.** The only test is the loop:
-> *data → meaning → move, with no "so what?" left for the reader.*
+Most weak-but-accurate features want a sharper cut of the same idea, not removal. Default to
+SHARPEN and name the upgrade. The usual upgrades:
 
-> When auditing, name the rung each feature sits on and the rung it *could* reach — and
-> the **form** the upgrade should take (it is rarely "add a counterfactual"). A "SHARPEN"
-> is usually "this is a located gap at Rung 1; here's the move/stakes that gets it to 2–3."
+- **Add a frame** — a benchmark column, an absolute standard, or a week-over-week compare,
+  so a bare number gets a "good vs what?".
+- **Go one level deeper** — from a raid total to the spec / mechanic / phase that names
+  the lever (the total can ride along as context). But a plain tally the leader tracks can
+  also stand on its own — depth is an option here, not an obligation.
+- **Name the moment** — attach the *when/where* to a "do more/less" so it's pinpointed.
 
-## Then rank the survivors by leverage
+A SHARPEN says "this is useful; here's how it'd be *more* useful." Reach for it before CUT.
 
-> **"If the raid fixed only this, how much would it move a real outcome — a kill, a
-> wipe avoided, throughput gained?"**
+## Ordering: lead with leverage
 
-High-leverage actionable insights lead the tab. Clean-but-low-stakes ones get demoted
-(behind a drill-down) or cut. Payoff is how the report decides what to surface *first*;
-a true, clean, but trivial insight still loses its place to a higher-leverage one.
-
-## 3 auto-cuts — don't even bother ranking these
-
-- **Redundant** — the same signal already lives a click away (another tab/section).
-- **Blame** — it names-and-shames a person instead of coaching the raid. (Per-player
-  views are allowed ONLY to coach; the grain is otherwise spec/mechanic/phase.)
-- **Dump** — it re-implements a Warcraft Logs table without interpreting it.
-
-## The "fun vs helpful" failure modes — name them out loud
-
-When you flag a feature, say *which* failure it is — it makes the verdict legible:
-
-- **Scoreboard** — a true tally with no lever ("23 interrupts"). → go a level deeper, or cut.
-- **Trivia** — true, clean, even pretty, but implies no action ("focus concentration
-  78%"). The hardest case, because it's *honest* — it just isn't *useful*. Features
-  already labeled "descriptive, not scored" are the prime suspects: make each one
-  justify its page space or demote/cut it.
-- **Vanity** — flatters without helping ("you out-geared them on 14/15 slots").
+Passing the bar earns a feature its place; leverage decides *where* it sits. Ask: **if the
+raid fixed only this, how much would it move a real outcome — a kill, a wipe avoided,
+throughput gained?** High-leverage actionable gaps lead the tab; awareness and context
+features are welcome but sit lower or behind a drill-down (lean on top, deep on demand).
+This is ordering, never a cut criterion.
 
 ## Process
 
-1. **Scope it.** `$ARGUMENTS` is a tab name, a section, or `all`. Map it to the real
-   features from `report-anatomy.md` (and, when you need ground truth, `grep` the
-   builder in `scripts/build_deepdive.py` and the renderer in `templates/report.html`).
-2. **Audit each feature adversarially.** Be a hostile skeptic, not a fan. For each:
-   write its one-line action (or "—"), run the 4 gates, call the failure mode if it
-   trips one, then a verdict + leverage tier. When a metric's *cleanliness* is in doubt
-   (Gate 3), **probe the actual data** with `python3` over `data/<code>/…` rather than
-   guessing — the real distribution settles "is higher actually better."
-3. **Fan out for breadth.** If scope is a whole tab or `all`, consider launching one
-   `Agent` per tab/section (each reads the soul + anatomy, audits its slice, returns a
-   verdict list) and synthesize — it keeps each pass deep and prevents a rushed sweep.
-   For a single section, audit it inline.
-4. **Don't only cut.** A SHARPEN verdict (the feature has a real action but ships the
-   shallow version) is often higher-value than a cut — name the deeper cut it should be.
+1. **Scope it.** `$ARGUMENTS` is a tab name, a section, or `all`. Map it to the real,
+   *shipping* features by reconciling the anatomy doc against the builder and renderer.
+2. **Judge each feature fairly — not as a fan, not as a hatchet.** For each: confirm it's
+   accurate (probe the data when in doubt — see *Accuracy*), note what it does for a
+   leader (which useful shape), then a verdict + leverage tier.
+3. **Fan out for breadth.** For a whole tab or `all`, consider one `Agent` per
+   tab/section (each reads soul + anatomy, audits its slice, returns verdicts) and
+   synthesize. Audit a single section inline.
+4. **Don't only cut.** SHARPEN is usually the higher-value verdict — name the deeper or
+   better-framed version the feature should be.
 
 ## Output format
 
-A ranked table, worst-offenders and highest-leverage first:
+A ranked table, highest-leverage and clearest verdicts first:
 
-| Feature | Verdict | Action it implies | Leverage | Failure mode / why |
-|---|---|---|---|---|
-| … | KEEP / SHARPEN / CUT | one verb-first sentence, or "—" | High/Med/Low | e.g. "Trivia — clean but no action" |
+| Feature | Verdict | Why | Leverage |
+|---|---|---|---|
+| … | KEEP / SHARPEN / CUT | what it does for a leader, or the upgrade / cut reason | High/Med/Low |
 
-Then a 2–4 line **bottom line**: what to cut first, what to sharpen first, and (if you
-found one) the single biggest missing insight this tab *should* have but doesn't.
+Then a 2–4 line **bottom line**: what to sharpen first, what (if anything) to cut, and —
+if you spot one — the biggest *missing* thing this tab should show but doesn't.
 
 Verdicts:
-- **KEEP** — passes all 4 gates and earns its leverage tier. Leave it.
-- **SHARPEN** — has a real action but ships a shallower cut than it should (a tally
-  where a who/what/when breakdown is available). Name the deeper version.
-- **CUT** — fails a gate (usually Action or Honesty) or trips an auto-cut. Say which.
+- **KEEP** — accurate, and earns its place via any useful shape.
+- **SHARPEN** — useful but ships a shallower or less-framed cut than it could; name the
+  better version.
+- **CUT** — helps with nothing, an unfixable confound, truly redundant, a raw dump, or
+  blame. Say which.
 
-## Calibration — two worked verdicts
+## Calibration
 
-- **What's Killing Us** (death causes by killing-blow + boss). Action: *"assign a
-  kick / CC / reposition around the named mechanic on the named boss."* Gates: all
-  pass — it's the mechanic grain (lever), ranked by improvable Δ vs benchmark (frame),
-  clean direction. Leverage: High. → **KEEP.**
-- A hypothetical *"Total damage dealt by class %"*. Action: *"—"* (none — fewer of a
-  class looks identical to that class underperforming). Gate 3 fails (confounded),
-  Gate 1 fails (no action). Failure mode: **Vanity/Scoreboard.** → **CUT** (and indeed
-  the soul already cut it; the per-player DPS-by-spec gap is the honest version).
-- *"Shadow Word: Death is interruptible and you take it — assign a kick."* Action exists,
-  data is clean, it even names the mechanic — yet it's worthless: the leader **already
-  knows** you kick an interruptible cast. It fails the **obviousness test** (they'd do it
-  anyway) and **disambiguates nothing** (the cause was never in question). → **CUT as
-  written.** The fix is to make it resolve a real either/or — *"you're assigned to kick
-  SW:D but still leak it 6× — your kicker is out of range during the spread phase"*
-  (resolves **assignment vs execution**, names the actual failure). → that version is a
-  **KEEP/SHARPEN**. *The lesson: actionable + clean + named-lever can STILL be "no duh" if
-  it resolves no ambiguity — disambiguation is the test the other gates don't catch.*
+- **What's Killing Us** (death causes by killing-blow + boss). Hands the leader an action
+  at the mechanic grain, framed by Δ vs benchmark, clean direction. High leverage. → KEEP.
+- **In-combat consumable usage** (per-player potion / healthstone tally, no benchmark). No
+  single "do X", and the should-pot rule is obvious — but it lets a leader *see whether
+  the raid actually potted*, which they can't get at a glance elsewhere: a plain tally of
+  a tracked behavior. → KEEP. (A benchmark column would SHARPEN it, not rescue it.)
+- **Item level by role** (we're ahead on every role). No direct next-week action, but it's
+  real at-a-glance awareness of how the raid stacks up. → KEEP (low leverage, sits low on
+  the tab). Being ahead doesn't make it vanity.
+- **A confounded "damage by class %"** (more of a class looks identical to that class
+  doing more). No honest frame makes it a clean signal, so it can't be made accurate. → CUT.
 
-> The bar, in one line: *Would this help an unfamiliar raid leader decide what to fix
-> next — honestly, and at a glance?* If it's a scoreboard, trivia, a vanity stat, a
-> guess dressed as a fact, or a thing a click away, it doesn't earn its place.
+> The bar, in one line: *it's accurate (always) — does it help a raid leader lead?* Cut
+> it only if it helps with nothing, can't be made a clean signal, duplicates, dumps, or
+> blames. Otherwise it's a question of how much it helps and where it belongs — not
+> whether it's allowed to exist.

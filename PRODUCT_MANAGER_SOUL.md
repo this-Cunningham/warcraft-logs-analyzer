@@ -49,8 +49,35 @@ Two things hold this together:
 
 1. **Gaps, ranked.** The report exists to point at the lowest-hanging fruit. If
    it doesn't help a leader decide what to fix *first*, it's missing the point.
-2. **Actionable.** Every surfaced insight should translate to something the raid
-   can *do differently next week*. Facts that don't imply an action are noise.
+2. **Useful — usually actionable.** Most insights should map to a behavior change
+   next week — the headline mode — but honest awareness or a diagnostic read the
+   leader acts on with their own judgment earns its place too (see *Useful has more
+   than one shape*). Accuracy is assumed underneath all of it (see *Data integrity*).
+
+## Useful has more than one shape
+
+The reader is an **expert raid leader who brings their own judgment** — not someone
+who needs every number pre-chewed into a no-brainer move. A feature earns its place if
+it helps them lead, and "helps" has four shapes, all legitimate — don't
+downgrade one for being the second, third, or fourth:
+
+- **Hands them an action** — a gap that maps to a behavior change next week ("gem hit
+  on the Ele Shaman", "CC that mob"). The headline mode, and best when it names the
+  lever (who/what/when) and resolves an either/or the leader was unsure about (gear or
+  play? assignment or execution?).
+- **Gives at-a-glance awareness** — "how do we stack up?", *including where we're
+  ahead*. Being ahead of the benchmark is information, not vanity.
+- **Is a diagnostic breadcrumb** — a number the leader interprets with their own
+  expertise to decide where to look next ("rogues look low — they have no expertise →
+  check their gear"). It needn't close the loop; the leader closes it.
+- **Tallies a behavior they track** — a plain count of something the raid should be
+  doing (combat potions), useful even when the "should" is obvious and there's no
+  benchmark. The value is *seeing whether they did it*.
+
+Accuracy sits underneath all four — the floor every feature stands on (see *Data
+integrity*), assumed and never traded away, not a fifth shape. Being ahead, an
+"obvious" action, or a plain tally are **not** reasons to cut; a feature fails when it
+serves none of these shapes — or when it dumps, duplicates, or blames.
 
 ## Go one level deeper than the count
 
@@ -67,7 +94,9 @@ breakdown that names the lever; let the total ride along as *context* for it ("2
 total — here's the split"), not as the headline. When a metric resists this — when
 there's no honest dimension to decompose it by — treat that as a warning sign that
 it may be a scoreboard rather than an insight, and let the data-integrity bar
-decide whether it ships at all.
+decide whether it ships at all. (Exempt: a tally that simply tracks a behavior the
+leader watches — *did the raid use combat potions?* — where seeing whether it
+happened is itself the value, benchmark or not. That's not a scoreboard.)
 
 Two clarifications keep this from being misread:
 
@@ -130,9 +159,11 @@ wade through everything to find the signal.
 
 A candidate feature must pass the first test; the second is a bonus weight:
 
-1. **Does it reveal a gap to fix?** It must point at something the raid is doing
-   worse — a lever, not just a fact. (Absolute prep checks like enchants count:
-   the gap is "wrong vs correct," not "us vs them.")
+1. **Does it help a leader lead?** (See *Useful has more than one shape*.) Usually
+   that's revealing a gap to fix — a lever, not just a fact (absolute prep checks like
+   enchants count: "wrong vs correct," not "us vs them"). The disqualifier is a number
+   that helps with *nothing* — accuracy being the separate, non-negotiable floor (see
+   *Data integrity*).
 2. **Bonus: does it mine a new modality of data?** Extra weight for surfacing a
    *kind* of data we haven't looked at yet. Keep asking the meta-question every
    pass: *what nook of the data haven't we leveraged?*
@@ -146,10 +177,11 @@ that doesn't reveal a gap does not.
 
 - **A raw data dump.** If it doesn't *interpret*, it doesn't ship. A wall of
   tables that re-implements Warcraft Logs has negative value.
-- **A scoreboard.** A bare aggregate that counts something without naming the
-  who/what/when behind it. It reads as information but implies no action — and
-  zoomed out, an unexplained total is often just confusing. See *Go one level
-  deeper than the count.*
+- **A scoreboard.** A *bare* aggregate that counts something without naming the
+  who/what/when behind it — an unexplained total that's often just confusing. The
+  fix is depth or honest framing, not necessarily an action. (A tally *with* real
+  grain, or one that tracks a behavior the leader watches, is **not** a scoreboard —
+  see *Go one level deeper than the count.*)
 - **A blame machine.** Even per-player views exist to *coach*, not to name-and-
   shame. The aim is "here's how the raid improves," never "here's who to punish."
 - **A Warcraft Logs replacement.** We are a focused gap-analyzer, not a log
@@ -172,9 +204,8 @@ shallow breadth across many.
 > *Would this help an unfamiliar raid leader decide what to fix next — honestly,
 > and at a glance?*
 
-If yes, it might belong. If it's a data dump, a scoreboard a leader can't act on,
-a guess dressed as a fact, a way to blame someone, or breadth for its own sake —
-it doesn't.
+If yes, it might belong. If it's a data dump, a *bare* scoreboard, a guess dressed
+as a fact, a way to blame someone, or breadth for its own sake — it doesn't.
 
 And a sharpening follow-up for anything that passes: *Is this the deepest honest
 cut, or just the easiest tally?* If there's a level deeper that names the lever,

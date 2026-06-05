@@ -109,11 +109,11 @@ the honest version.)
     "Restore Health"). A **usage** view, not pass/fail: a non-use is a faint dash,
     never a red gap. **HS is warlock-dependent** (column flagged unavailable with no
     warlock). Sorted least-potion-use first.
-- **Throughput Consumables** (`throughputView`) — (1) **Potions by Spec**
+- **Throughput Consumables** (`throughputView`) — **Potions by Spec**
   (`potion_usage_by_spec`/`potion_gap`): combat-pot activations pooled by (class,
-  spec), ranked by biggest deficit (clean better/worse — pure throughput). (2)
-  **Choices** (`throughput_choices`): which specific flasks/battle-elixirs each raid
-  runs (meta mined from benchmark), descriptive.
+  spec), ranked by biggest deficit (clean better/worse — pure throughput). (The
+  descriptive "Choices" flask/battle-elixir meta table was removed — it revealed no
+  actionable gap; see the note in `build_deepdive.py`.)
 - **Opener Potion — Prepot** (`prepot_timing` → `prepotView`) — **EXPERIMENTAL**, the *timing* decomposition
   of the potion-uses count: did the throughput potion land **on the pull** (the free TBC opener prepot,
   which shares a cooldown with the in-combat potion so skipping it wastes a potion) or only reactively

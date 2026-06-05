@@ -182,17 +182,9 @@ def _binned_curves(code, fid, start, end, n=40):
 # for almost everyone — so we read them from cast EVENTS (untruncated) instead. Classified by ability
 # NAME (rank-proof): a mana potion casts "Restore Mana" (multiple item ranks share that one name), a
 # healthstone "… Healthstone". "Replenish Mana" (the Mage Mana Gem) is a class ability and stays excluded
-# by name. Events carry only an abilityGameID, so we resolve it to a name via masterData.abilities.
+# by name. Events carry only an abilityGameID, which the caller resolves to a name via the report's
+# masterData.abilities map (fetched once in the merged top query, not as a separate call).
 INCOMBAT_MANA_NAMES = {"Restore Mana"}
-ABILITIES_Q = "query AB($code:String!){reportData{report(code:$code){masterData{abilities{gameID name}}}}}"
-
-
-def _ability_names(code):
-    """{abilityGameID(int) -> name} for the report, from masterData. Lets us classify cast EVENTS (which
-    carry only the numeric abilityGameID) by ability name. One cheap call per report."""
-    ab = (((lib.invoke_query(ABILITIES_Q, {"code": code}).get("reportData") or {}).get("report") or {})
-          .get("masterData") or {}).get("abilities") or []
-    return {int(a["gameID"]): a.get("name") for a in ab if a.get("gameID") is not None}
 
 
 def _incombat_casts(code, fid, start, end, ability_names, cap_pages=20):
@@ -316,64 +308,110 @@ def fetch_trash(code, out_dir):
         code, len(fights), len(enemy), len(friendly), len(cc_auras)))
 
 
+def _fetch_attempts(code, out_dir, full_set, attempts):
+    """Save the attempt/wipe counts (already fetched in the merged top query) + fetch the wipe-DEATHS
+    table for shared-boss wipes. Runs as its own parallel task (only the wipe-deaths call is network).
+    `attempts` is the killType:Encounters payload: every boss pull (kills AND wipes); `kill` flags which
+    succeeded → wipes = pulls before the kill; `fightPercentage`/`lastPhase` carry WIPE DEPTH. Returns a
+    log line."""
+    _save(attempts, os.path.join(out_dir, "attempts.json"))
+
+    # Wipe DEATHS (shared bosses only): the friendly Deaths table for the WIPE pulls — the data behind
+    # "what ends your attempts" on the Wipes tab (first death + killing blows per wipe). ONE cheap call
+    # across every shared-boss wipe fight (entries carry `fight` + `timestamp` + killingBlow, so we
+    # bucket to pulls client-side). Graceful: no wipes on the shared bosses → an empty file.
+    if not full_set:
+        return None
+    att_fights = attempts["reportData"]["report"]["fights"]
+    wipe_fights = [f for f in att_fights
+                   if not f.get("kill") and int(f.get("encounterID") or 0) in full_set]
+    wipe_fids = [int(f["id"]) for f in wipe_fights]
+    wd_entries = []
+    if wipe_fids:
+        wd_q = ("query WD($code:String!,$f:[Int]!){reportData{report(code:$code){"
+                "table(dataType:Deaths, fightIDs:$f, hostilityType:Friendlies)}}}")
+        wd = lib.invoke_query(wd_q, {"code": code, "f": wipe_fids})["reportData"]["report"]["table"]
+        wd_entries = ((wd or {}).get("data") or {}).get("entries") or []
+    _save({"wipeFights": wipe_fights, "deaths": wd_entries},
+          os.path.join(out_dir, "wipe-deaths.json"))
+    return "[{}] wipe deaths: {} shared-boss wipe fights, {} deaths".format(
+        code, len(wipe_fids), len(wd_entries))
+
+
+def _fetch_one_boss(code, out_dir, fight, full_encounters, player_ids, ability_names):
+    """Fetch + save everything for ONE boss kill: its buff/debuff (and, for shared bosses, heavy output)
+    table, plus the per-player consumables, DPS/HPS timeline, and in-combat-cast files. Each boss writes
+    only its own boss-<enc>/consumes-<enc>/timeline-<enc>/incombat-<enc> files, so bosses are fully
+    independent and run in parallel. Returns a log line."""
+    fid = int(fight["id"])
+    enc = int(fight["encounterID"])
+    heavy = enc in full_encounters
+    res = lib.invoke_query(FULL_Q if heavy else LITE_Q, {"code": code, "f": [fid]})
+    _save(res, os.path.join(out_dir, "boss-{}.json".format(enc)))
+    if heavy:
+        ppb = _fetch_per_player_buffs(code, fid, player_ids)
+        _save({"perPlayer": ppb}, os.path.join(out_dir, "consumes-{}.json".format(enc)))
+        timeline = _binned_curves(code, fid, fight["startTime"], fight["endTime"])
+        _save(timeline, os.path.join(out_dir, "timeline-{}.json".format(enc)))
+        # In-combat mana-potion / healthstone usage, per source actor id, from cast EVENTS (untruncated;
+        # the Casts table caps each player at 5 abilities, hiding these). Read by per_player_incombat.
+        incombat = _incombat_casts(code, fid, fight["startTime"], fight["endTime"], ability_names)
+        _save({"perSource": incombat}, os.path.join(out_dir, "incombat-{}.json".format(enc)))
+    return "[{}]   {}: {} (enc {})".format(code, "FULL" if heavy else "lite", fight["name"], enc)
+
+
 def fetch(code, out_dir, full_encounters=None):
-    """Fetch fights, player details, and per-boss tables for one report code."""
+    """Fetch fights, player details, and per-boss tables for one report code.
+
+    The independent network calls run concurrently (lib.parallel_map): boss kills come first because
+    everything else needs the fight list, then player-details + the ability map are fetched together,
+    and finally every per-boss table, the attempts/wipe data, and the trash sweep all fan out at once.
+    The files written and their contents are identical to the old serial path — only the wall-clock
+    wait shrinks. The global request semaphore in lib caps total in-flight requests."""
     full_encounters = set(int(e) for e in (full_encounters or []))
     os.makedirs(out_dir, exist_ok=True)
 
-    # 1) Boss kills (phaseTransitions ride along here - cheap, used by the Phases view).
-    #    `report.phases` rides along too: it carries the human PHASE NAMES (PhaseMetadata) that
-    #    phaseTransitions lacks — populated in TBC for scripted multi-phase bosses (e.g. Kael'thas
-    #    "P5: Gravity Lapse"). Maps phase id -> name for the Phases view, death timing, and wipe depth.
-    kills_q = (
+    # 1) ONE merged top query pulls everything that's keyed only by report code (no fight-id input):
+    #    the boss KILLS, every pull via killType:Encounters (the ATTEMPTS/wipe data), phase metadata, and
+    #    masterData (NPC names, pet→owner, ability→name). These were three separate calls; aliasing them
+    #    into one request pays WCL's per-request report-load just once → fewer points. We then unpack the
+    #    aliases back into the exact same per-file shapes the old calls wrote, so fights.json/attempts.json
+    #    stay byte-for-byte identical. Must be first: the fight list drives every fetch below.
+    #    phaseTransitions ride along (cheap, Phases view); `phases` carries the human PHASE NAMES
+    #    (PhaseMetadata) phaseTransitions lacks — TBC scripted multi-phase bosses (e.g. Kael'thas
+    #    "P5: Gravity Lapse"). masterData.abilities lets us classify in-combat cast EVENTS by name.
+    top_q = (
         "query K($code:String!){reportData{report(code:$code){title "
         "fights(killType:Kills){id name encounterID difficulty startTime endTime "
         "size averageItemLevel gameZone{id name} phaseTransitions{id startTime}} "  # gameZone: which zone each kill was in (Trash zone filter)
+        "encounters: fights(killType:Encounters){id encounterID kill startTime endTime fightPercentage lastPhase} "
         "phases{encounterID separatesWipes phases{id name isIntermission}} "
         "masterData{npcs: actors(type:\"NPC\"){id gameID name} "
-        "pets: actors(type:\"Pet\"){id petOwner}}}}}"  # pet->owner: fold pet damage into the owner's spec
+        "pets: actors(type:\"Pet\"){id petOwner} "  # pet->owner: fold pet damage into the owner's spec
+        "abilities{gameID name}}}}}"
     )
-    kills = lib.invoke_query(kills_q, {"code": code})
+    rep = lib.invoke_query(top_q, {"code": code})["reportData"]["report"]
+    md = rep["masterData"]
+
+    # fights.json — rebuilt to match the old kills_q output exactly (title, fights, phases, masterData
+    # with ONLY npcs+pets — the abilities alias is dropped here so the file is unchanged).
+    kills = {"reportData": {"report": {
+        "title": rep["title"], "fights": rep["fights"], "phases": rep["phases"],
+        "masterData": {"npcs": md["npcs"], "pets": md["pets"]}}}}
     _save(kills, os.path.join(out_dir, "fights.json"))
-    fights = kills["reportData"]["report"]["fights"]
+    fights = rep["fights"]
     fight_ids = [int(f["id"]) for f in fights]
     print("[{}] {} boss kills".format(code, len(fights)))
 
-    # 1b) Attempt/wipe counts per encounter (one cheap call). killType:Encounters returns every
-    #     boss pull (kills AND wipes); `kill` flags which succeeded → wipes = pulls before the kill.
-    #     `fightPercentage` (boss HP% remaining at wipe) + `lastPhase` ride along for WIPE DEPTH —
-    #     how far the best attempt got, so progression walls surface ("best Kael'thas: 21.6%, P5").
-    attempts_q = (
-        "query A($code:String!){reportData{report(code:$code){"
-        "fights(killType:Encounters){id encounterID kill startTime endTime fightPercentage lastPhase}}}}"
-    )
-    attempts = lib.invoke_query(attempts_q, {"code": code})
-    _save(attempts, os.path.join(out_dir, "attempts.json"))
+    # attempts.json shape == old attempts_q output ({report:{fights:<encounters>}}); _fetch_attempts saves it.
+    attempts = {"reportData": {"report": {"fights": rep["encounters"]}}}
+    # Ability id -> name map (for classifying in-combat consumable cast EVENTS), only when heavy bosses
+    # are swept. Same {gameID:name} mapping _ability_names produced, now read from the merged masterData.
+    ability_names = ({int(a["gameID"]): a.get("name") for a in (md.get("abilities") or [])
+                      if a.get("gameID") is not None} if full_encounters else {})
 
-    # 1c) Wipe DEATHS (shared bosses only): the friendly Deaths table for the WIPE pulls — the data behind
-    #     "what ends your attempts" on the Wipes tab (first death + killing blows per wipe). Kills are
-    #     already covered by boss-<enc>.json; this adds the progression-wipe view. ONE cheap call across
-    #     every shared-boss wipe fight (entries carry `fight` + `timestamp` + killingBlow, so we bucket
-    #     them to pulls client-side). Graceful: no wipes on the shared bosses → an empty file.
-    full_set = set(int(e) for e in (full_encounters or []))
-    if full_set:
-        att_fights = attempts["reportData"]["report"]["fights"]
-        wipe_fights = [f for f in att_fights
-                       if not f.get("kill") and int(f.get("encounterID") or 0) in full_set]
-        wipe_fids = [int(f["id"]) for f in wipe_fights]
-        wd_entries = []
-        if wipe_fids:
-            wd_q = ("query WD($code:String!,$f:[Int]!){reportData{report(code:$code){"
-                    "table(dataType:Deaths, fightIDs:$f, hostilityType:Friendlies)}}}")
-            wd = lib.invoke_query(wd_q, {"code": code, "f": wipe_fids})["reportData"]["report"]["table"]
-            wd_entries = ((wd or {}).get("data") or {}).get("entries") or []
-        _save({"wipeFights": wipe_fights, "deaths": wd_entries},
-              os.path.join(out_dir, "wipe-deaths.json"))
-        print("[{}] wipe deaths: {} shared-boss wipe fights, {} deaths".format(
-            code, len(wipe_fids), len(wd_entries)))
-
-    # 2) Player details (gear/enchants/gems/potions) across all kills - gear is static,
-    #    one call covers the roster.
+    # 2) Player details (gear/enchants/gems/potions) — its own call, since it needs the fight-id list
+    #    the query above just produced (a GraphQL request can't feed one field's result into another).
     pd_q = (
         "query D($code:String!,$f:[Int]!){reportData{report(code:$code){"
         "playerDetails(fightIDs:$f, includeCombatantInfo:true)}}}"
@@ -389,32 +427,17 @@ def fetch(code, out_dir, full_encounters=None):
         for p in (pdd.get(rn) or []):
             player_ids.append(p["id"])
 
-    # Ability id -> name map (for classifying in-combat consumable cast EVENTS on the shared bosses).
-    #    Fetched once per report, only when there are heavy bosses to sweep.
-    ability_names = _ability_names(code) if full_encounters else {}
+    # 3) Everything left is independent — fan it all out at once: the attempts/wipe data, every per-boss
+    #    table (+ heavy subtasks), and the trash sweep. Tasks return a log line (or None); we print them
+    #    after the join so the per-report output stays grouped and readable.
+    tasks = [lambda: _fetch_attempts(code, out_dir, full_encounters, attempts)]
+    tasks += [(lambda fight=fight: _fetch_one_boss(
+        code, out_dir, fight, full_encounters, player_ids, ability_names)) for fight in fights]
+    tasks.append(lambda: fetch_trash(code, out_dir) or None)
 
-    # 3) Per-boss tables (one call per boss via aliases). Shared bosses also pull the
-    #    heavy output tables for the Dive Deeper modules.
-    for fight in fights:
-        fid = int(fight["id"])
-        enc = int(fight["encounterID"])
-        heavy = enc in full_encounters
-        res = lib.invoke_query(FULL_Q if heavy else LITE_Q, {"code": code, "f": [fid]})
-        _save(res, os.path.join(out_dir, "boss-{}.json".format(enc)))
-        print("[{}]   {}: {} (enc {})".format(code, "FULL" if heavy else "lite", fight["name"], enc))
-        # Per-player consumable coverage + DPS/HPS timeline (shared bosses only — coaching detail).
-        if heavy:
-            ppb = _fetch_per_player_buffs(code, fid, player_ids)
-            _save({"perPlayer": ppb}, os.path.join(out_dir, "consumes-{}.json".format(enc)))
-            timeline = _binned_curves(code, fid, fight["startTime"], fight["endTime"])
-            _save(timeline, os.path.join(out_dir, "timeline-{}.json".format(enc)))
-            # In-combat mana-potion / healthstone usage, per source actor id, from cast EVENTS (untruncated;
-            # the Casts table caps each player at 5 abilities, hiding these). Read by per_player_incombat.
-            incombat = _incombat_casts(code, fid, fight["startTime"], fight["endTime"], ability_names)
-            _save({"perSource": incombat}, os.path.join(out_dir, "incombat-{}.json".format(enc)))
-
-    # 4) Trash analysis (on by default — cheap, ~7-9 calls). Self-contained so it can also run alone.
-    fetch_trash(code, out_dir)
+    for line in lib.parallel_map(lambda t: t(), tasks):
+        if line:
+            print(line)
 
     print("[{}] done -> {}".format(code, out_dir))
 

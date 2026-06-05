@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # find sibling modules
 import lib
@@ -26,11 +27,24 @@ import fetch_report
 import fetch_worldbest
 
 META_Q = "query M($code:String!){reportData{report(code:$code){title zone{name} fights(killType:Kills){encounterID}}}}"
-PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}"
 # rankings(compare:Parses) defaults to the DPS metric for EVERY role — so a healer's rankPercent/amount
-# come back as a meaningless DPS parse (their incidental damage), NOT their HPS parse. We fetch HPS
-# parses separately and merge them over the healers so each healer carries their real (HPS) parse.
-HPS_PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses, playerMetric:hps)}}}"
+# come back as a meaningless DPS parse (their incidental damage), NOT their HPS parse. We pull the HPS
+# metric alongside it and merge it over the healers so each healer carries their real (HPS) parse.
+# Both metrics ride in ONE request via aliases: WCL charges the report-load once per request, so two
+# aliased rankings cost fewer points than two separate calls — and the `dps`/`hps` aliases unpack back
+# into the exact same per-metric objects the merge expects, so the written JSON is byte-for-byte unchanged.
+MERGED_PARSE_Q = ("query P($code:String!){reportData{report(code:$code){"
+                  "dps: rankings(compare:Parses) "
+                  "hps: rankings(compare:Parses, playerMetric:hps)}}}")
+
+# The two reports are pinned/immutable, so their fetched data is cached hard (re-fetch only on --refresh).
+# The world-best rotations are the one LIVE input — but the global leaderboards barely move over a tier,
+# so an on-disk worldbest.json younger than this window is reused rather than re-fetched. World-best is the
+# bulk of the fetch's REQUESTS (~half the calls), so reusing it makes a tight dev loop (repeated --refresh)
+# cheap and, more importantly, stops us re-hammering the live leaderboard: --refresh re-pulls the report
+# data but leaves a recent worldbest alone. --refresh-worldbest forces it; --worldbest-ttl-hours overrides
+# the window. Default: 2 weeks — well within a raid tier, so the benchmark is effectively never re-fetched.
+WORLDBEST_TTL_HOURS = 24.0 * 14  # 2 weeks
 
 
 def get_code(u):
@@ -140,7 +154,11 @@ def main(argv=None):
     p.add_argument("--out-file")
     p.add_argument("--no-open", action="store_true")
     p.add_argument("--refresh", action="store_true",
-                   help="re-fetch from the API even if cached data for these report codes exists")
+                   help="re-fetch the REPORT data from the API even if cached data for these codes exists")
+    p.add_argument("--refresh-worldbest", action="store_true",
+                   help="also re-fetch the live world-best rotations (otherwise reused while within the TTL)")
+    p.add_argument("--worldbest-ttl-hours", type=float, default=WORLDBEST_TTL_HOURS,
+                   help="reuse an on-disk worldbest.json younger than this many hours (default %(default)s)")
     args = p.parse_args(argv)
 
     # Guild/report/ranking names carry accents; on a cp1252 Windows console or a non-UTF-8 pipe a plain
@@ -154,8 +172,8 @@ def main(argv=None):
     theirs_code = get_code(args.theirs_url)
 
     print("Resolving reports ({}, {})...".format(ours_code, theirs_code))
-    ours_meta = get_meta(ours_code)
-    theirs_meta = get_meta(theirs_code)
+    # Both metadata lookups are independent one-shot queries → fetch them together.
+    ours_meta, theirs_meta = lib.parallel_map(get_meta, [ours_code, theirs_code])
 
     # Shared bosses = encounter-ID intersection (fully deterministic).
     theirs_set = set(theirs_meta["encounters"])
@@ -181,19 +199,33 @@ def main(argv=None):
               for code in (ours_code, theirs_code)}
 
     # Parses (per-player percentile rankings) — fetched first so we can name each side by its GUILD.
+    # Each side's DPS-metric parses + HPS-metric overlay come back in ONE aliased request (fewer points
+    # than two calls). Across both uncached reports the two requests are independent, so we still fan
+    # them out. The reconstructed per-metric objects + merge yield JSON identical to the old two-call path.
     parse_obj = {}
+
+    def fetch_parses(code):
+        rep = lib.invoke_query(MERGED_PARSE_Q, {"code": code})["reportData"]["report"]
+        # Rebuild the exact single-metric response shape each side expects, then overlay HPS on healers
+        # (whose default-metric parse is a meaningless DPS percentile of their incidental damage).
+        default_obj = {"reportData": {"report": {"rankings": rep["dps"]}}}
+        hps_obj = {"reportData": {"report": {"rankings": rep["hps"]}}}
+        return merge_healer_hps(default_obj, hps_obj)
+
+    to_fetch = []
     for code, path in ((ours_code, ours_parses), (theirs_code, theirs_parses)):
         if cached[code]:
             print("Using cached parses for {}.".format(code))
             with open(path, encoding="utf-8") as fh:
                 parse_obj[code] = json.load(fh)
-            continue
-        print("Fetching parses for {}...".format(code))
-        parse_obj[code] = lib.invoke_query(PARSE_Q, {"code": code})
-        # Healers' parses default to DPS; overwrite them with the real HPS-metric parse.
-        merge_healer_hps(parse_obj[code], lib.invoke_query(HPS_PARSE_Q, {"code": code}))
+        else:
+            print("Fetching parses for {}...".format(code))
+            to_fetch.append((code, path))
+
+    for (code, path), obj in zip(to_fetch, lib.parallel_map(lambda cp: fetch_parses(cp[0]), to_fetch)):
+        parse_obj[code] = obj
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump(parse_obj[code], fh, indent=2, ensure_ascii=False)
+            json.dump(obj, fh, indent=2, ensure_ascii=False)
 
     # Name each side by its guild (the report's identity). Ours shows the guild name; theirs is framed
     # "Benchmark (Guild)" so a reader who didn't generate the report still knows which side to aspire to.
@@ -212,27 +244,24 @@ def main(argv=None):
     out_file = args.out_file or os.path.join(
         root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))
 
-    # Deep data (heavy output tables only for the shared bosses) — the bulk of the API cost. Reuse the
-    # cached dir when valid; otherwise fetch and stamp the shared set so the next run can reuse it.
-    for code, directory in ((ours_code, ours_dir), (theirs_code, theirs_dir)):
-        if cached[code]:
-            print("Using cached deep data for {}.".format(code))
-            continue
-        print("Fetching deep data for {}...".format(code))
+    # Deep data (heavy output tables only for the shared bosses) — the bulk of the API cost — plus the
+    # same-faction world-best rotations for the Optimize tab. These three jobs (our deep data, their deep
+    # data, world-best) are fully independent: each writes a disjoint set of files and world-best reads
+    # only ours_parses, already on disk. So we collect the uncached ones and run them concurrently; each
+    # job also parallelizes internally, all throttled by lib's global request semaphore. Reuse cached
+    # data/dirs when valid; otherwise fetch and stamp the shared set so the next run can reuse it.
+    def deep_task(code, directory):
         fetch_report.fetch(code, directory, shared)
         with open(os.path.join(directory, ".shared.json"), "w", encoding="utf-8") as fh:
             json.dump(sorted(shared), fh)
 
-    # Same-faction world-best rotations for our raid's specs (powers the Optimize tab). Keyed by OUR
-    # roster + faction + shared bosses, so it lives in ours_dir alongside the deep data. Re-fetched when
-    # our data isn't cached, when --refresh is passed, or when an older cached dir predates this file
-    # (so re-running over a cached report backfills the new tab). A failure here is non-fatal — the rest
-    # of the report still builds; the Optimize tab just renders empty.
+    # World-best is keyed by OUR roster + faction + shared bosses, so it lives in ours_dir alongside the
+    # deep data. Re-fetched when our data isn't cached, when --refresh is passed, or when an older cached
+    # dir predates this file (so re-running over a cached report backfills the tab). A failure here is
+    # non-fatal — the rest of the report still builds; the Optimize tab just renders empty.
     worldbest_path = os.path.join(ours_dir, "worldbest.json")
-    if cached[ours_code] and os.path.isfile(worldbest_path) and not args.refresh:
-        print("Using cached world-best rotations.")
-    else:
-        print("Fetching same-faction world-best rotations...")
+
+    def worldbest_task():
         enc_names = {int(k): v["name"] for k, v in
                      build_deepdive.index_by_encounter(build_deepdive.get_fights(ours_parses)).items()
                      if int(k) in shared}
@@ -240,6 +269,31 @@ def main(argv=None):
             fetch_worldbest.fetch_for_report(ours_code, ours_parses, shared, enc_names, worldbest_path)
         except Exception as exc:
             print("  world-best fetch failed ({}); Optimize tab will render empty.".format(exc))
+
+    heavy_jobs = []
+    for code, directory in ((ours_code, ours_dir), (theirs_code, theirs_dir)):
+        if cached[code]:
+            print("Using cached deep data for {}.".format(code))
+        else:
+            print("Fetching deep data for {}...".format(code))
+            heavy_jobs.append(lambda code=code, directory=directory: deep_task(code, directory))
+
+    # World-best is the live input, cached on its OWN TTL (not the report-data cache): reuse an on-disk
+    # worldbest.json that's younger than the TTL even across a --refresh, since leaderboards move slowly.
+    # Re-fetch only when it's missing, stale, or --refresh-worldbest forces it. This keeps the priciest
+    # part of the fetch (≈half the API points) off the repeated dev-loop path.
+    wb_age_h = ((time.time() - os.path.getmtime(worldbest_path)) / 3600.0
+                if os.path.isfile(worldbest_path) else None)
+    if wb_age_h is not None and wb_age_h < args.worldbest_ttl_hours and not args.refresh_worldbest:
+        print("Using cached world-best rotations ({:.1f}h old < {:g}h TTL).".format(
+            wb_age_h, args.worldbest_ttl_hours))
+    else:
+        why = "forced" if args.refresh_worldbest else ("missing" if wb_age_h is None
+                                                       else "{:.1f}h old".format(wb_age_h))
+        print("Fetching same-faction world-best rotations ({})...".format(why))
+        heavy_jobs.append(worldbest_task)
+
+    lib.parallel_map(lambda job: job(), heavy_jobs)
 
     # Build the report (pure Python + static template - deterministic).
     print("Building report...")

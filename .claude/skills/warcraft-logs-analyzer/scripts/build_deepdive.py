@@ -1304,13 +1304,15 @@ def _targets_by_name(tl, npc_map, boss_name):
 def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
     """ADD KILL SPEED — the actionable read of the per-target spans (the old "engagement & survival"
     timeline was descriptive-but-inert; this reworks it into a ranked gap). For each non-boss ADD that
-    BOTH raids engaged on a multi-target fight, how long it survived (median first-hit→last) ours vs the
+    EITHER raid engaged on a multi-target fight, how long it survived (median first-hit→last) ours vs the
     benchmark, ranked by how much SLOWER we are (our median − theirs). A slower add kill prolongs the
     add's damage and the fight, so an add the benchmark consistently kills faster is a focus / CC /
     assignment target. DESCRIPTIVE — some adds are held intentionally until called — but the benchmark
     sets the pace, so read it against your plan. The BOSS row is dropped (its engaged span just restates
-    kill time) and so is the pure first-appearance timeline (not actionable on its own). Returns [] when
-    no add was engaged by BOTH raids (nothing comparable to rank)."""
+    kill time) and so is the pure first-appearance timeline (not actionable on its own). The strongest case is a SKIPPED add: the benchmark killed the boss fast enough to never engage an add we
+    had to fight (theirsLife=None, ×0) — it counts as 0 lifespan, so it ranks at the top as the biggest
+    add-control gap. The reverse (an add WE skipped but they fought) surfaces as a lead. Returns [] only when
+    neither raid engaged any non-boss add (a clean single-target kill)."""
     oa = _targets_by_name(o_tl, o_npc, boss_name)
     ta = _targets_by_name(t_tl, t_npc, boss_name)
     rows = []
@@ -1318,12 +1320,15 @@ def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
         o, t = oa.get(nm), ta.get(nm)
         if (o and o.get("isBoss")) or (t and t.get("isBoss")):
             continue  # the boss itself — its span just restates kill time
-        if not o or not t:
-            continue  # need both sides to compare kill speed (one-sided adds aren't a clean gap)
-        rows.append({"name": nm, "oursLife": o["medLife"], "theirsLife": t["medLife"],
-                     "deficit": round(o["medLife"] - t["medLife"], 1),
-                     "oursCount": o["count"], "theirsCount": t["count"]})
-    rows.sort(key=lambda r: -r["deficit"])  # adds we're slowest on (vs benchmark) first
+        o_life = o["medLife"] if o else None
+        t_life = t["medLife"] if t else None
+        rows.append({"name": nm, "oursLife": o_life, "theirsLife": t_life,
+                     # a side that never engaged the add = 0 lifespan: skipping it entirely is the extreme
+                     # of "killed faster", so the raid that fought it carries the full gap and ranks first.
+                     "deficit": round((o_life or 0) - (t_life or 0), 1),
+                     "oursCount": o["count"] if o else 0, "theirsCount": t["count"] if t else 0,
+                     "oursSkipped": o is None, "theirsSkipped": t is None})
+    rows.sort(key=lambda r: -r["deficit"])  # adds we're slowest on (or that the benchmark skipped) first
     return rows
 
 

@@ -231,11 +231,11 @@ the honest version.)
   the Timeline's DamageDone pull by `targetID` (`_binned_curves`). Shown only when both
   sides multi-target (`multiTarget`: top-enemy share <80% AND ≥2 enemies ≥5%). Descriptive.
 - **Add Control — Kill Speed** (`target_engagement`/`_targets_by_name` →
-  `targetEngagementView`) — per boss >1 target, for each non-boss add both raids engaged,
+  `targetEngagementView`) — per boss >1 target, for each non-boss add either raid engaged,
   survival (median first→last hit), ranked by how much **slower** we are. A slower add =
   focus/CC/assignment target (e.g. Al'ar Embers 132.6s vs 42.9s). Boss row dropped (just
   restates kill time). Descriptive (some adds held on purpose). Add names from `masterData`;
-  targets <1% of fight damage dropped. [] when no shared add. No extra fetch.
+  targets <1% of fight damage dropped. A side that never engaged an add (×0) **skipped** it — the benchmark skipping an add we fought (its boss DPS out-paced the wave) is the biggest gap; the reverse is a lead. [] only when neither raid engaged a non-boss add. No extra fetch.
 - **Output Quality** — time-weighted Raid DPS/HPS, avg activity (`dd.activeTime`/dur),
   damage taken ex-tanks (`dt`, with a per-sec/overall toggle), overheal (`heal.overheal`).
   **DPS gap diagnosis** (`dps_diagnosis` → `quality.dpsDiagnosis`) splits the raid-DPS

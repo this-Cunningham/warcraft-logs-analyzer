@@ -1289,27 +1289,33 @@ function focusFireView(d){
   }
   return h+`</tbody></table>`;
 }
-// Add Control — Kill Speed. For each non-boss add BOTH raids engaged on a multi-target fight, how long it
+// Add Control — Kill Speed. For each non-boss add EITHER raid engaged on a multi-target fight, how long it
 // survived (median first-hit→last) ours vs benchmark, ranked by how much slower we are. A slower add kill
 // prolongs its damage and the fight — so an add the benchmark kills faster is a focus/CC/assignment target.
-// DESCRIPTIVE (some adds are held intentionally), but the benchmark sets the pace; lower lifespan is better.
+// A side that never engaged an add (×0) "skipped" it — the benchmark skipping an add we fought is the
+// biggest gap (their boss DPS out-paced the wave). DESCRIPTIVE; lower lifespan is better.
 function targetEngagementView(d){
   const bosses=rowsOf(d.deep&&d.deep.targetEngagement).filter(b=>rowsOf(b.targets).length);
   if(!bosses.length) return "";
-  let h=`<h2 class="section">Add Control — Kill Speed<span class="hint">On multi-target fights, how long each <b>add</b> stayed alive (median, first hit → last) vs the benchmark — for adds both raids engaged, ranked by where you're <b>slowest</b>. A slower kill prolongs the fight, so one the benchmark kills faster is a focus / CC / assignment target. <b>Read against your plan</b> — some adds are held on purpose. Lower is better.</span></h2>`;
+  let h=`<h2 class="section">Add Control — Kill Speed<span class="hint">On multi-target fights, how long each <b>add</b> stayed alive (median, first hit → last) vs the benchmark, ranked by where you're <b>slowest</b>. A slower kill prolongs the fight, so one the benchmark kills faster is a focus / CC / assignment target. When the benchmark killed the boss fast enough to <b>skip an add entirely</b> (×0 for them) that's the biggest gap — faster boss DPS would let you skip it too. <b>Read against your plan</b> — some adds are held on purpose. Lower is better.</span></h2>`;
   for(const b of bosses){
     const targets=rowsOf(b.targets);
-    const max=Math.max(1,...targets.map(a=>Math.max(a.oursLife,a.theirsLife)));
-    const w=v=>Math.max(2,Math.round(v/max*100));
+    const max=Math.max(1,...targets.map(a=>Math.max(a.oursLife||0,a.theirsLife||0)));
+    const w=v=>Math.max(2,Math.round((v||0)/max*100));
     h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>
       <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Add lifespan (median) — lower = killed faster</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
     for(const a of targets){
-      const dl=deltaLow(a.oursLife,a.theirsLife); // lower survival time is better
-      h+=`<div class="dval lo">${a.oursLife}s</div>
+      // a skipped side never engaged the add — show an em-dash + badge, not a fake 0s
+      const oTxt=a.oursSkipped?'<span class="cna">—</span>':a.oursLife+"s";
+      const tTxt=a.theirsSkipped?'<span class="cna">—</span>':a.theirsLife+"s";
+      const dtag=a.theirsSkipped?'<span class="delta bad">they skipped</span>'
+               :a.oursSkipped?'<span class="delta good">you skipped</span>'
+               :(dd=>`<span class="delta ${dd.cls}">${dd.txt}s</span>`)(deltaLow(a.oursLife,a.theirsLife));
+      h+=`<div class="dval lo">${oTxt}</div>
         <div class="dbarL"><div class="f ours" style="width:${w(a.oursLife)}%"></div></div>
-        <div class="dmid">${esc(a.name)}<span class="delta ${dl.cls}">${dl.txt}s</span></div>
+        <div class="dmid">${esc(a.name)}${dtag}</div>
         <div class="dbarR"><div class="f theirs" style="width:${w(a.theirsLife)}%"></div></div>
-        <div class="dval ro">${a.theirsLife}s</div>
+        <div class="dval ro">${tTxt}</div>
         <div class="dctx">×${a.oursCount} vs ×${a.theirsCount}</div>`;
     }
     h+=`</div></div></div>`;

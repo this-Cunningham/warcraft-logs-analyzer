@@ -269,8 +269,10 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
 - **Timeline** (`timeline_view` → `timelineChart`/`tlChart`) — Raid DPS+HPS over the
   fight, ours vs benchmark, on a shared **absolute-seconds** x-axis: each curve point i
   sits at i/(n-1) of its OWN duration, so the shorter kill's line ends earlier (that gap =
-  benchmark finishing sooner). Death ticks (▲), Bloodlust (⚡), phase dividers — all at real
-  seconds. Inline SVG, no libs. **Curves from events, not `graph()`** (see Timeline note
+  benchmark finishing sooner). Death ticks (▲), Bloodlust (⚡, full-height per side), and phase
+  markers as **edge notches** — ours along the bottom, benchmark along the top, each colour-matched
+  to its own curve (full-height dividers would imply the two timelines align; they don't) — all at
+  real seconds. Inline SVG, no libs. **Curves from events, not `graph()`** (see Timeline note
   below). **Opener caption** (`opener_gap` → `b.openerGap`): first ~30s of raid DPS, reddened
   only if we trail.
 - **Buff Uptime** — boss debuffs + raid buffs, value←bar—name—bar→value, sorted by delta.

@@ -18,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # find sibling modules
 from report_common import avg, cc_label, index_by_encounter, get_fights, read_json, render_report, ssum
+import positioning  # the Positioning views (features ride positions-<enc>.json; graceful when absent)
 
 _ROLE_LABEL = {"tanks": "tank", "healers": "healer", "dps": "dps"}
 
@@ -1563,6 +1564,22 @@ def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
         rows.append({"name": nm, "ours": o_ps, "theirs": t_ps, "deficit": o_ps - t_ps})
     rows.sort(key=lambda r: -r["deficit"])  # where we take the most MORE than the benchmark, first
     return rows[:n]
+
+
+def boss_avoidable_rows(o_report, t_report, o_tank, t_tank, o_dur_ms, t_dur_ms):
+    """Per-boss avoidable damage by ability (ex-tanks), as a per-second rate ranked by where WE take the most
+    MORE than the benchmark — the SAME shape avoidable_damage_gap produces tier-wide, but for ONE boss. Drives
+    the Positioning section's choice of which ability to plot (the top mechanic we over-eat with a spatial
+    signal). Returns [{name, ours, theirs, deficit}]."""
+    oa = ability_agg(o_report, o_tank)
+    ta = ability_agg(t_report, t_tank)
+    rows = []
+    for nm in sorted(set(oa) | set(ta), key=repr):
+        o_ps = round(oa.get(nm, 0) * 1000 / o_dur_ms) if o_dur_ms > 0 else 0
+        t_ps = round(ta.get(nm, 0) * 1000 / t_dur_ms) if t_dur_ms > 0 else 0
+        rows.append({"name": nm, "ours": o_ps, "theirs": t_ps, "deficit": o_ps - t_ps})
+    rows.sort(key=lambda r: -r["deficit"])
+    return rows
 
 
 def death_cause_compare(per_boss):
@@ -3665,6 +3682,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     t_id_to_name = {v: k for k, v in name_id_map(theirs_dir).items()}
     o_pet = pet_owner_map(ours_dir)
     t_pet = pet_owner_map(theirs_dir)
+    # Positioning role maps (actor id -> tank/melee/ranged/healer) + tank-id sets, computed once. Drive the
+    # per-boss Positioning views; graceful when no positions-<enc>.json exists (the section just won't render).
+    o_pos_roles = positioning.role_map(ours_roster, name_id_map(ours_dir))
+    t_pos_roles = positioning.role_map(theirs_roster, name_id_map(theirs_dir))
+    o_tank_ids = {a for a, r in o_pos_roles.items() if r == "tank"}
+    t_tank_ids = {a for a, r in t_pos_roles.items() if r == "tank"}
+    pos_spread_gaps = []   # per-vetted-boss spread-vs-demand gaps → Overview headline
+    pos_melee_rows = []    # per-non-mobile-boss melee in-range % → Execution view
     # Accumulators for the tier-wide views (item level by role).
     o_ilvl, t_ilvl = {}, {}
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
@@ -3793,7 +3818,26 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 o_tl, t_tl,
                 (o_id_to_name, ours_spec, ours_role, ours_cls, o_pet),
                 (t_id_to_name, theirs_spec, theirs_role, theirs_cls, t_pet))
+        # Positioning (features 1,2,4,5) — one per-boss sub-tab fragment + the scalars the Overview headline
+        # (spread gap) and Execution melee view consume. Graceful None when this boss has no positions file
+        # (older data folder) or is a mobile boss (auto-suppressed). The avoidable rows pick which mechanic
+        # to plot (the top one we over-eat with a spatial signal).
+        pos_html = None
+        o_pos = positioning.load_positions(ours_dir, enc)
+        t_pos = positioning.load_positions(theirs_dir, enc)
+        if o_pos and t_pos:
+            avoid_rows = boss_avoidable_rows(o_b, t_b, ours_tank, theirs_tank, o_dur, t_dur)
+            pos_res = positioning.boss_positioning(
+                o_pos, t_pos, o_pos_roles, t_pos_roles, o_tank_ids, t_tank_ids,
+                b["name"], avoid_rows, ours_name, theirs_name)
+            if pos_res:
+                pos_html = pos_res["html"]
+                if pos_res.get("spreadGap"):
+                    pos_spread_gaps.append(pos_res["spreadGap"])
+                if pos_res.get("meleeUptime"):
+                    pos_melee_rows.append(pos_res["meleeUptime"])
         per_boss.append({
+            "positioning": pos_html,
             "encounterID": b["encounterID"], "name": b["name"],
             "oursLustSec": o_lust,
             "theirsLustSec": t_lust,
@@ -3978,6 +4022,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
 
     eff = {"ours": efficiency(ours_dir, common_ids), "theirs": efficiency(theirs_dir, common_ids)}
 
+    # Positioning tier payloads: the Execution melee-uptime view (non-mobile bosses) + the single biggest
+    # spread-vs-demand call for the Overview headline. Both are pre-rendered HTML fragments (stdlib SVG);
+    # "" when no boss supports them, so the template renders nothing.
+    positioning_payload = {
+        "meleeView": positioning.melee_uptime_view(pos_melee_rows, ours_name, theirs_name),
+        "headline": positioning.spread_headline(pos_spread_gaps),
+    }
+
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
         "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
@@ -3994,7 +4046,7 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
                  "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,
-                 "wipes": wipes, "optimize": optimize},
+                 "wipes": wipes, "optimize": optimize, "positioning": positioning_payload},
     }
     out_full = render_report(payload, out_file)
     print("Deep-dive report written to {} ({} shared bosses, {} with buff/debuff data)".format(

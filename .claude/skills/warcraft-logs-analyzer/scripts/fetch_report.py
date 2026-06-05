@@ -16,6 +16,8 @@ Writes:
                                             event-binned into N equal buckets across the fight)
     <out_dir>/incombat-<encounterID>.json  (shared bosses only: per-source mana-potion/healthstone cast
                                             counts from cast EVENTS — the Casts table caps at 5 abilities)
+    <out_dir>/positions-<encounterID>.json (shared bosses only: per-actor time-binned x/y + boss anchor
+                                            track + per-ability hit spots — powers the Positioning views)
     <out_dir>/trash.json           (trash pull segments + NPC name master data, for the Trash tab)
     <out_dir>/trash-deaths.json    (enemy kill-order events + player death entries on trash)
     <out_dir>/trash-cc.json        (hard-CC aura table + per-mob CC apply events on trash)
@@ -223,6 +225,163 @@ def _incombat_casts(code, fid, start, end, ability_names, cap_pages=20):
     return out
 
 
+# ---------- POSITIONS (per-actor x/y over the fight, for the Positioning views) ----------
+# One compact artifact per shared boss powering all 5 positioning features (spread index, spread-over-
+# time, melee uptime, the avoidable-ability scatter, the void-zone heatmap). We sweep three resourced
+# event streams once and BIN them here (same fetch-aggregates / build-reads split the timeline curves
+# use) so the written file stays small and the heavy event payload never reaches the deterministic build.
+#
+#   * DamageTaken (Friendlies)  -> each player's position when a hit LANDS on them (resourceActor 2 =
+#     target). Also the source of the per-ability HIT POSITIONS that drive the scatter + heatmap.
+#   * Casts (Friendlies)        -> each player's position when they cast (resourceActor 1 = source);
+#     denser than DamageTaken for ranged who rarely get hit.
+#   * DamageDone targetID:<boss> -> the boss's own position (resourceActor 2 = target = the boss the
+#     whole raid is hitting), the densest possible anchor for the melee-ring + map.
+#
+# Resources are free (api-cost.md: ~2 pts/request flat, includeResources doesn't change it) and these
+# types stay single-page even on long fights, so a boss costs ~6 pts. Positions are a LINEAR transform
+# of yards (isotropic), so relative geometry — distance, spread, in/out-of-ring — is exact without any
+# yard calibration; we never claim an absolute yard, compass bearing, or HP (see coordinate-system.md).
+_POS_BIN_TARGET_MS = 2000.0   # aim ~2s per time bin (per-bin median position = honest time-windowed sample)
+_POS_MIN_BINS, _POS_MAX_BINS = 20, 200
+_POS_HIT_CAP = 800            # max hit positions kept per ability (enough for a dense scatter/heatmap)
+_POS_HIT_MIN = 4              # drop abilities hit fewer times than this (noise, no spatial signal)
+
+
+def _resolve_boss_actor_id(npc_id_to_name, boss_name):
+    """The boss's report-actor id, matched by NAME against masterData NPCs (actor ids are per-report, so
+    a name lookup is the only stable handle). Prefer an EXACT name match (so "Al'ar" wins over the
+    substring hit "Ember of Al'ar"); fall back to a two-way substring match. None if nothing matches —
+    the boss track is then skipped and the boss-anchored views (melee ring, map marker) degrade gracefully."""
+    if not boss_name:
+        return None
+    exact = [aid for aid, nm in npc_id_to_name.items() if nm == boss_name]
+    if exact:
+        return exact[0]
+    sub = [aid for aid, nm in npc_id_to_name.items() if nm and (nm in boss_name or boss_name in nm)]
+    return sub[0] if sub else None
+
+
+def _page_resourced(code, fid, data_type, extra="", cap_pages=12):
+    """Yield (timestamp, positioned_actor_id, x, y, targetID, abilityGameID) for every RESOURCED event of
+    one type on one fight. resourceActor picks which actor the x/y describe: 1=source, 2=target. Miss/dodge
+    events carry no resources (guard `x`). Paginated via nextPageTimestamp; single-page on TBC fight lengths."""
+    q = ("query P($c:String!,$f:[Int]!,$s:Float!){reportData{report(code:$c){"
+         "events(dataType:" + data_type + ",hostilityType:Friendlies,fightIDs:$f,"
+         "includeResources:true,startTime:$s,limit:10000" + extra + "){data nextPageTimestamp}}}}")
+    start = float(0)
+    for _ in range(cap_pages):
+        ev = lib.invoke_query(q, {"c": code, "f": [fid], "s": start})["reportData"]["report"]["events"]
+        for e in (ev.get("data") or []):
+            if "x" not in e or "y" not in e:
+                continue
+            ra = e.get("resourceActor")
+            aid = e.get("sourceID") if ra == 1 else e.get("targetID") if ra == 2 else None
+            if aid is None:
+                continue
+            yield (e.get("timestamp"), aid, e["x"], e["y"], e.get("targetID"), e.get("abilityGameID"))
+        nxt = ev.get("nextPageTimestamp")
+        if not nxt or nxt <= start:
+            break
+        start = float(nxt)
+
+
+def _median(vals):
+    s = sorted(vals)
+    n = len(s)
+    if not n:
+        return None
+    m = n // 2
+    return s[m] if n % 2 else (s[m - 1] + s[m]) / 2.0
+
+
+def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, ability_names):
+    """Build positions-<enc>.json for one shared boss: per-actor time-binned positions, the boss anchor
+    track, and per-ability hit positions for the scatter/heatmap. Deterministic (median per bin, abilities
+    sorted, hit lists capped in timestamp order) so the cached artifact is byte-stable."""
+    dur = max(1, int(end) - int(start))
+    n_bins = max(_POS_MIN_BINS, min(_POS_MAX_BINS, round(dur / _POS_BIN_TARGET_MS)))
+    bin_ms = dur / n_bins
+    boss_id = _resolve_boss_actor_id(npc_id_to_name, boss_name)
+
+    def bin_of(ts):
+        return min(max(int((int(ts) - int(start)) // bin_ms), 0), n_bins - 1)
+
+    # actor id -> {bin -> [(x,y), ...]}; filled from DamageTaken (player targets) + Casts (player sources)
+    # and, for the boss id, DamageDone-to-boss (boss targets).
+    samp = {}
+    hits = {}  # ability name -> [(ts,[x,y,tid]), ...] (capped, timestamp order)
+
+    def add(aid, ts, x, y):
+        d = samp.get(aid)
+        if d is None:
+            d = samp[aid] = {}
+        d.setdefault(bin_of(ts), []).append((x, y))
+
+    for ts, aid, x, y, tid, _gid in _page_resourced(code, fid, "DamageTaken"):
+        add(aid, ts, x, y)
+        # Per-ability hit positions (the ability that LANDED, resolved to its name so it joins the
+        # build's name-keyed avoidable-damage gap). aid here is the target (the player who got hit).
+        gid = _gid
+        nm = ability_names.get(int(gid)) if gid is not None else None
+        if nm:
+            lst = hits.setdefault(nm, [])
+            if len(lst) < _POS_HIT_CAP:
+                lst.append((ts, [int(round(x)), int(round(y)), tid]))
+    for ts, aid, x, y, _tid, _gid in _page_resourced(code, fid, "Casts"):
+        add(aid, ts, x, y)
+    boss_bins = None
+    if boss_id is not None:
+        bsamp = {}
+        for ts, aid, x, y, _tid, _gid in _page_resourced(
+                code, fid, "DamageDone", extra=",targetID:{}".format(int(boss_id))):
+            if aid == boss_id:
+                bsamp.setdefault(bin_of(ts), []).append((x, y))
+        boss_bins = [None] * n_bins
+        for bi, pts in bsamp.items():
+            boss_bins[bi] = [round(_median([p[0] for p in pts])), round(_median([p[1] for p in pts]))]
+
+    def median_track(per_bin):
+        out = [None] * n_bins
+        for bi, pts in per_bin.items():
+            out[bi] = [round(_median([p[0] for p in pts])), round(_median([p[1] for p in pts]))]
+        return out
+
+    actors = {}
+    all_x, all_y = [], []
+    for aid, per_bin in samp.items():
+        if aid == boss_id:
+            continue  # the boss rides in `boss`, not the per-player actor map
+        track = median_track(per_bin)
+        cnt = sum(len(v) for v in per_bin.values())
+        actors[str(aid)] = {"bins": track, "n": cnt}
+        for p in track:
+            if p:
+                all_x.append(p[0])
+                all_y.append(p[1])
+    if boss_bins:
+        for p in boss_bins:
+            if p:
+                all_x.append(p[0])
+                all_y.append(p[1])
+
+    # Per-ability hit positions, sorted by name, dropping noise-count abilities; keep [x,y,tid] only.
+    hits_out = {}
+    for nm in sorted(hits):
+        pts = [p for _ts, p in hits[nm]]
+        if len(pts) >= _POS_HIT_MIN:
+            hits_out[nm] = {"total": len(pts), "points": pts}
+
+    frame = None
+    if all_x and all_y:
+        frame = {"minX": min(all_x), "maxX": max(all_x), "minY": min(all_y), "maxY": max(all_y)}
+    return {
+        "enc": int(enc), "durMs": dur, "startMs": int(start), "nBins": n_bins, "binMs": round(bin_ms, 2),
+        "boss": ({"id": int(boss_id), "name": boss_name, "bins": boss_bins} if boss_bins else None),
+        "actors": actors, "hitsByAbility": hits_out, "frame": frame,
+    }
+
+
 # Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,
 # in one cheap call. WCL already splits trash into discrete pulls; enemyNPCs carries the report
 # actor id + game id + how many of each mob, and masterData resolves those ids to names.
@@ -338,11 +497,11 @@ def _fetch_attempts(code, out_dir, full_set, attempts):
         code, len(wipe_fids), len(wd_entries))
 
 
-def _fetch_one_boss(code, out_dir, fight, full_encounters, player_ids, ability_names):
+def _fetch_one_boss(code, out_dir, fight, full_encounters, player_ids, ability_names, npc_id_to_name):
     """Fetch + save everything for ONE boss kill: its buff/debuff (and, for shared bosses, heavy output)
-    table, plus the per-player consumables, DPS/HPS timeline, and in-combat-cast files. Each boss writes
-    only its own boss-<enc>/consumes-<enc>/timeline-<enc>/incombat-<enc> files, so bosses are fully
-    independent and run in parallel. Returns a log line."""
+    table, plus the per-player consumables, DPS/HPS timeline, positions, and in-combat-cast files. Each boss
+    writes only its own boss-<enc>/consumes-<enc>/timeline-<enc>/positions-<enc>/incombat-<enc> files, so
+    bosses are fully independent and run in parallel. Returns a log line."""
     fid = int(fight["id"])
     enc = int(fight["encounterID"])
     heavy = enc in full_encounters
@@ -353,6 +512,11 @@ def _fetch_one_boss(code, out_dir, fight, full_encounters, player_ids, ability_n
         _save({"perPlayer": ppb}, os.path.join(out_dir, "consumes-{}.json".format(enc)))
         timeline = _binned_curves(code, fid, fight["startTime"], fight["endTime"])
         _save(timeline, os.path.join(out_dir, "timeline-{}.json".format(enc)))
+        # Positions (per-actor x/y over the fight + boss anchor + per-ability hit spots) for the
+        # Positioning views. Binned here so the heavy event payload never reaches the build.
+        positions = _fetch_positions(code, fid, enc, fight["startTime"], fight["endTime"],
+                                     fight.get("name"), npc_id_to_name, ability_names)
+        _save(positions, os.path.join(out_dir, "positions-{}.json".format(enc)))
         # In-combat mana-potion / healthstone usage, per source actor id, from cast EVENTS (untruncated;
         # the Casts table caps each player at 5 abilities, hiding these). Read by per_player_incombat.
         incombat = _incombat_casts(code, fid, fight["startTime"], fight["endTime"], ability_names)
@@ -405,10 +569,14 @@ def fetch(code, out_dir, full_encounters=None):
 
     # attempts.json shape == old attempts_q output ({report:{fights:<encounters>}}); _fetch_attempts saves it.
     attempts = {"reportData": {"report": {"fights": rep["encounters"]}}}
-    # Ability id -> name map (for classifying in-combat consumable cast EVENTS), only when heavy bosses
-    # are swept. Same {gameID:name} mapping _ability_names produced, now read from the merged masterData.
+    # Ability id -> name map (for classifying in-combat consumable cast EVENTS + naming the abilities in
+    # the position hit-spots), only when heavy bosses are swept. Same {gameID:name} mapping _ability_names
+    # produced, now read from the merged masterData.
     ability_names = ({int(a["gameID"]): a.get("name") for a in (md.get("abilities") or [])
                       if a.get("gameID") is not None} if full_encounters else {})
+    # NPC actor id -> name, for resolving the boss's own actor id (per-report ids → name lookup) in the
+    # position fetch's boss anchor track.
+    npc_id_to_name = {int(a["id"]): a.get("name") for a in (md.get("npcs") or []) if a.get("id") is not None}
 
     # 2) Player details (gear/enchants/gems/potions) — its own call, since it needs the fight-id list
     #    the query above just produced (a GraphQL request can't feed one field's result into another).
@@ -432,7 +600,7 @@ def fetch(code, out_dir, full_encounters=None):
     #    after the join so the per-report output stays grouped and readable.
     tasks = [lambda: _fetch_attempts(code, out_dir, full_encounters, attempts)]
     tasks += [(lambda fight=fight: _fetch_one_boss(
-        code, out_dir, fight, full_encounters, player_ids, ability_names)) for fight in fights]
+        code, out_dir, fight, full_encounters, player_ids, ability_names, npc_id_to_name)) for fight in fights]
     tasks.append(lambda: fetch_trash(code, out_dir) or None)
 
     for line in lib.parallel_map(lambda t: t(), tasks):
@@ -440,6 +608,44 @@ def fetch(code, out_dir, full_encounters=None):
             print(line)
 
     print("[{}] done -> {}".format(code, out_dir))
+
+
+def fetch_positions_only(code, out_dir, full_encounters):
+    """Backfill positions-<enc>.json into an EXISTING data folder without re-pulling the heavy tables.
+    Mirrors --trash-only: reads the cached fights.json for the fight list + NPC names, fetches just the
+    masterData ability map (one cheap call, for naming the hit spots), then sweeps positions per shared
+    boss. Lets a cached (immutable) report gain the Positioning data the first fetch predated."""
+    full = set(int(e) for e in (full_encounters or []))
+    rep = read_json_local(os.path.join(out_dir, "fights.json"))["reportData"]["report"]
+    fights = rep["fights"]
+    npc_id_to_name = {int(a["id"]): a.get("name")
+                      for a in (((rep.get("masterData") or {}).get("npcs")) or []) if a.get("id") is not None}
+    ab = lib.invoke_query(
+        "query A($code:String!){reportData{report(code:$code){masterData{abilities{gameID name}}}}}",
+        {"code": code})["reportData"]["report"]["masterData"]["abilities"]
+    ability_names = {int(a["gameID"]): a.get("name") for a in (ab or []) if a.get("gameID") is not None}
+
+    def one(fight):
+        enc = int(fight["encounterID"])
+        if enc not in full:
+            return None
+        pos = _fetch_positions(code, int(fight["id"]), enc, fight["startTime"], fight["endTime"],
+                               fight.get("name"), npc_id_to_name, ability_names)
+        _save(pos, os.path.join(out_dir, "positions-{}.json".format(enc)))
+        b = pos.get("boss")
+        return "[{}]   positions: {} (enc {}) - {} actors, boss {}, {} hit-abilities".format(
+            code, fight.get("name"), enc, len(pos["actors"]),
+            "yes" if b else "NO", len(pos["hitsByAbility"]))
+
+    for line in lib.parallel_map(one, fights):
+        if line:
+            print(line)
+    print("[{}] positions backfilled -> {}".format(code, out_dir))
+
+
+def read_json_local(path):
+    with open(path, "r", encoding="utf-8-sig") as fh:
+        return json.load(fh)
 
 
 def main(argv=None):
@@ -458,9 +664,16 @@ def main(argv=None):
         action="store_true",
         help="only (re)fetch the trash files into an existing data folder; skip the boss fetch",
     )
+    p.add_argument(
+        "--positions-only",
+        action="store_true",
+        help="only (re)fetch positions-<enc>.json for --full-encounters into an existing data folder",
+    )
     args = p.parse_args(argv)
     if args.trash_only:
         fetch_trash(args.code, args.out_dir)
+    elif args.positions_only:
+        fetch_positions_only(args.code, args.out_dir, args.full_encounters)
     else:
         fetch(args.code, args.out_dir, args.full_encounters)
 

@@ -419,6 +419,43 @@ a raw data dump. `trash_packs`/`trashPacksView` and their CSS are gone.)*
 
 ---
 
+## Positioning (EXPERIMENTAL)
+
+The five flagship positioning features (`positioning.py` → server-rendered stdlib-SVG/HTML fragments
+injected into the template; built in `build_deepdive.build`'s per-boss loop + a tier rollup). All ride
+ONE new artifact — `positions-<enc>.json` per shared boss — and embed next to the boss/mechanic they
+explain (**no new top-level tab**, per the brainstorm's embed guardrail). Honesty: WCL x/y are a linear
+transform of yards (isotropic), so relative geometry is exact; every yard figure is labelled ~approx and
+only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compass bearing, or HP.
+
+- **Overview headline** (`spread_headline` → `deep.positioning.headline`) — the single biggest
+  spread-vs-demand gap across vetted bosses, when we're past the benchmark by a real margin. Silent
+  otherwise (an honest "no positioning gap here", as on the pinned Imminent matchup).
+- **Execution → Melee Uptime on the Boss** (`melee_uptime` per boss + `melee_uptime_view` →
+  `deep.positioning.meleeView`) — sits right under Activity by Spec as its geometric cause: the share of
+  melee samples within the ~melee ring of the boss (soft in/edge/out band, time-weighted), ours vs
+  benchmark, per boss. **Gated to non-mobile bosses** (on a mobile boss it would measure the boss's path,
+  not melee discipline); the ours-vs-benchmark delta on the SAME boss cancels the shared boss-path.
+- **Bosses → per-boss "Positioning" sub-tab** (`boss_positioning` → `perBoss[].positioning`, a 9th boss
+  sub-tab, present only on non-mobile bosses with a positions file):
+  - **Raid formation & spread** (feature 2) — side-by-side formation maps (one shared frame+scale,
+    role-coloured dots, boss diamond + dashed ring) + the spread-vs-demand verdict. Spread is a robust
+    **spread radius** (`spread_radius_yd`: median per-bin distance to the cohort's median centroid — resists
+    both the stacked-raid median-collapse and max-range-ranged outliers), not median-NN. The spread/stack
+    VERDICT fires only for a curated `DEMAND` set (Void Reaver, Solarian, Vashj, Leotheras); elsewhere the
+    numbers are descriptive with no "you should…" arrow.
+  - **Spread over time** (feature 5, `spread_series`) — spread radius over fight-fraction buckets, ours vs
+    benchmark, naming the bucket where the gap opens ("drill that window, not the whole fight").
+  - **Why we eat more <ability>** (feature 1, `ability_cluster`) + **Void-zone density** (feature 4) — the
+    top avoidable-damage-gap mechanic we over-eat *with spatial signal* (`_top_avoidable_with_hits`: deficit
+    > 0, ≥5 distinct non-tank targets, not melee/self-damage) rendered as a dual scatter + binned heatmap,
+    with a clustered→spacing-fix vs scattered→cooldown/healing verdict. Silent when no such mechanic exists.
+
+Boss auto-class (`boss_travel_yd`/`boss_class`: STATIONARY/PLANT-AND-MOVE/MOBILE from total boss travel)
+gates which features make sense — MOBILE bosses (Al'ar) get no Positioning section at all. Graceful when a
+data folder predates the positions fetch (the views simply don't render). See the `warcraft-logs-positioning`
+skill's `references/` for the coordinate system, the centiradian facing decode, and rendering rules.
+
 ## Data sourcing & fetch notes
 
 Heavy tables (dd/heal/dt/intr/disp/**casts**/**threat**/**deaths**) are fetched only for shared
@@ -443,6 +480,15 @@ purpose, not `graph()`:** `graph(viewBy:Source)` returns a rolling rate ~2× tru
 ~3–6 pts/boss/side (≈20–60 for a full comparison; cap is 3600/hr). `_side_timeline` emits each side's
 `durSec` + markers as `tSec`/`lustSec`; graceful without the file (Timeline sub-tab falls back to Buff
 Uptime).
+
+**Positions** (`positions-<enc>.json`, shared bosses) — `_fetch_positions` sweeps three resourced event
+streams with `includeResources:true` (DamageTaken + Casts for player tracks, `DamageDone targetID:<boss>`
+for the boss anchor; boss actor id resolved by NAME from masterData), then BINS them here (per-actor +
+boss median position per ~2s time bin) + accumulates per-ability hit spots — so the heavy event payload
+never reaches the deterministic build (same fetch-aggregates / build-reads split the timeline uses).
+~6 pts/boss/side (resources are free, single page on TBC fights). `--positions-only` backfills the file
+into an existing data folder without re-pulling the heavy tables (mirrors `--trash-only`). Graceful
+without the file (Positioning views just don't render). Powers `positioning.py` (see the Positioning section).
 
 **Trash data** — on by default in `fetch_report.fetch()` (or `--trash-only`); cheap (~7–9 calls):
 deaths/CC come back in single paginated `events` calls keyed by `fight`, not per pull. Writes

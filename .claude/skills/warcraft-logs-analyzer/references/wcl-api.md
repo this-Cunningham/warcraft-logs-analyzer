@@ -133,8 +133,17 @@ Reusable queries live in `queries/`:
 - **Trash kill priority and CC are descriptive, not better/worse.** Kill order is
   pull-dependent and CC needs differ by strategy — both framed as "here's how you
   differ from the benchmark," never scored.
-- **Per-actor positions are withheld on this auth path.** WCL records per-actor
-  coordinates (website replay works; `boundingBox` is populated per fight), but the
-  public client-credentials API withholds the per-actor stream — all events carry
-  zero `x`/`y`. Confirmed dead-end (2026-06-01). The user-OAuth flow *might* expose
-  it; spike only if positioning becomes a priority.
+- **Per-actor positions ARE available** — corrects an earlier wrong "dead-end" note.
+  `events(..., includeResources: true)` (the default is **false**; the old test that
+  saw "zero x/y" simply omitted the flag) returns `x`, `y`, `facing`, `mapID`,
+  `hitPoints`/`maxHitPoints` (NPCs absolute, **players as a 0–100 %**), plus a
+  `resourceActor` index telling you **which** actor those coords belong to. Blizzard
+  logs resources for **one actor per event**: `cast`/melee-swing → `resourceActor:1`
+  = **source** (the caster's position); `damage`/`heal` → `resourceActor:2` =
+  **target** (the target's position). So a player's path = their `Casts` (source)
+  ∪ the `DamageTaken`/`Healing` events on them (target); the boss's path = damage
+  events targeting it ∪ its own casts. Miss/dodge events (`hitType 10`, `amount 0`)
+  carry no resources. Verified live 2026-06-05 on `pkHqfrBbhQK9GP1a` fight 17 (Void
+  Reaver, TK mapID 334). NOTE: `classResources` in TBC look encoded/garbled (`type`
+  is not a clean power enum) — treat mana/energy from events as unreliable; the
+  x/y/facing/mapID/hitPoints fields are the clean, usable part.

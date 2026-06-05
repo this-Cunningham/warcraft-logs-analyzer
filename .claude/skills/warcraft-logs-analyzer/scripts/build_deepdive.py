@@ -334,7 +334,7 @@ def avg_ilvl(directory, enc_ids):
 # +5% spell DAMAGE, not hit.) Melee has no detectable raid hit buff → raid = 0 for melee/ranged.
 SPELL_HIT_PER_PCT = 12.6    # spell hit rating per 1% (TBC)
 PHYS_HIT_PER_PCT = 15.77    # melee/ranged hit rating per 1% (TBC)
-HIT_CAP = {"spell": 16.0, "melee": 9.0, "ranged": 8.0}  # textbook gear hit caps (the target ceiling)
+HIT_CAP = {"spell": 16.0, "melee": 9.0, "ranged": 9.0}  # textbook gear hit caps vs a +3 raid boss (the target ceiling)
 IMP_FAERIE_FIRE_HIT = 3.0   # Improved Faerie Fire (Balance Druid): +3% spell hit, raid-wide boss debuff
 
 # Hit from a spec's STANDARD PvE talent build — assumed taken 100% (the user's rule: if the common build

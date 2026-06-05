@@ -406,7 +406,7 @@ function throughputView(d){
   // descriptive only and revealed no actionable gap; the combat-potion gap above carries the signal.)
   return h;
 }
-// Prepot timing (EXPERIMENTAL): did the throughput potion land ON THE PULL (the free TBC opener prepot)?
+// Prepot timing (EXPERIMENTAL): did the throughput potion land ON THE PULL (the TBC opener prepot)?
 // The TIMING decomposition of the potion-uses count. Raid-aggregate (bands merge players) → a raid-level
 // yes/no per boss, not a per-player prepotter count.
 function prepotView(d){
@@ -418,7 +418,7 @@ function prepotView(d){
   // Per-boss: when the first throughput-potion band started (sec into the fight). ≤3s ≈ on the pull.
   const tByEnc={}; for(const b of asArr(t.bosses)) tByEnc[b.encounterID]=b;
   const secTxt=b=> !b.used?`<span class="no">none</span>`:(b.prepot?`<span class="yes">on pull</span>`:`<span class="bad">+${b.sec}s</span>`);
-  let h=`<h2 class="section">Opener Potion — Prepot<span class="xp">Experimental</span><span class="hint">Did the raid's <b>opener potion land on the pull</b> — the free TBC "prepot" — or get used reactively mid-fight? A prepot and an in-combat potion share a cooldown, so skipping it wastes a potion every pull. Read from the first potion buff vs the pull time (≤3s ≈ on the pull). <b>Raid-level</b>, not per-player. <b>Experimental.</b></span></h2>
+  let h=`<h2 class="section">Opener Potion — Prepot<span class="xp">Experimental</span><span class="hint">Did the raid's <b>opener potion land on the pull</b> — drunk just before combat so its buff hits the opener (lined up with Bloodlust and burst)? In TBC every combat potion shares one <b>2-minute cooldown</b>, and a prepot <b>starts that cooldown</b> — it's not a free extra, but it lands the buff on your highest-output window and brings your next potion up sooner. Read from the first potion buff vs the pull time (≤3s ≈ on the pull). <b>Raid-level</b>, not per-player. <b>Experimental.</b></span></h2>
   <div class="cards">
     <div class="card"><div class="label">Bosses Prepotted</div><div class="vals"><span class="v ours">${oD}</span><span class="v theirs">${tD}</span><span class="delta ${dl.cls}">${dl.txt}</span></div></div>
   </div>
@@ -697,7 +697,7 @@ function hitCapView(d){
   const env=s.spellEnv||{ours:0,theirs:0};
   const envTxt=p=>p>0?`+${p}% Imp. Faerie Fire`:"none";
   const envNote=`<p class="srcs" style="margin:8px 0 0"><b>Effective hit = gear + talent + raid.</b> <b>Talent</b> is the spec's standard PvE build, assumed in full (e.g. Shadow Focus +10%, Balance of Power +4%, Precision +5%). <b>Raid</b> spell-hit (Imp. Faerie Fire) — <span class="cours">${oT}</span>: ${envTxt(env.ours)} · <span class="cthe">${tT}</span>: ${envTxt(env.theirs)}. Not modeled (party-scoped / partial, and they cancel between similar raids): Totem of Wrath, Heroic Presence, Warlock Suppression.</p>`;
-  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> = <b>gear + talent + raid</b>, vs the benchmark's same spec. <b>Gear</b> is the <code>combatantInfo</code> rating (÷12.6 casters, ÷15.77 melee/hunters); <b>talent</b> is the spec's standard hit talent, assumed taken (invisible in the data); <b>raid</b> is Improved Faerie Fire (+3% spell hit when a Balance Druid is present). Under-hit = missed casts/attacks, fixable with gems, enchants, or gear. <b>Target</b> = the benchmark's effective hit, capped at the textbook cap (spell 16% · melee 9% · ranged 8%). Melee/ranged have no modeled raid hit; healers excluded; expertise is context. <b>Experimental</b> — talent is assumed and a snapshot can miss a mid-fight swap, so treat a borderline row as a prompt to check.</span></h2>
+  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> = <b>gear + talent + raid</b>, vs the benchmark's same spec. <b>Gear</b> is the <code>combatantInfo</code> rating (÷12.6 casters, ÷15.77 melee/hunters); <b>talent</b> is the spec's standard hit talent, assumed taken (invisible in the data); <b>raid</b> is Improved Faerie Fire (+3% spell hit when a Balance Druid is present). Under-hit = missed casts/attacks, fixable with gems, enchants, or gear. <b>Target</b> = the benchmark's effective hit, capped at the textbook cap (spell 16% · melee 9% · ranged 9%). Melee/ranged have no modeled raid hit; healers excluded; expertise is context. <b>Experimental</b> — talent is assumed and a snapshot can miss a mid-fight swap, so treat a borderline row as a prompt to check.</span></h2>
   <div class="cards">${cards}</div>${envNote}
   <h4 class="ours">${oT} — hit &amp; expertise by raider</h4>
   <table><thead><tr><th>Player</th><th>Spec</th><th>Gear</th><th>Talent</th><th>Raid</th><th>Effective</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
@@ -1257,7 +1257,7 @@ function threatPullsView(d){
   if(!rows.length) return ""; // no pulls on either side → nothing to coach
   const max=Math.max(1,...rows.map(r=>Math.max(r.oursTotal,r.theirsTotal)));
   const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a <b>non-tank</b> held the <b>boss's</b> aggro — a threat pull (open softer, use Misdirection / Tricks, or let the tank build threat first). <b>Tanks excluded</b>: two tanks trading threat isn't counted, only a DPS/healer snatching aggro. Scoped to the boss (not its adds) and to <b>brief snaps (≤15s)</b>, since a sustained hold is an intended off-tank — so it <b>under-counts, never over-counts</b>. Opener snaps (first 30s) are the most fixable. Lower is better.</span></h2>
+  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a <b>non-tank</b> held the <b>boss's</b> aggro — a threat pull (open softer, use Misdirection, or let the tank build threat first). <b>Tanks excluded</b>: two tanks trading threat isn't counted, only a DPS/healer snatching aggro. Scoped to the boss (not its adds) and to <b>brief snaps (≤15s)</b>, since a sustained hold is an intended off-tank — so it <b>under-counts, never over-counts</b>. Opener snaps (first 30s) are the most fixable. Lower is better.</span></h2>
     <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Threat pulls, by boss</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
   for(const r of rows){
     const dl=deltaLow(r.oursTotal,r.theirsTotal);

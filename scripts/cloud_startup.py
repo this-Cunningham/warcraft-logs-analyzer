@@ -29,6 +29,10 @@ os.chdir(ROOT)
 import compare_raids  # noqa: E402
 
 # --- PINNED REPORTS (swap these to retarget) ---------------------------------------------------------
+# These two reports' fetched data is committed under data/ (via an allow-list in .gitignore) so a fresh
+# clone / new worktree / cloud session starts with a WARM cache and /startup reads it off disk instead of
+# cold-fetching it. If you retarget these URLs, keep that allow-list in sync with the new report codes and
+# drop the old data/<code>/ folders + data/<code>-parses.json — otherwise the stale cache lingers in git.
 OURS_URL = "https://fresh.warcraftlogs.com/reports/pkHqfrBbhQK9GP1a"      # our raid
 THEIRS_URL = "https://fresh.warcraftlogs.com/reports/BxZPrhXYDfL1VKm8"    # top-world benchmark
 

@@ -1345,42 +1345,54 @@ function specDpsView(b){
 // are exact (event-binned upstream), not WCL's smoothed graph, so they agree with Raid DPS elsewhere.
 function tlChart(o,t,m1,m2){
   const OUR="#4ea1ff",THEIR="#ff7a59",GRID="#262f40",MUT="#8a96aa";
-  const W=1000,H=252,padL=48,padR=14,padT=16,padB=52, plotW=W-padL-padR, plotH=H-padT-padB;
+  const W=1000,padL=48,padR=14,padT=16, plotW=W-padL-padR, plotH=184, axisY=padT+plotH; // plot fixed; axisY=200
   o=asArr(o).map(Number); t=asArr(t).map(Number);
   const n=Math.max(o.length,t.length); if(n<2) return "";
   const max=Math.max(1,...o,...t)*1.08;
   const oDur=m1.durSec||0, tDur=m2.durSec||0, axisMax=Math.max(oDur,tDur,1); // seconds
+  const oPh=asArr(m1.phases), tPh=asArr(m2.phases), hasPh=!!(oPh.length||tPh.length);
+  const ribY=axisY+38;                 // phase track sits BELOW the x-axis time labels, only when phases exist
+  const H=hasPh?ribY+30:240;           // grow the canvas only to fit that track
   const Y=v=>padT+plotH-(v/max)*plotH;
   const Xs=sec=>padL+(Math.max(0,Math.min(axisMax,sec))/axisMax)*plotW;
   // Each curve point i sits at i/(n-1) of its OWN fight length (seconds), placed on the shared axis —
   // so the side that finished sooner reaches the right edge sooner and its line stops there.
   const lineFor=(a,dur)=>a.map((v,i)=>(i?"L":"M")+Xs(i/(n-1)*dur).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
-  const axisY=padT+plotH;
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;height:auto;max-width:100%">`;
   for(let g=0;g<=4;g++){const yy=axisY-(g/4)*plotH;
     s+=`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="${GRID}"/>`+
        `<text x="${padL-6}" y="${(yy+3.5).toFixed(1)}" fill="${MUT}" font-size="11" text-anchor="end">${fmtR(max*g/4)}</text>`;}
-  for(let g=0;g<=4;g++){const sec=axisMax*g/4, xx=Xs(sec);s+=`<text x="${xx.toFixed(1)}" y="${H-9}" fill="${MUT}" font-size="11" text-anchor="middle">${fmtTime(sec*1000)}</text>`;}
-  // phase markers as edge notches — ours along the BOTTOM, benchmark along the TOP, each colour-matched
-  // to its own curve. Full-height dividers would imply the two timelines align; they don't (a 7-min and a
-  // 5-min kill have different phase maps), so each side keeps its phases on its own edge — the reader still
-  // sees *when* each side changed phase, without the false overlap. The Pn label sits on the OUTER side of
-  // its notch (above the top row, below the bottom row) so it never overlaps the curves. Lust verticals stay
-  // full-height (one shared event per side). All at absolute seconds.
-  const notch=(arr,c,top)=>asArr(arr).map(ph=>{const xx=Xs(ph.tSec).toFixed(1);
-    const y1=top?padT:axisY, y2=top?padT+9:axisY-9, ty=top?padT-5:axisY+10;
-    return `<line x1="${xx}" y1="${y1}" x2="${xx}" y2="${y2}" stroke="${c}" stroke-width="2" opacity=".85"><title>Phase ${ph.id} — ${fmtTime(ph.tSec*1000)}</title></line>`+
-       `<text x="${(Xs(ph.tSec)+2).toFixed(1)}" y="${ty}" fill="${c}" font-size="9" opacity=".9">P${ph.id}</text>`;}).join("");
-  s+=notch(m2.phases,THEIR,true)+notch(m1.phases,OUR,false);
+  for(let g=0;g<=4;g++){const sec=axisMax*g/4, xx=Xs(sec);s+=`<text x="${xx.toFixed(1)}" y="${axisY+31}" fill="${MUT}" font-size="11" text-anchor="middle">${fmtTime(sec*1000)}</text>`;}
+  // Bloodlust verticals (full-height, one shared event per side). Phases are NOT drawn in the plot anymore —
+  // they live in the phase track below the axis (see end of fn) so they never clutter the curves.
   const lust=(sec,c)=>sec==null?"":`<line x1="${Xs(sec).toFixed(1)}" y1="${padT}" x2="${Xs(sec).toFixed(1)}" y2="${axisY}" stroke="${c}" stroke-dasharray="4,3" opacity=".6"/><text x="${(Xs(sec)+2).toFixed(1)}" y="${padT+11}" fill="${c}" font-size="11">&#9889;</text>`;
   s+=lust(m2.lustSec,THEIR)+lust(m1.lustSec,OUR);
   // curves (theirs under ours), each ending at its own fight length
   s+=`<path d="${lineFor(t,tDur)}" fill="none" stroke="${THEIR}" stroke-width="2" opacity=".85"/>`;
   s+=`<path d="${lineFor(o,oDur)}" fill="none" stroke="${OUR}" stroke-width="2.3"/>`;
-  // death markers: below the bottom phase-label lane — ours first, theirs a row lower
+  // death markers: just below the axis — ours first, theirs a row lower
   const tri=(tSec,c,y,name)=>{const x=Xs(tSec);return `<polygon points="${(x-4).toFixed(1)},${y} ${(x+4).toFixed(1)},${y} ${x.toFixed(1)},${(y+7).toFixed(1)}" fill="${c}"><title>${esc(name)} died ${fmtTime(tSec*1000)}</title></polygon>`;};
-  for(const d of asArr(m1.deaths)) s+=tri(d.tSec,OUR,axisY+13,d.name);
-  for(const d of asArr(m2.deaths)) s+=tri(d.tSec,THEIR,axisY+23,d.name);
+  for(const d of asArr(m1.deaths)) s+=tri(d.tSec,OUR,axisY+2,d.name);
+  for(const d of asArr(m2.deaths)) s+=tri(d.tSec,THEIR,axisY+12,d.name);
+  // PHASE TRACK — a slim two-lane ribbon below the axis labels (benchmark on top, ours below), on the SAME
+  // x-scale as the curves so it lines up exactly. Each lane draws that side's fight as alternating phase
+  // segments (P1, P2, …); the lanes' boundaries differ because the timelines do — the honest read the
+  // full-height dividers used to fake. Only rendered when a side actually has phase transitions.
+  if(hasPh){
+    const lane=(phs,dur,c,y,lab)=>{
+      if(!dur) return "";
+      const cuts=phs.map(p=>p.tSec).filter(x=>x>0&&x<dur);
+      const ids=phs.filter(p=>p.tSec>0&&p.tSec<dur).map(p=>p.id);
+      const bnds=[0,...cuts,dur], segIds=[1,...ids], hh=11;
+      let g=`<text x="${padL-6}" y="${y+8}" fill="${c}" font-size="9" text-anchor="end" opacity=".85">${lab}</text>`;
+      for(let i=0;i<bnds.length-1;i++){const x0=Xs(bnds[i]),x1=Xs(bnds[i+1]),w=x1-x0;
+        g+=`<rect x="${x0.toFixed(1)}" y="${y}" width="${Math.max(0,w).toFixed(1)}" height="${hh}" fill="${c}" opacity="${i%2?0.45:0.24}"><title>Phase ${segIds[i]} — ${fmtTime(bnds[i]*1000)}</title></rect>`+
+          (w>15?`<text x="${((x0+x1)/2).toFixed(1)}" y="${y+8}" fill="#e9eef6" font-size="9" text-anchor="middle">P${segIds[i]}</text>`:"");}
+      g+=cuts.map(x=>`<line x1="${Xs(x).toFixed(1)}" y1="${y}" x2="${Xs(x).toFixed(1)}" y2="${y+hh}" stroke="${c}" stroke-width="1.5"/>`).join("");
+      return g;
+    };
+    s+=lane(tPh,tDur,THEIR,ribY,"bench")+lane(oPh,oDur,OUR,ribY+14,"yours");
+  }
   return s+`</svg>`;
 }
 function timelineChart(b){
@@ -1389,7 +1401,7 @@ function timelineChart(b){
   const sw=c=>`<span style="display:inline-block;width:18px;height:3px;background:${c};vertical-align:middle;margin-right:5px"></span>`;
   const legend=`<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin:2px 0 12px">
     <span>${sw("var(--ours)")}${esc(DATA.ours.title)}</span><span>${sw("var(--theirs)")}${esc(DATA.theirs.title)}</span>
-    <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>phase notches — <b style="color:var(--ours)">yours (bottom)</b> · <b style="color:var(--theirs)">benchmark (top)</b></span></div>`;
+    <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>phase track (below axis) — <b style="color:var(--theirs)">benchmark</b> · <b style="color:var(--ours)">yours</b></span></div>`;
   const op=b.openerGap;
   const opLine=op?(()=>{const pct=op.theirsDps>0?Math.round(op.oursDps/op.theirsDps*100):100;const behind=op.oursDps<op.theirsDps*0.95;
     return `<p class="srcs" style="margin:2px 0 12px${behind?';color:#ffb4b4':''}"><b>Opening ${op.secs}s:</b> ${fmtR(op.oursDps)} vs ${fmtR(op.theirsDps)} raid DPS (${pct}% of benchmark)${behind?' — a slow start. Check prepot, precast, and pull timing.':' — a strong start.'}</p>`;})():"";

@@ -972,7 +972,7 @@ function ghostRunView(d){
   const g=d.deep&&d.deep.ghostRun, bosses=rowsOf(g&&g.bosses);
   if(!g||!bosses.length||!(g.totalTimeSavedSec>0)) return "";
   const mmss=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
-  let h=`<h2 class="section">Ghost Run — What Dying Costs You<span class="xp">Experimental</span><span class="hint">The counterfactual: if nobody had died, how much output would your dead <b>DPS</b> have added? <b>DPS deaths only</b> — a healer or tank death costs the raid differently (healing/survivability), so it lives in the death views, not here. Each death forfeits that raider's <b>night-average DPS</b> (a stable rate, not a single-fight burst) for the time they were down — the <b>forfeited output</b> is the solid number (also shown as a share of your damage on the boss). Converting it to kill-time gives an <b>upper-bound</b> "up to ~X faster" — a pure DPS-race ceiling, since phase-gated fights (air phases, scripted transitions) cap how much extra DPS actually compresses the clock. Names who forfeited most, to coach not shame. For deaths in the <b>first 90 seconds</b> (the costliest), a <b>rough ghost-parse band</b> (<i>parse X→~Y</i>, rounded to 5s) estimates what they'd have parsed alive — interpolated from your own raiders' parses on that boss and extrapolated only to the ghost kill time, so it's a coarse estimate, not a measurement. <b>Experimental.</b></span></h2>`;
+  let h=`<h2 class="section">Ghost Run — What Dying Costs You<span class="xp">Experimental</span><span class="hint">The counterfactual: if nobody had died, how much output would your dead <b>DPS</b> have added? <b>DPS deaths only</b> — a healer or tank death costs the raid differently (healing/survivability), so it lives in the death views, not here. Each death forfeits that raider's <b>night-average DPS</b> (a stable rate, not a single-fight burst) for the time they were down — the <b>forfeited output</b> is the solid number (also shown as a share of your damage on the boss). Converting it to kill-time gives an <b>upper-bound</b> "up to ~X faster" — a pure DPS-race ceiling, since phase-gated fights (air phases, scripted transitions) cap how much extra DPS actually compresses the clock. Names who forfeited most, to coach not shame. For <b>every death</b> where staying alive would have been a clear lift, a <b>rough ghost-parse band</b> (<i>parse X→~Y</i>, rounded to 5s) estimates what they'd have parsed alive — interpolated from your own raiders' parses on that boss and extrapolated only to the ghost kill time, so it's a coarse estimate, not a measurement. (A late death sat alive for most of the fight, so its ghost ≈ actual and no band shows.) <b>Experimental.</b></span></h2>`;
   h+=`<div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 16px">
     <div style="font-size:19px;margin-bottom:4px">Your deaths forfeited <b style="color:var(--bad)">~${fmtM(g.totalForfeitedDmg)}</b> of raid output across the shared bosses</div>
     <div class="num" style="opacity:.75;margin-bottom:10px">— up to <b>~${mmss(g.totalTimeSavedSec)}</b> of kill time if none of it were phase-gated (a ceiling, not a claim).</div>`;
@@ -1345,7 +1345,7 @@ function specDpsView(b){
 // are exact (event-binned upstream), not WCL's smoothed graph, so they agree with Raid DPS elsewhere.
 function tlChart(o,t,m1,m2){
   const OUR="#4ea1ff",THEIR="#ff7a59",GRID="#262f40",MUT="#8a96aa";
-  const W=1000,H=240,padL=48,padR=14,padT=16,padB=40, plotW=W-padL-padR, plotH=H-padT-padB;
+  const W=1000,H=252,padL=48,padR=14,padT=16,padB=52, plotW=W-padL-padR, plotH=H-padT-padB;
   o=asArr(o).map(Number); t=asArr(t).map(Number);
   const n=Math.max(o.length,t.length); if(n<2) return "";
   const max=Math.max(1,...o,...t)*1.08;
@@ -1364,10 +1364,11 @@ function tlChart(o,t,m1,m2){
   // phase markers as edge notches — ours along the BOTTOM, benchmark along the TOP, each colour-matched
   // to its own curve. Full-height dividers would imply the two timelines align; they don't (a 7-min and a
   // 5-min kill have different phase maps), so each side keeps its phases on its own edge — the reader still
-  // sees *when* each side changed phase, without the false overlap. Lust verticals stay full-height (one
-  // shared event per side). All at absolute seconds.
+  // sees *when* each side changed phase, without the false overlap. The Pn label sits on the OUTER side of
+  // its notch (above the top row, below the bottom row) so it never overlaps the curves. Lust verticals stay
+  // full-height (one shared event per side). All at absolute seconds.
   const notch=(arr,c,top)=>asArr(arr).map(ph=>{const xx=Xs(ph.tSec).toFixed(1);
-    const y1=top?padT:axisY, y2=top?padT+9:axisY-9, ty=top?padT+19:axisY-12;
+    const y1=top?padT:axisY, y2=top?padT+9:axisY-9, ty=top?padT-5:axisY+10;
     return `<line x1="${xx}" y1="${y1}" x2="${xx}" y2="${y2}" stroke="${c}" stroke-width="2" opacity=".85"><title>Phase ${ph.id} — ${fmtTime(ph.tSec*1000)}</title></line>`+
        `<text x="${(Xs(ph.tSec)+2).toFixed(1)}" y="${ty}" fill="${c}" font-size="9" opacity=".9">P${ph.id}</text>`;}).join("");
   s+=notch(m2.phases,THEIR,true)+notch(m1.phases,OUR,false);
@@ -1376,10 +1377,10 @@ function tlChart(o,t,m1,m2){
   // curves (theirs under ours), each ending at its own fight length
   s+=`<path d="${lineFor(t,tDur)}" fill="none" stroke="${THEIR}" stroke-width="2" opacity=".85"/>`;
   s+=`<path d="${lineFor(o,oDur)}" fill="none" stroke="${OUR}" stroke-width="2.3"/>`;
-  // death markers: ours just below axis, theirs a row lower
+  // death markers: below the bottom phase-label lane — ours first, theirs a row lower
   const tri=(tSec,c,y,name)=>{const x=Xs(tSec);return `<polygon points="${(x-4).toFixed(1)},${y} ${(x+4).toFixed(1)},${y} ${x.toFixed(1)},${(y+7).toFixed(1)}" fill="${c}"><title>${esc(name)} died ${fmtTime(tSec*1000)}</title></polygon>`;};
-  for(const d of asArr(m1.deaths)) s+=tri(d.tSec,OUR,axisY+2,d.name);
-  for(const d of asArr(m2.deaths)) s+=tri(d.tSec,THEIR,axisY+12,d.name);
+  for(const d of asArr(m1.deaths)) s+=tri(d.tSec,OUR,axisY+13,d.name);
+  for(const d of asArr(m2.deaths)) s+=tri(d.tSec,THEIR,axisY+23,d.name);
   return s+`</svg>`;
 }
 function timelineChart(b){

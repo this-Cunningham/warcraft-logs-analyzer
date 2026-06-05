@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # find sibling modules
 import lib
@@ -26,11 +27,24 @@ import fetch_report
 import fetch_worldbest
 
 META_Q = "query M($code:String!){reportData{report(code:$code){title zone{name} fights(killType:Kills){encounterID}}}}"
-PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses)}}}"
 # rankings(compare:Parses) defaults to the DPS metric for EVERY role — so a healer's rankPercent/amount
-# come back as a meaningless DPS parse (their incidental damage), NOT their HPS parse. We fetch HPS
-# parses separately and merge them over the healers so each healer carries their real (HPS) parse.
-HPS_PARSE_Q = "query P($code:String!){reportData{report(code:$code){rankings(compare:Parses, playerMetric:hps)}}}"
+# come back as a meaningless DPS parse (their incidental damage), NOT their HPS parse. We pull the HPS
+# metric alongside it and merge it over the healers so each healer carries their real (HPS) parse.
+# Both metrics ride in ONE request via aliases: WCL charges the report-load once per request, so two
+# aliased rankings cost fewer points than two separate calls — and the `dps`/`hps` aliases unpack back
+# into the exact same per-metric objects the merge expects, so the written JSON is byte-for-byte unchanged.
+MERGED_PARSE_Q = ("query P($code:String!){reportData{report(code:$code){"
+                  "dps: rankings(compare:Parses) "
+                  "hps: rankings(compare:Parses, playerMetric:hps)}}}")
+
+# The two reports are pinned/immutable, so their fetched data is cached hard (re-fetch only on --refresh).
+# The world-best rotations are the one LIVE input — but the global leaderboards barely move over a tier,
+# so an on-disk worldbest.json younger than this window is reused rather than re-fetched. World-best is the
+# bulk of the fetch's REQUESTS (~half the calls), so reusing it makes a tight dev loop (repeated --refresh)
+# cheap and, more importantly, stops us re-hammering the live leaderboard: --refresh re-pulls the report
+# data but leaves a recent worldbest alone. --refresh-worldbest forces it; --worldbest-ttl-hours overrides
+# the window. Default: 2 weeks — well within a raid tier, so the benchmark is effectively never re-fetched.
+WORLDBEST_TTL_HOURS = 24.0 * 14  # 2 weeks
 
 
 def get_code(u):
@@ -140,7 +154,11 @@ def main(argv=None):
     p.add_argument("--out-file")
     p.add_argument("--no-open", action="store_true")
     p.add_argument("--refresh", action="store_true",
-                   help="re-fetch from the API even if cached data for these report codes exists")
+                   help="re-fetch the REPORT data from the API even if cached data for these codes exists")
+    p.add_argument("--refresh-worldbest", action="store_true",
+                   help="also re-fetch the live world-best rotations (otherwise reused while within the TTL)")
+    p.add_argument("--worldbest-ttl-hours", type=float, default=WORLDBEST_TTL_HOURS,
+                   help="reuse an on-disk worldbest.json younger than this many hours (default %(default)s)")
     args = p.parse_args(argv)
 
     # Guild/report/ranking names carry accents; on a cp1252 Windows console or a non-UTF-8 pipe a plain
@@ -181,15 +199,17 @@ def main(argv=None):
               for code in (ours_code, theirs_code)}
 
     # Parses (per-player percentile rankings) — fetched first so we can name each side by its GUILD.
-    # Each side needs two independent queries (the DPS-metric parses + the HPS-metric overlay for
-    # healers); across both uncached reports that's up to four queries with no dependencies between
-    # them, so we fan them all out and merge per side. The written JSON is identical to the serial path.
+    # Each side's DPS-metric parses + HPS-metric overlay come back in ONE aliased request (fewer points
+    # than two calls). Across both uncached reports the two requests are independent, so we still fan
+    # them out. The reconstructed per-metric objects + merge yield JSON identical to the old two-call path.
     parse_obj = {}
 
     def fetch_parses(code):
-        default_obj, hps_obj = lib.parallel_map(
-            lambda q: lib.invoke_query(q, {"code": code}), (PARSE_Q, HPS_PARSE_Q))
-        # Healers' parses default to DPS; overwrite them with the real HPS-metric parse.
+        rep = lib.invoke_query(MERGED_PARSE_Q, {"code": code})["reportData"]["report"]
+        # Rebuild the exact single-metric response shape each side expects, then overlay HPS on healers
+        # (whose default-metric parse is a meaningless DPS percentile of their incidental damage).
+        default_obj = {"reportData": {"report": {"rankings": rep["dps"]}}}
+        hps_obj = {"reportData": {"report": {"rankings": rep["hps"]}}}
         return merge_healer_hps(default_obj, hps_obj)
 
     to_fetch = []
@@ -258,10 +278,19 @@ def main(argv=None):
             print("Fetching deep data for {}...".format(code))
             heavy_jobs.append(lambda code=code, directory=directory: deep_task(code, directory))
 
-    if cached[ours_code] and os.path.isfile(worldbest_path) and not args.refresh:
-        print("Using cached world-best rotations.")
+    # World-best is the live input, cached on its OWN TTL (not the report-data cache): reuse an on-disk
+    # worldbest.json that's younger than the TTL even across a --refresh, since leaderboards move slowly.
+    # Re-fetch only when it's missing, stale, or --refresh-worldbest forces it. This keeps the priciest
+    # part of the fetch (≈half the API points) off the repeated dev-loop path.
+    wb_age_h = ((time.time() - os.path.getmtime(worldbest_path)) / 3600.0
+                if os.path.isfile(worldbest_path) else None)
+    if wb_age_h is not None and wb_age_h < args.worldbest_ttl_hours and not args.refresh_worldbest:
+        print("Using cached world-best rotations ({:.1f}h old < {:g}h TTL).".format(
+            wb_age_h, args.worldbest_ttl_hours))
     else:
-        print("Fetching same-faction world-best rotations...")
+        why = "forced" if args.refresh_worldbest else ("missing" if wb_age_h is None
+                                                       else "{:.1f}h old".format(wb_age_h))
+        print("Fetching same-faction world-best rotations ({})...".format(why))
         heavy_jobs.append(worldbest_task)
 
     lib.parallel_map(lambda job: job(), heavy_jobs)

@@ -33,8 +33,6 @@ import lib
 
 # Guild faction (1=Alliance, 2=Horde) for our report — maps to the ranking-entry faction int below.
 GUILD_Q = "query G($code:String!){reportData{report(code:$code){guild{name faction{id name}} region{slug}}}}"
-RANK_Q = ("query R($enc:Int!,$cls:String!,$spec:String!,$metric:CharacterRankingMetricType!)"
-          "{worldData{encounter(id:$enc){characterRankings(metric:$metric,className:$cls,specName:$spec)}}}")
 CASTS_Q = "query C($code:String!,$f:[Int]!){reportData{report(code:$code){casts:table(dataType:Casts,fightIDs:$f)}}}"
 
 
@@ -48,20 +46,37 @@ def our_faction(code):
     return f.get("id"), f.get("name"), region
 
 
-def _best_same_faction(enc, cls, spec, metric, want_faction):
-    """The highest-ranked characterRankings entry on `enc` whose faction == want_faction (the best
-    same-faction parse for this spec on this boss), tagged with its 1-based GLOBAL rank in the full
-    (all-faction) leaderboard. None if the call fails or no same-faction entry is in the top page."""
-    try:
-        data = lib.invoke_query(RANK_Q, {"enc": enc, "cls": cls, "spec": spec, "metric": metric})
-    except Exception as exc:  # a bad spec/metric or transient API error shouldn't sink the whole tab
-        print("  [worldbest] rankings {}/{} enc {} failed: {}".format(cls, spec, enc, exc))
-        return None
-    cr = ((data.get("worldData") or {}).get("encounter") or {}).get("characterRankings") or {}
-    for i, r in enumerate(cr.get("rankings") or []):
+def _best_in_rankings(cr, want_faction):
+    """The highest-ranked entry in a characterRankings payload whose faction == want_faction, tagged with
+    its 1-based GLOBAL rank in the full (all-faction) leaderboard. None if no same-faction entry is on the
+    top page. (Extraction is identical to the old per-call path — only how we FETCH the payload changed.)"""
+    for i, r in enumerate((cr or {}).get("rankings") or []):
         if r.get("faction") == want_faction:
             return {"entry": r, "globalRank": i + 1}
     return None
+
+
+def _spec_rankings(cls, spec, metric, shared_encs, want_faction):
+    """ONE request for a spec's same-faction best on EVERY shared boss, aliasing the per-encounter
+    characterRankings into a single worldData query (was one call per boss). className/specName/metric are
+    identical across that spec's bosses, so they stay query variables; the encounter ids — which DO differ
+    per alias — are inlined (they're ints we control). Returns {enc(int) -> hit_or_None}. Graceful: a
+    transient failure on the batched call yields all-None for this spec, so its Optimize row just renders
+    empty — same degradation as the old per-call try/except, only at spec granularity now."""
+    aliases = " ".join(
+        "e{0}: encounter(id:{0}){{characterRankings(metric:$m,className:$c,specName:$s)}}".format(int(enc))
+        for enc in shared_encs)
+    q = "query R($c:String!,$s:String!,$m:CharacterRankingMetricType!){worldData{" + aliases + "}}"
+    try:
+        wd = (lib.invoke_query(q, {"c": cls, "s": spec, "m": metric}).get("worldData")) or {}
+    except Exception as exc:
+        print("  [worldbest] rankings {}/{} failed: {}".format(cls, spec, exc))
+        return {int(enc): None for enc in shared_encs}
+    out = {}
+    for enc in shared_encs:
+        cr = (wd.get("e{}".format(int(enc))) or {}).get("characterRankings") or {}
+        out[int(enc)] = _best_in_rankings(cr, want_faction)
+    return out
 
 
 def _world_casts(report_code, fight_id, player_name):
@@ -118,21 +133,30 @@ def fetch(ours_code, specs, shared_encs, enc_names, out_path):
     # PER BOSS: the top same-faction player for this spec ON THAT BOSS (may be a different person per
     # boss), with their casts on that boss's fight. The build compares our raiders to that boss's
     # benchmark on the SAME encounter — an apples-to-apples per-boss rotation read, not one pooled
-    # across the whole tier. Every (spec, boss) lookup is independent (a rankings call + a casts call),
-    # so the whole grid fans out in parallel; lib.parallel_map preserves input order, so we reassemble
-    # the per-spec `bosses` lists in the exact shared_encs order — byte-identical to the serial output.
-    def benchmark(item):
-        sp, enc = item
-        cls, spec, role = sp["class"], sp["spec"], sp["role"]
-        metric = "hps" if role == "healer" else "dps"
-        hit = _best_same_faction(enc, cls, spec, metric, want)
-        if not hit:
-            return None
+    # across the whole tier.
+    #
+    # Two phases, each fanned out in parallel (lib.parallel_map preserves input order, so the per-spec
+    # `bosses` lists reassemble in the exact shared_encs order — byte-identical to the serial output):
+    #   1. RANKINGS — one batched request PER SPEC (all its bosses aliased), not one per (spec, boss).
+    #   2. CASTS    — one request per surviving (spec, boss) hit, to the ranked player's own report. These
+    #                 hit DIFFERENT reports so they can't share a load, but still parallelize.
+    metric_for = lambda sp: ("hps" if sp["role"] == "healer" else "dps")
+
+    spec_hits = lib.parallel_map(
+        lambda sp: _spec_rankings(sp["class"], sp["spec"], metric_for(sp), shared_encs, want), specs)
+
+    # Surviving (spec, boss) hits → fetch each benchmark player's casts in parallel.
+    cast_items = [(i, int(enc), spec_hits[i][int(enc)])
+                  for i in range(len(specs)) for enc in shared_encs if spec_hits[i][int(enc)]]
+
+    def cast_task(item):
+        i, enc, hit = item
+        sp = specs[i]
         e = hit["entry"]
         rep = e.get("report") or {}
         abilities = _world_casts(rep.get("code"), rep.get("fightID"), e.get("name"))
         boss = {
-            "encounterID": enc, "name": enc_names.get(enc, str(enc)), "metric": metric,
+            "encounterID": enc, "name": enc_names.get(enc, str(enc)), "metric": metric_for(sp),
             "player": {
                 "name": e.get("name"),
                 "guild": (e.get("guild") or {}).get("name"),
@@ -146,22 +170,22 @@ def fetch(ours_code, specs, shared_encs, enc_names, out_path):
         }
         p = boss["player"]
         print("  [worldbest] {} {} on {}: #{} {} ({}) — {} casts".format(
-            spec, cls, boss["name"], p["globalRank"], p["name"],
+            sp["spec"], sp["class"], boss["name"], p["globalRank"], p["name"],
             p["guild"] or "no guild", len(abilities)))
-        return boss
+        return (i, enc, boss)
 
-    pairs = [(sp, enc) for sp in specs for enc in shared_encs]
-    results = lib.parallel_map(benchmark, pairs)  # order matches `pairs`
+    by_spec = {}  # spec index -> {enc -> boss dict}
+    for i, enc, boss in lib.parallel_map(cast_task, cast_items):
+        by_spec.setdefault(i, {})[enc] = boss
 
     out_specs = []
-    n_enc = len(shared_encs)
     for i, sp in enumerate(specs):
         cls, spec, role = sp["class"], sp["spec"], sp["role"]
-        metric = "hps" if role == "healer" else "dps"
-        bosses_out = [b for b in results[i * n_enc:(i + 1) * n_enc] if b is not None]
+        # Keep shared_encs order; skip bosses with no same-faction ranking — same as the old loop.
+        bosses_out = [by_spec[i][int(enc)] for enc in shared_encs if i in by_spec and int(enc) in by_spec[i]]
         if not bosses_out:
             print("  [worldbest] {} {}: no same-faction ranking on any shared boss".format(spec, cls))
-        out_specs.append({"class": cls, "spec": spec, "role": role, "metric": metric, "bosses": bosses_out})
+        out_specs.append({"class": cls, "spec": spec, "role": role, "metric": metric_for(sp), "bosses": bosses_out})
 
     payload = {"present": True, "factionId": fid, "factionName": fname, "region": region, "specs": out_specs}
     with open(out_path, "w", encoding="utf-8") as fh:

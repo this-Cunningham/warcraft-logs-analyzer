@@ -972,16 +972,15 @@ function ghostRunView(d){
   const g=d.deep&&d.deep.ghostRun, bosses=rowsOf(g&&g.bosses);
   if(!g||!bosses.length||!(g.totalTimeSavedSec>0)) return "";
   const mmss=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
-  let h=`<h2 class="section">Ghost Run — What Dying Costs You<span class="xp">Experimental</span><span class="hint">The counterfactual: if nobody had died, how much output would your dead <b>DPS</b> have added? <b>DPS deaths only</b> — a healer or tank death costs the raid differently (healing/survivability), so it lives in the death views, not here. Each death forfeits that raider's <b>night-average DPS</b> (a stable rate, not a single-fight burst) for the time they were down — the <b>forfeited output</b> is the solid number (also shown as a share of your damage on the boss). Converting it to kill-time gives an <b>upper-bound</b> "up to ~X faster" — a pure DPS-race ceiling, since phase-gated fights (air phases, scripted transitions) cap how much extra DPS actually compresses the clock. Names who forfeited most, to coach not shame. For deaths in the <b>first 90 seconds</b> (the costliest), a <b>rough ghost-parse band</b> (<i>parse X→~Y</i>, rounded to 5s) estimates what they'd have parsed alive — interpolated from your own raiders' parses on that boss and extrapolated only to the ghost kill time, so it's a coarse estimate, not a measurement. <b>Experimental.</b></span></h2>`;
+  let h=`<h2 class="section">Ghost Run — What Dying Costs You<span class="xp">Experimental</span><span class="hint">The counterfactual: if nobody had died, how much output would your dead <b>DPS</b> have added? <b>DPS deaths only</b> — a healer or tank death costs the raid differently (healing/survivability), so it lives in the death views, not here. Each death forfeits that raider's <b>night-average DPS</b> (a stable rate, not a single-fight burst) for the time they were down — the <b>forfeited output</b> is the solid number (also shown as a share of your damage on the boss). Converting it to kill-time gives an <b>upper-bound</b> "up to ~X faster" — a pure DPS-race ceiling, since phase-gated fights (air phases, scripted transitions) cap how much extra DPS actually compresses the clock. Names who forfeited most, to coach not shame. <b>Experimental.</b></span></h2>`;
   h+=`<div style="background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 16px">
     <div style="font-size:19px;margin-bottom:4px">Your deaths forfeited <b style="color:var(--bad)">~${fmtM(g.totalForfeitedDmg)}</b> of raid output across the shared bosses</div>
     <div class="num" style="opacity:.75;margin-bottom:10px">— up to <b>~${mmss(g.totalTimeSavedSec)}</b> of kill time if none of it were phase-gated (a ceiling, not a claim).</div>`;
   for(const b of bosses){
-    const tops=rowsOf(b.raiders).slice(0,3).map(r=>{
-      const pb=(r.ghostParse!=null)?` <span style="color:var(--good)">parse ${r.actualParse}→~${r.ghostParse}</span>`:"";
-      return `<span style="color:${cc(r.class)};font-weight:600">${esc(r.name)}</span> <span class="num" style="opacity:.65">(died ${mmss(r.sec)}, ${fmtM(r.dmg)})</span>${pb}`;
-    }).join(" · ");
-    h+=`<div style="padding:7px 0;border-top:1px solid var(--line)"><b>${esc(b.boss)}</b> — ${b.deaths} death${b.deaths!==1?"s":""} forfeited <b style="color:var(--bad)">${fmtM(b.forfeitedDmg)}</b> <span class="num" style="opacity:.7">(≈ ${b.pctOfRaid}% of your damage here · up to ~${mmss(b.timeSavedSec)} sooner)</span>${tops?`<div class="num" style="margin-top:3px;opacity:.9">most forfeited: ${tops}</div>`:""}</div>`;
+    const tops=rowsOf(b.raiders).slice(0,3).map(r=>
+      `<span style="color:${cc(r.class)};font-weight:600">${esc(r.name)}</span> <span class="num" style="opacity:.65">(died ${mmss(r.sec)}, ${fmtM(r.dmg)})</span>`
+    ).join(" · ");
+    h+=`<div style="padding:7px 0;border-top:1px solid var(--line)"><b>${esc(b.boss)}</b> — ${b.deaths} death${b.deaths!==1?"s":""} forfeited <b style="color:var(--bad)">${fmtM(b.forfeitedDmg)}</b> <span class="num" style="opacity:.7">(≈ ${b.pctOfRaid}% of your damage here · kill up to ~${mmss(b.timeSavedSec)} sooner)</span>${tops?`<div class="num" style="margin-top:3px;opacity:.9">most forfeited: ${tops}</div>`:""}</div>`;
   }
   return h+`</div>`;
 }
@@ -1289,27 +1288,33 @@ function focusFireView(d){
   }
   return h+`</tbody></table>`;
 }
-// Add Control — Kill Speed. For each non-boss add BOTH raids engaged on a multi-target fight, how long it
+// Add Control — Kill Speed. For each non-boss add EITHER raid engaged on a multi-target fight, how long it
 // survived (median first-hit→last) ours vs benchmark, ranked by how much slower we are. A slower add kill
 // prolongs its damage and the fight — so an add the benchmark kills faster is a focus/CC/assignment target.
-// DESCRIPTIVE (some adds are held intentionally), but the benchmark sets the pace; lower lifespan is better.
+// A side that never engaged an add (×0) "skipped" it — the benchmark skipping an add we fought is the
+// biggest gap (their boss DPS out-paced the wave). DESCRIPTIVE; lower lifespan is better.
 function targetEngagementView(d){
   const bosses=rowsOf(d.deep&&d.deep.targetEngagement).filter(b=>rowsOf(b.targets).length);
   if(!bosses.length) return "";
-  let h=`<h2 class="section">Add Control — Kill Speed<span class="hint">On multi-target fights, how long each <b>add</b> stayed alive (median, first hit → last) vs the benchmark — for adds both raids engaged, ranked by where you're <b>slowest</b>. A slower kill prolongs the fight, so one the benchmark kills faster is a focus / CC / assignment target. <b>Read against your plan</b> — some adds are held on purpose. Lower is better.</span></h2>`;
+  let h=`<h2 class="section">Add Control — Kill Speed<span class="hint">On multi-target fights, how long each <b>add</b> stayed alive (median, first hit → last) vs the benchmark, ranked by where you're <b>slowest</b>. A slower kill prolongs the fight, so one the benchmark kills faster is a focus / CC / assignment target. When the benchmark killed the boss fast enough to <b>skip an add entirely</b> (×0 for them) that's the biggest gap — faster boss DPS would let you skip it too. <b>Read against your plan</b> — some adds are held on purpose. Lower is better.</span></h2>`;
   for(const b of bosses){
     const targets=rowsOf(b.targets);
-    const max=Math.max(1,...targets.map(a=>Math.max(a.oursLife,a.theirsLife)));
-    const w=v=>Math.max(2,Math.round(v/max*100));
+    const max=Math.max(1,...targets.map(a=>Math.max(a.oursLife||0,a.theirsLife||0)));
+    const w=v=>Math.max(2,Math.round((v||0)/max*100));
     h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>
       <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Add lifespan (median) — lower = killed faster</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
     for(const a of targets){
-      const dl=deltaLow(a.oursLife,a.theirsLife); // lower survival time is better
-      h+=`<div class="dval lo">${a.oursLife}s</div>
+      // a skipped side never engaged the add — show an em-dash + badge, not a fake 0s
+      const oTxt=a.oursSkipped?'<span class="cna">—</span>':a.oursLife+"s";
+      const tTxt=a.theirsSkipped?'<span class="cna">—</span>':a.theirsLife+"s";
+      const dtag=a.theirsSkipped?'<span class="delta bad">they skipped</span>'
+               :a.oursSkipped?'<span class="delta good">you skipped</span>'
+               :(dd=>`<span class="delta ${dd.cls}">${dd.txt}s</span>`)(deltaLow(a.oursLife,a.theirsLife));
+      h+=`<div class="dval lo">${oTxt}</div>
         <div class="dbarL"><div class="f ours" style="width:${w(a.oursLife)}%"></div></div>
-        <div class="dmid">${esc(a.name)}<span class="delta ${dl.cls}">${dl.txt}s</span></div>
+        <div class="dmid">${esc(a.name)}${dtag}</div>
         <div class="dbarR"><div class="f theirs" style="width:${w(a.theirsLife)}%"></div></div>
-        <div class="dval ro">${a.theirsLife}s</div>
+        <div class="dval ro">${tTxt}</div>
         <div class="dctx">×${a.oursCount} vs ×${a.theirsCount}</div>`;
     }
     h+=`</div></div></div>`;
@@ -1345,35 +1350,54 @@ function specDpsView(b){
 // are exact (event-binned upstream), not WCL's smoothed graph, so they agree with Raid DPS elsewhere.
 function tlChart(o,t,m1,m2){
   const OUR="#4ea1ff",THEIR="#ff7a59",GRID="#262f40",MUT="#8a96aa";
-  const W=1000,H=240,padL=48,padR=14,padT=16,padB=40, plotW=W-padL-padR, plotH=H-padT-padB;
+  const W=1000,padL=48,padR=14,padT=16, plotW=W-padL-padR, plotH=184, axisY=padT+plotH; // plot fixed; axisY=200
   o=asArr(o).map(Number); t=asArr(t).map(Number);
   const n=Math.max(o.length,t.length); if(n<2) return "";
   const max=Math.max(1,...o,...t)*1.08;
   const oDur=m1.durSec||0, tDur=m2.durSec||0, axisMax=Math.max(oDur,tDur,1); // seconds
+  const oPh=asArr(m1.phases), tPh=asArr(m2.phases), hasPh=!!(oPh.length||tPh.length);
+  const ribY=axisY+38;                 // phase track sits BELOW the x-axis time labels, only when phases exist
+  const H=hasPh?ribY+30:240;           // grow the canvas only to fit that track
   const Y=v=>padT+plotH-(v/max)*plotH;
   const Xs=sec=>padL+(Math.max(0,Math.min(axisMax,sec))/axisMax)*plotW;
   // Each curve point i sits at i/(n-1) of its OWN fight length (seconds), placed on the shared axis —
   // so the side that finished sooner reaches the right edge sooner and its line stops there.
   const lineFor=(a,dur)=>a.map((v,i)=>(i?"L":"M")+Xs(i/(n-1)*dur).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
-  const axisY=padT+plotH;
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;height:auto;max-width:100%">`;
   for(let g=0;g<=4;g++){const yy=axisY-(g/4)*plotH;
     s+=`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="${GRID}"/>`+
        `<text x="${padL-6}" y="${(yy+3.5).toFixed(1)}" fill="${MUT}" font-size="11" text-anchor="end">${fmtR(max*g/4)}</text>`;}
-  for(let g=0;g<=4;g++){const sec=axisMax*g/4, xx=Xs(sec);s+=`<text x="${xx.toFixed(1)}" y="${H-9}" fill="${MUT}" font-size="11" text-anchor="middle">${fmtTime(sec*1000)}</text>`;}
-  // phase dividers (your fight) + lust verticals (each side) — all at absolute seconds
-  for(const ph of asArr(m1.phases)){const xx=Xs(ph.tSec);
-    s+=`<line x1="${xx.toFixed(1)}" y1="${padT}" x2="${xx.toFixed(1)}" y2="${axisY}" stroke="${MUT}" stroke-dasharray="2,3" opacity=".45"/>`+
-       `<text x="${(xx+3).toFixed(1)}" y="${padT+10}" fill="${MUT}" font-size="10">P${ph.id}</text>`;}
+  for(let g=0;g<=4;g++){const sec=axisMax*g/4, xx=Xs(sec);s+=`<text x="${xx.toFixed(1)}" y="${axisY+31}" fill="${MUT}" font-size="11" text-anchor="middle">${fmtTime(sec*1000)}</text>`;}
+  // Bloodlust verticals (full-height, one shared event per side). Phases are NOT drawn in the plot anymore —
+  // they live in the phase track below the axis (see end of fn) so they never clutter the curves.
   const lust=(sec,c)=>sec==null?"":`<line x1="${Xs(sec).toFixed(1)}" y1="${padT}" x2="${Xs(sec).toFixed(1)}" y2="${axisY}" stroke="${c}" stroke-dasharray="4,3" opacity=".6"/><text x="${(Xs(sec)+2).toFixed(1)}" y="${padT+11}" fill="${c}" font-size="11">&#9889;</text>`;
   s+=lust(m2.lustSec,THEIR)+lust(m1.lustSec,OUR);
   // curves (theirs under ours), each ending at its own fight length
   s+=`<path d="${lineFor(t,tDur)}" fill="none" stroke="${THEIR}" stroke-width="2" opacity=".85"/>`;
   s+=`<path d="${lineFor(o,oDur)}" fill="none" stroke="${OUR}" stroke-width="2.3"/>`;
-  // death markers: ours just below axis, theirs a row lower
+  // death markers: just below the axis — ours first, theirs a row lower
   const tri=(tSec,c,y,name)=>{const x=Xs(tSec);return `<polygon points="${(x-4).toFixed(1)},${y} ${(x+4).toFixed(1)},${y} ${x.toFixed(1)},${(y+7).toFixed(1)}" fill="${c}"><title>${esc(name)} died ${fmtTime(tSec*1000)}</title></polygon>`;};
   for(const d of asArr(m1.deaths)) s+=tri(d.tSec,OUR,axisY+2,d.name);
   for(const d of asArr(m2.deaths)) s+=tri(d.tSec,THEIR,axisY+12,d.name);
+  // PHASE TRACK — a slim two-lane ribbon below the axis labels (benchmark on top, ours below), on the SAME
+  // x-scale as the curves so it lines up exactly. Each lane draws that side's fight as alternating phase
+  // segments (P1, P2, …); the lanes' boundaries differ because the timelines do — the honest read the
+  // full-height dividers used to fake. Only rendered when a side actually has phase transitions.
+  if(hasPh){
+    const lane=(phs,dur,c,y,lab)=>{
+      if(!dur) return "";
+      const cuts=phs.map(p=>p.tSec).filter(x=>x>0&&x<dur);
+      const ids=phs.filter(p=>p.tSec>0&&p.tSec<dur).map(p=>p.id);
+      const bnds=[0,...cuts,dur], segIds=[1,...ids], hh=11;
+      let g=`<text x="${padL-6}" y="${y+8}" fill="${c}" font-size="9" text-anchor="end" opacity=".85">${lab}</text>`;
+      for(let i=0;i<bnds.length-1;i++){const x0=Xs(bnds[i]),x1=Xs(bnds[i+1]),w=x1-x0;
+        g+=`<rect x="${x0.toFixed(1)}" y="${y}" width="${Math.max(0,w).toFixed(1)}" height="${hh}" fill="${c}" opacity="${i%2?0.45:0.24}"><title>Phase ${segIds[i]} — ${fmtTime(bnds[i]*1000)}</title></rect>`+
+          (w>15?`<text x="${((x0+x1)/2).toFixed(1)}" y="${y+8}" fill="#e9eef6" font-size="9" text-anchor="middle">P${segIds[i]}</text>`:"");}
+      g+=cuts.map(x=>`<line x1="${Xs(x).toFixed(1)}" y1="${y}" x2="${Xs(x).toFixed(1)}" y2="${y+hh}" stroke="${c}" stroke-width="1.5"/>`).join("");
+      return g;
+    };
+    s+=lane(tPh,tDur,THEIR,ribY,"bench")+lane(oPh,oDur,OUR,ribY+14,"yours");
+  }
   return s+`</svg>`;
 }
 function timelineChart(b){
@@ -1382,7 +1406,7 @@ function timelineChart(b){
   const sw=c=>`<span style="display:inline-block;width:18px;height:3px;background:${c};vertical-align:middle;margin-right:5px"></span>`;
   const legend=`<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin:2px 0 12px">
     <span>${sw("var(--ours)")}${esc(DATA.ours.title)}</span><span>${sw("var(--theirs)")}${esc(DATA.theirs.title)}</span>
-    <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>&#8230; phase (your fight)</span></div>`;
+    <span style="color:var(--bad)">&#9650; death</span><span>&#9889; Bloodlust</span><span>phase track (below axis) — <b style="color:var(--theirs)">benchmark</b> · <b style="color:var(--ours)">yours</b></span></div>`;
   const op=b.openerGap;
   const opLine=op?(()=>{const pct=op.theirsDps>0?Math.round(op.oursDps/op.theirsDps*100):100;const behind=op.oursDps<op.theirsDps*0.95;
     return `<p class="srcs" style="margin:2px 0 12px${behind?';color:#ffb4b4':''}"><b>Opening ${op.secs}s:</b> ${fmtR(op.oursDps)} vs ${fmtR(op.theirsDps)} raid DPS (${pct}% of benchmark)${behind?' — a slow start. Check prepot, precast, and pull timing.':' — a strong start.'}</p>`;})():"";

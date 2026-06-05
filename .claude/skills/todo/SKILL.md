@@ -11,6 +11,21 @@ Add this idea to `TODO.md`, framed against the product's guiding principles.
 
 > $ARGUMENTS
 
+## Always write to `main`
+
+This skill only ever touches `TODO.md` in the **canonical main checkout** (the repo
+root in *Paths* below) — always on the `main` branch, never the current worktree or
+feature branch. **Before editing**, sync it so you append to the latest list and the
+final push fast-forwards cleanly:
+
+```
+git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" fetch origin
+git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" pull --ff-only origin main
+```
+
+If the fast-forward fails, stop and surface it (don't force) — the main checkout has
+diverged and needs a human.
+
 ## Steps
 
 1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root) — this is the product's soul.
@@ -19,7 +34,8 @@ Add this idea to `TODO.md`, framed against the product's guiding principles.
    *why* the item matters — the **leader decision** it serves and the **lever** it
    surfaces (not a prescribed action) — and to phrase it in the product's voice
    (neutral analyst; lever-focused, never a verdict; never a data dump).
-2. **Read `TODO.md`** at the path below — understand its current sections and style
+2. **Sync, then read `TODO.md`.** Run the sync in *Always write to `main`* above, then
+   read `TODO.md` at the path below — understand its current sections and style
    (markdown `## TODO:` headers, a `>` blockquote restating the ask, then notes).
 3. **Place the item.** Decide whether it belongs under an existing section or
    warrants a new `## TODO:` section. Match the existing format exactly:
@@ -30,11 +46,11 @@ Add this idea to `TODO.md`, framed against the product's guiding principles.
      obvious data source or open question.
 4. **Edit `TODO.md`** to insert it. Keep it lightweight; do not rewrite or
    reorder existing items. Newest ideas go at the bottom of their section.
-5. **Commit** the change directly to main:
+5. **Commit + push to `main`:**
    ```
    git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" add TODO.md
    git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" commit -m "TODO: <short title>"
-   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push origin main
    ```
 
 ## Paths (always use these absolute paths)

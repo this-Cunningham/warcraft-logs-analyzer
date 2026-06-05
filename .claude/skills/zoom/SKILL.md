@@ -22,7 +22,23 @@ A raw aggregate ("23 interrupts", "Raid DPS 18k") answers *how many* — which i
 rarely a lever. The actionable cut is almost always one decomposition down: **who**
 (spec), **what** (mechanic / mob / ability), or **when** (phase). `/zoom` records the
 intent to take this section from a tally to that deeper, lever-naming cut. The total
-can ride along as context; the deeper cut becomes the headline.
+can ride along as context; the deeper cut becomes the headline. (Going *deeper* is
+distinct from `/reframe`, which re-cuts the same data along a *different* axis.)
+
+## Always write to `main`
+
+This skill only ever touches `TODO.md` in the **canonical main checkout** (the repo
+root in *Paths* below) — always on the `main` branch, never the current worktree or
+feature branch. **Before editing**, sync it so you append to the latest list and the
+final push fast-forwards cleanly:
+
+```
+git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" fetch origin
+git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" pull --ff-only origin main
+```
+
+If the fast-forward fails, stop and surface it (don't force) — the main checkout has
+diverged and needs a human.
 
 ## Steps
 
@@ -41,19 +57,20 @@ can ride along as context; the deeper cut becomes the headline.
    builder `scripts/build_deepdive.py` / renderer `templates/report.html` if useful)
    to name the section precisely and note its builder→renderer symbols, so the item
    is concrete rather than vague.
-3. **Read `TODO.md`** — match its style (`## TODO:` headers, a `>` blockquote
-   restating the ask, then notes).
+3. **Sync, then read `TODO.md`.** Run the sync in *Always write to `main`* above, then
+   read `TODO.md` (repo-root path) to match its style (`## TODO:` headers, a `>`
+   blockquote restating the ask, then notes).
 4. **Place the item.** A `## TODO: <section> — zoom in` header (or an existing
    zoom-ins section), a `>` blockquote with the user's ask in their framing, then a
    short note: **current grain → proposed deeper grain**, the **leader decision** it
    serves, the magnitude/legibility caveat, and any honest-dimension open question.
 5. **Edit `TODO.md`** to insert it. Keep it lightweight; do not rewrite or reorder
    existing items. Newest at the bottom of its section.
-6. **Commit** the change directly to main:
+6. **Commit + push to `main`:**
    ```
    git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" add TODO.md
    git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" commit -m "TODO: zoom — <section>"
-   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push origin main
    ```
 
 ## Paths (always use these absolute paths)

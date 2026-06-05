@@ -157,7 +157,7 @@ def count_providers(pairs, cls, spec):
 #               Inspiration / Leader of the Pack land on the provider's own 5-man party), so more
 #               providers genuinely = more groups covered → a count delta IS a clean coverage signal.
 PROVIDER_CHECKS = [
-    {"buff": "Misery", "class": "Priest", "spec": "Shadow", "scope": "raid", "impact": "+3% spell damage taken by boss, plus a mana battery for casters"},
+    {"buff": "Misery", "class": "Priest", "spec": "Shadow", "scope": "raid", "impact": "+5% spell damage taken by boss, plus a mana battery for casters"},
     {"buff": "Improved Faerie Fire", "class": "Druid", "spec": "Balance", "scope": "raid", "impact": "+3% spell hit for the whole raid (huge for casters)"},
     {"buff": "Ferocious Inspiration", "class": "Hunter", "spec": "Beast", "scope": "group", "impact": "+3% damage to the hunter's party"},
     {"buff": "Trueshot Aura", "class": "Hunter", "spec": "Marksmanship", "scope": "group", "impact": "Attack power for the hunter's party"},

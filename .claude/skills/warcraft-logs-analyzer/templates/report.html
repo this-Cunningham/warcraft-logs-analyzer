@@ -474,7 +474,7 @@ function renderOverview(d){
   let h=gapsScorecard(d)+didWellScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
-    <div class="card"><div class="label">Boss Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
+    <div class="card"><div class="label">Total Boss Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
     ${wipeCard}
   </div><p class="srcs" style="margin:12px 0 0">Per-fight kill time, parse, rosters and the full execution drill-down now live on the <b>Bosses</b> tab.</p>`;
   return h+parseSpreadView(d);
@@ -615,7 +615,7 @@ function renderEnchants(d){
   const cons=dp.consumables;
   if(cons&&cons.ours&&cons.theirs){
     const co=cons.ours, ct=cons.theirs;
-    h+=`<h2 class="section">Consumables Coverage<span class="hint">Raiders who showed up prepared, counted <b>per raider</b> across shared bosses — a raider counts when prepped on <b>at least half</b> the bosses they attended. "Prepared" = a <b>flask OR a full battle + guardian elixir pair</b>; Food is Well Fed; Drums shown as uptime. Per-player detail is in the matrix below.</span></h2>
+    h+=`<h2 class="section">Consumables Coverage<span class="hint">Raiders who showed up prepared, counted <b>per raider</b> across shared bosses — a raider counts when prepped on <b>at least half</b> the bosses they attended. "Prepared" = a <b>flask</b>, a <b>battle elixir</b> (DPS), or a <b>full battle + guardian pair</b> (healer/tank); Food is Well Fed; Drums shown as uptime. Per-player detail is in the matrix below.</span></h2>
     <div class="cards">
       ${acard("Flasked / Elixir Pair",`${co.flask}/${co.rosterSize}`,`${ct.flask}/${ct.rosterSize}`,deltaHigh(co.flask,ct.flask))}
       ${acard("Food (Well Fed)",`${co.food}/${co.rosterSize}`,`${ct.food}/${ct.rosterSize}`,deltaHigh(co.food,ct.food))}
@@ -626,14 +626,14 @@ function renderEnchants(d){
   /* Per-player consumables matrix — bosses across the top, offenders at the top. */
   const ppc=dp.perPlayerConsumes;
   if(ppc&&rowsOf(ppc.players).length){
-    h+=`<h2 class="section">Per-Player Consumables — Prep<span class="hint">Each raider in ${oT} × each shared boss; the yellow <b>F · B · G · Fd</b> columns are keyed above the table. "Prepared" = a <b>flask</b> <i>or</i> a <b>battle + guardian pair</b>, plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed that way (e.g. elixirs cover the flask). Sorted worst-prepared first; Prep = bosses consumed / played. Source: per-player buff tables (catches pre-pull consumables). Combat potions are in the in-combat matrix below.</span></h2>
+    h+=`<h2 class="section">Per-Player Consumables — Prep<span class="hint">Each raider in ${oT} × each shared boss; the yellow <b>F · B · G · Fd</b> columns are keyed above the table. "Prepared" = a <b>flask</b>, a <b>battle elixir</b> (DPS), or a <b>battle + guardian pair</b> (healer/tank), plus food. <span style="color:var(--good)">✓</span>=had it · <span style="color:var(--bad)">✗</span> (red)=missing &amp; needed · <span style="opacity:.6">✗ faint</span>=not needed that way (e.g. elixirs cover the flask). Sorted worst-prepared first; Prep = bosses consumed / played. Source: per-player buff tables (catches pre-pull consumables). Combat potions are in the in-combat matrix below.</span></h2>
     ${consumeMatrix(ppc)}`;
   }
 
   /* In-combat consumables matrix — the consumables you press DURING the fight. */
   const ic=dp.perPlayerInCombat;
   if(ic&&rowsOf(ic.players).length){
-    h+=`<h2 class="section">Per-Player Consumables — In Combat<span class="hint">Consumables pressed <b>during</b> the fight: <b>P</b> combat potion · <b>HP</b> health · <b>MP</b> mana · <b>HS</b> healthstone. A <span style="color:var(--good)">green count</span> = used on that boss; a <span style="opacity:.6">faint ✗</span> = a slot the raider had but didn't press. A <b>usage</b> view, not pass/fail — situational items like a mana pot or healthstone aren't flagged red. Sorted by least combat-potion use first. Source: per-player buff &amp; cast tables.</span></h2>
+    h+=`<h2 class="section">Per-Player Consumables — In Combat<span class="hint">Consumables pressed <b>during</b> the fight: <b>P</b> combat potion · <b>MP</b> mana · <b>HS</b> healthstone. A <span style="color:var(--good)">green count</span> = used on that boss; a <span style="opacity:.6">faint ✗</span> = a slot the raider had but didn't press. A <b>usage</b> view, not pass/fail — situational items like a mana pot or healthstone aren't flagged red. Sorted by least combat-potion use first. Source: per-player buff &amp; cast tables.</span></h2>
     ${inCombatMatrix(ic)}`;
   }
 
@@ -643,7 +643,7 @@ function renderEnchants(d){
   /* Prepot (EXPERIMENTAL) — did the opener potion land ON THE PULL? The timing of the potion count. */
   h+=prepotView(d);
 
-  h+=`<h2 class="section">Enchants &amp; Weapon Oils<span class="hint">Per-player prep across the shared-boss roster. Missing enchants and weapon oils/stones are free damage/survivability left on the table. For melee, <b>Windfury Totem counts as a weapon-slot buff</b> — a melee in a Windfury group shows covered (✓ WF), not flagged. (Potion use isn't tracked in Classic logs.)</span></h2>
+  h+=`<h2 class="section">Enchants &amp; Weapon Oils<span class="hint">Per-player prep across the shared-boss roster. Missing enchants and weapon oils/stones are free damage/survivability left on the table. For melee, <b>Windfury Totem counts as a weapon-slot buff</b> — a melee in a Windfury group shows covered (✓ WF), not flagged. (This section covers enchants and weapon oils only; potion use is tracked in the matrices above.)</span></h2>
   <div class="cards">
     ${acard("Missing Enchants (raid)",au.ours.totalMissingEnchants,au.theirs.totalMissingEnchants,meD)}
     ${acard("Fully Enchanted Players",`${au.ours.fullyEnchanted}/${au.ours.playerCount}`,`${au.theirs.fullyEnchanted}/${au.theirs.playerCount}`,feD)}
@@ -772,7 +772,7 @@ function renderExecution(d){
     const dmFmt=persec?(x=>x.toLocaleString()):fmtM;
     const dmDiff=Math.round(dmO-dmT);
     const dmD={cls:dmDiff===0?"flat":(dmDiff<0?"good":"bad"),txt:dmDiff===0?"even":((dmDiff>0?"+":"−")+dmFmt(Math.abs(dmDiff)))};
-    h+=`<h2 class="section">Output Quality<span class="hint">Averaged across shared bosses. <b>Activity</b> = active-casting time ÷ fight duration, measured <i>inside each boss fight only</i> — between-pull breaks and trash don't affect it (dead GCDs from movement/range during the fight do). <b>Overheal</b> = healing landed on full health bars (wasted). <b>Damage taken</b> excludes tanks (soaking is their job) → approximates avoidable damage; toggle per-second (normalizes for kill time) vs total.</span></h2>
+    h+=`<h2 class="section">Output Quality<span class="hint">Averaged across shared bosses. <b>Activity</b> = active GCD time (casts, swings, or attacks) ÷ fight duration, measured <i>inside each boss fight only</i> — between-pull breaks and trash don't affect it (dead GCDs from movement/range during the fight do). <b>Overheal</b> = healing landed on full health bars (wasted). <b>Damage taken</b> excludes tanks (soaking is their job) → approximates avoidable damage; toggle per-second (normalizes for kill time) vs total.</span></h2>
     <div class="segwrap"><span class="lbl">Damage taken</span><div class="seg">
       <button class="dmgbtn ${persec?'on':''}" data-mode="persec">Per second</button>
       <button class="dmgbtn ${persec?'':'on'}" data-mode="total">Overall</button>
@@ -851,7 +851,7 @@ function renderBossPanels(d){
   const active=bosses.some(b=>String(b.encounterID)===bossSel)?bossSel:String(bosses[0].encounterID);
   let h=`<h2 class="section">Per-Boss Breakdown<span class="hint">Pick a boss: its execution panel — timeline, buff/debuff uptime, DPS by spec, damage taken, deaths, interrupts, dispels, phases — sits above its kill-time, parse and roster summary.</span></h2>
   <p class="srcs" style="margin:-6px 0 16px;line-height:1.5">
-    <b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss, <b>not</b> how many raiders had it. "Blessing of Kings 30%" means Kings was up for 30% of the fight, not on 30% of players. Persistent raid buffs and key debuffs (Curse of the Elements, Faerie Fire, Sunder/Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums read low because they last only seconds — expected, not a problem. Higher is better; a red bar means you trailed the benchmark.
+    <b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss, <b>not</b> how many raiders had it. "Blessing of Kings 30%" means Kings was up for 30% of the fight, not on 30% of players. Persistent raid buffs and key debuffs (Curse of the Elements, Misery, Faerie Fire, Sunder Armor, Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums read low because they last only seconds — expected, not a problem. Higher is better; a red bar means you trailed the benchmark.
   </p>`;
   h+=`<div class="btabs">`+bosses.map(b=>`<button class="btab ${String(b.encounterID)===active?'on':''}" data-bossel="${b.encounterID}">${esc(b.name)}</button>`).join("")+`</div>`;
   for(const b of bosses){
@@ -1037,7 +1037,7 @@ function tierSpecGapView(d){
   if(!both.length) return "";
   const max=Math.max(1,...both.map(r=>Math.max(r.oursAvg,r.theirsAvg)));
   const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">DPS Gaps — By Spec<span class="hint">Each DPS spec's average per-player DPS pooled across shared bosses, ours vs the benchmark's same spec. Specs you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Per-player, so roster-count differences don't skew it.</span></h2>
+  let h=`<h2 class="section">DPS Gaps — By Spec<span class="hint">Each DPS spec's average per-player DPS pooled across shared bosses, ours vs the benchmark's same spec. Specs you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Averaged <b>per player-boss sample</b>, so roster size doesn't inflate it.</span></h2>
     <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg DPS / player, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
   for(const r of both){
     const diff=r.deficit; // theirs − ours; >0 = we trail (bad)
@@ -1066,7 +1066,7 @@ function activityGapView(d){
   const both=rowsOf(d.deep&&d.deep.tierActivityGap).filter(r=>r.both);
   if(!both.length) return "";
   const w=v=>Math.max(2,Math.round(v)); // already a 0-100 %, honest absolute bar scale
-  let h=`<h2 class="section">Activity by Spec<span class="xp">Experimental</span><span class="hint">Each DPS spec's average per-player <b>activity</b> — active-casting time ÷ fight duration — pooled across shared bosses, ours vs the benchmark's same spec. Idle GCDs are throughput recoverable <i>without</i> gear, so a trailing spec (red) names <b>who</b> to investigate. <b>What it can't tell you:</b> the <i>cause</i> of the idle time — the log sees the gap, not the reason. A trailing melee spec usually points at movement/positioning (mobs placed so they chase, or avoidable-damage dodging — cross-check Add Control and Damage Taken); a trailing caster, at range/LoS or target swaps. Use it to pick the spec to film, then diagnose the cause from the fight. <b>Experimental.</b></span></h2>
+  let h=`<h2 class="section">Activity by Spec<span class="xp">Experimental</span><span class="hint">Each DPS spec's average per-player <b>activity</b> — active GCD time (casts, swings, or attacks) ÷ fight duration — pooled across shared bosses, ours vs the benchmark's same spec. Idle GCDs are throughput recoverable <i>without</i> gear, so a trailing spec (red) names <b>who</b> to investigate. <b>What it can't tell you:</b> the <i>cause</i> of the idle time — the log sees the gap, not the reason. A trailing melee spec usually points at movement/positioning (mobs placed so they chase, or avoidable-damage dodging — cross-check Add Control and Damage Taken); a trailing caster, at range/LoS or target swaps. Use it to pick the spec to film, then diagnose the cause from the fight. <b>Experimental.</b></span></h2>
     <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg activity %, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
   for(const r of both){
     const dl=deltaHigh(r.ours,r.theirs); // higher activity better
@@ -1558,7 +1558,7 @@ function optBossBody(d,cls,s,b){
   }
   const amt=bm.amount!=null?` · ${fmtR(bm.amount)} ${optMetricLbl(bm.metric)}`:"";
   const guild=bm.guild?` · ${esc(bm.guild)}`:"", reg=bm.region?` (${esc(bm.region)})`:"";
-  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — World #${bm.globalRank} ${fac} ${esc(s.spec)} ${esc(cls)} on <b>${esc(b.name||"")}</b>${amt}</div>`;
+  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — top ${fac} ${esc(s.spec)} ${esc(cls)} (World #${bm.globalRank} overall) on <b>${esc(b.name||"")}</b>${amt}</div>`;
   const players=rowsOf(b.players);
   if(!players.length) return h+`<p class="num" style="padding:6px 2px">None of your ${esc(s.spec)} ${esc(cls)} raiders played that role/form on ${esc(b.name||"this boss")} — nobody to compare like-for-like (e.g. a Feral who tanked in bear isn't matched to a cat-DPS best).</p>`;
   const parseTag=p=>p.parse!=null?` <span class="parse" style="background:${parseColor(p.parse)}">${p.parse}</span>`:"";
@@ -1650,7 +1650,7 @@ function renderTrash(d){
   const deathD=deltaLow(go.deaths,gt.deaths);
   const zones=asArr(tr.zones);
   const zoneNote=zones.length?` Restricted to <b>${zones.map(esc).join(", ")}</b> — the zone${zones.length>1?"s":""} both raids cleared; other content is excluded so it's like-for-like.`:"";
-  let h=`<h2 class="section">Trash at a Glance<span class="hint">Trash pulls, time, and deaths, ours vs the benchmark.${zoneNote} Routes and skips still differ, so clear time is a rough proxy — deaths are the clean signal. Lower is better for time and deaths.</span></h2>
+  let h=`<h2 class="section">Trash at a Glance<span class="hint">Trash pulls, time, and deaths, ours vs the benchmark.${zoneNote} Routes and skips still differ, so clear time (summed in-combat pull time, not wall-clock) is a rough proxy — deaths are the clean signal. Lower is better for time and deaths.</span></h2>
   <div class="cards">
     <div class="card"><div class="label">Trash Pulls</div><div class="vals"><span class="v ours">${go.packs}</span><span class="v theirs">${gt.packs}</span></div></div>
     <div class="card"><div class="label">Trash Clear Time</div><div class="vals"><span class="v ours">${fmtMin(go.clearMs)}</span><span class="v theirs">${fmtMin(gt.clearMs)}</span><span class="delta ${clearD.cls}">${clearD.txt}m</span></div></div>
@@ -1889,7 +1889,7 @@ function renderWipes(d){
         if(m>=2*s&&m>0) verdict=`a <b style="color:var(--bad)">mechanics problem</b> — ${m}/${tot} deaths to avoidable hits (${mechs}). Drill positioning/timing on those; <b>healing won't fix it</b> (you can't out-heal those hits).`;
         else if(s>=2*m&&s>0) verdict=`a <b style="color:var(--bad)">sustained-damage problem</b> — ${s}/${tot} deaths to melee/attrition, not single mechanics. That's a <b>healing-assignment / defensive / gear / tuning</b> question, not a positioning drill.`;
         else verdict=`<b>mixed</b> — ${m}/${tot} to avoidable mechanics (${mechs}), ${s}/${tot} to sustained damage. Split the fix: positioning for the first, healing/CDs for the second.`;
-        h+=`<p class="srcs" style="margin:4px 0 4px"><b>Likely cause:</b> ${verdict} <span class="num" style="opacity:.6">— heuristic from the death-window damage mix; it can't see a missed defensive, and "avoidable" = a named non-melee killing hit.</span></p>`;
+        h+=`<p class="srcs" style="margin:4px 0 4px"><b>Likely cause:</b> ${verdict} <span class="num" style="opacity:.6">— heuristic from the death-window damage mix; it can't see a missed defensive, and "avoidable" = a death window dominated by named, non-melee damage.</span></p>`;
       }
       const kb=rowsOf(b.killingBlows);
       if(kb.length){

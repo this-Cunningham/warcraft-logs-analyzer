@@ -1,0 +1,4984 @@
+{
+  "friendly": [
+    {
+      "name": "Fizle",
+      "id": 3,
+      "guid": 75263648,
+      "type": "Rogue",
+      "icon": "Rogue-Combat",
+      "timestamp": 62316,
+      "fight": 1,
+      "damage": {
+        "total": 10051,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1805,
+        "abilities": [
+          {
+            "guid": 15578,
+            "name": "Whirlwind",
+            "total": 5148,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          },
+          {
+            "guid": 37109,
+            "name": "Fireball Volley",
+            "total": 4903,
+            "type": 4,
+            "icon": "spell_fire_flamebolt.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Bloodwarder Legionnaire",
+            "total": 5148,
+            "type": "NPC"
+          },
+          {
+            "name": "Astromancer",
+            "total": 4903,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 1799,
+      "overkill": 197,
+      "events": [
+        {
+          "timestamp": 62298,
+          "type": "damage",
+          "sourceID": 32,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 3,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15578,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 1,
+          "hitType": 1,
+          "amount": 4951,
+          "mitigated": 1805,
+          "unmitigatedAmount": 6953,
+          "overkill": 197,
+          "isAoE": true,
+          "sourceMarker": 4
+        },
+        {
+          "timestamp": 61986,
+          "type": "damage",
+          "sourceID": 31,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 3,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fireball Volley",
+            "guid": 37109,
+            "type": 4,
+            "abilityIcon": "spell_fire_flamebolt.jpg"
+          },
+          "fight": 1,
+          "hitType": 1,
+          "amount": 2200,
+          "unmitigatedAmount": 2200,
+          "isAoE": true,
+          "sourceMarker": 8
+        },
+        {
+          "timestamp": 60499,
+          "type": "damage",
+          "sourceID": 31,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 3,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fireball Volley",
+            "guid": 37109,
+            "type": 4,
+            "abilityIcon": "spell_fire_flamebolt.jpg"
+          },
+          "fight": 1,
+          "hitType": 1,
+          "amount": 2703,
+          "unmitigatedAmount": 2703,
+          "isAoE": true,
+          "sourceMarker": 7
+        }
+      ],
+      "killingBlow": {
+        "name": "Whirlwind",
+        "guid": 15578,
+        "type": 1,
+        "abilityIcon": "ability_whirlwind.jpg"
+      }
+    },
+    {
+      "name": "Vanpizzy",
+      "id": 36,
+      "guid": 77224644,
+      "type": "Shaman",
+      "icon": "Shaman",
+      "timestamp": 66496,
+      "fight": 1,
+      "damage": {
+        "total": 14500,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 402,
+        "abilities": [
+          {
+            "guid": 26986,
+            "name": "Starfire",
+            "total": 4170,
+            "type": 64,
+            "icon": "spell_arcane_starfire.jpg"
+          },
+          {
+            "guid": 27082,
+            "name": "Arcane Explosion",
+            "total": 3252,
+            "type": 64,
+            "icon": "spell_nature_wispsplode.jpg"
+          },
+          {
+            "guid": 37109,
+            "name": "Fireball Volley",
+            "total": 2142,
+            "type": 4,
+            "icon": "spell_fire_flamebolt.jpg"
+          },
+          {
+            "guid": 25442,
+            "name": "Chain Lightning",
+            "total": 1158,
+            "type": 8,
+            "icon": "spell_nature_chainlightning.jpg"
+          },
+          {
+            "guid": 1680,
+            "name": "Whirlwind",
+            "total": 1123,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Bifton",
+            "total": 4170,
+            "type": "Druid"
+          },
+          {
+            "name": "ßyrdman",
+            "total": 3252,
+            "type": "Mage"
+          },
+          {
+            "name": "Astromancer",
+            "total": 2142,
+            "type": "NPC"
+          },
+          {
+            "name": "Saqq",
+            "total": 1538,
+            "type": "Warrior"
+          },
+          {
+            "name": "Papparadeli",
+            "total": 1158,
+            "type": "Shaman"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 6041,
+      "overkill": 3709,
+      "events": [
+        {
+          "timestamp": 66456,
+          "type": "damage",
+          "sourceID": 16,
+          "sourceIsFriendly": true,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Starfire",
+            "guid": 26986,
+            "type": 64,
+            "abilityIcon": "spell_arcane_starfire.jpg"
+          },
+          "fight": 1,
+          "hitType": 2,
+          "amount": 461,
+          "unmitigatedAmount": 2084,
+          "overkill": 3709,
+          "isAoE": false
+        },
+        {
+          "timestamp": 65868,
+          "type": "damage",
+          "sourceID": 12,
+          "sourceIsFriendly": true,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Consecration",
+            "guid": 27173,
+            "type": 2,
+            "abilityIcon": "spell_holy_innerfire.jpg"
+          },
+          "fight": 1,
+          "hitType": 1,
+          "amount": 169,
+          "unmitigatedAmount": 169,
+          "isAoE": true,
+          "tick": true
+        },
+        {
+          "timestamp": 64454,
+          "type": "damage",
+          "sourceID": 21,
+          "sourceIsFriendly": true,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Arcane Explosion",
+            "guid": 27082,
+            "type": 64,
+            "abilityIcon": "spell_nature_wispsplode.jpg"
+          },
+          "fight": 1,
+          "hitType": 2,
+          "amount": 1268,
+          "unmitigatedAmount": 697,
+          "isAoE": true
+        }
+      ],
+      "killingBlow": {
+        "name": "Starfire",
+        "guid": 26986,
+        "type": 64,
+        "abilityIcon": "spell_arcane_starfire.jpg"
+      }
+    },
+    {
+      "name": "Gorillatwist",
+      "id": 11,
+      "guid": 72919896,
+      "type": "Paladin",
+      "icon": "Paladin-Retribution",
+      "timestamp": 122552,
+      "fight": 1,
+      "damage": {
+        "total": 10706,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 6994,
+        "abilities": [
+          {
+            "guid": 15589,
+            "name": "Whirlwind",
+            "total": 10706,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Bloodwarder Marshal",
+            "total": 10706,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 1985,
+      "overkill": 2039,
+      "events": [
+        {
+          "timestamp": 122511,
+          "type": "damage",
+          "sourceID": 46,
+          "sourceIsFriendly": false,
+          "targetID": 11,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15589,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 1,
+          "hitType": 1,
+          "amount": 3114,
+          "mitigated": 3366,
+          "unmitigatedAmount": 8519,
+          "overkill": 2039,
+          "isAoE": true,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 120526,
+          "type": "damage",
+          "sourceID": 46,
+          "sourceIsFriendly": false,
+          "targetID": 11,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15589,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 1,
+          "hitType": 1,
+          "amount": 5553,
+          "mitigated": 3628,
+          "unmitigatedAmount": 9181,
+          "isAoE": true,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Whirlwind",
+        "guid": 15589,
+        "type": 1,
+        "abilityIcon": "ability_whirlwind.jpg"
+      }
+    },
+    {
+      "name": "Polopeter",
+      "id": 41,
+      "guid": 74095688,
+      "type": "Rogue",
+      "icon": "Rogue-Combat",
+      "timestamp": 204212,
+      "fight": 2,
+      "damage": {
+        "total": 11712,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 4037,
+        "abilities": [
+          {
+            "guid": 15578,
+            "name": "Whirlwind",
+            "total": 11205,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          },
+          {
+            "guid": 35916,
+            "name": "Molten Armor",
+            "total": 507,
+            "type": 4,
+            "icon": "inv_helmet_08.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Bloodwarder Legionnaire",
+            "total": 11205,
+            "type": "NPC"
+          },
+          {
+            "name": "Astromancer",
+            "total": 507,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 5068,
+      "overkill": 2248,
+      "events": [
+        {
+          "timestamp": 204179,
+          "type": "damage",
+          "sourceID": 32,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 41,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15578,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 2,
+          "hitType": 1,
+          "amount": 2963,
+          "mitigated": 1869,
+          "unmitigatedAmount": 7080,
+          "overkill": 2248,
+          "isAoE": true,
+          "sourceMarker": 4
+        },
+        {
+          "timestamp": 204177,
+          "type": "damage",
+          "sourceID": 32,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 41,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15578,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 2,
+          "hitType": 1,
+          "amount": 5994,
+          "mitigated": 2150,
+          "unmitigatedAmount": 8144,
+          "isAoE": true,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 203033,
+          "type": "damage",
+          "sourceID": 31,
+          "sourceIsFriendly": false,
+          "targetID": 41,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Molten Armor",
+            "guid": 35916,
+            "type": 4,
+            "abilityIcon": "inv_helmet_08.jpg"
+          },
+          "fight": 2,
+          "hitType": 1,
+          "amount": 75,
+          "unmitigatedAmount": 75,
+          "isAoE": false,
+          "sourceMarker": 8
+        }
+      ],
+      "killingBlow": {
+        "name": "Whirlwind",
+        "guid": 15578,
+        "type": 1,
+        "abilityIcon": "ability_whirlwind.jpg"
+      }
+    },
+    {
+      "name": "Gorillatwist",
+      "id": 11,
+      "guid": 72919896,
+      "type": "Paladin",
+      "icon": "Paladin-Retribution",
+      "timestamp": 232715,
+      "fight": 2,
+      "damage": {
+        "total": 7684,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 2723,
+        "abilities": [
+          {
+            "guid": 37124,
+            "name": "Starfall",
+            "total": 4060,
+            "type": 64,
+            "icon": "spell_arcane_starfire.jpg"
+          },
+          {
+            "guid": 15578,
+            "name": "Whirlwind",
+            "total": 3425,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          },
+          {
+            "guid": 32221,
+            "name": "Seal of Blood",
+            "total": 199,
+            "type": 2,
+            "icon": "spell_holy_sealofblood.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Star Scryer",
+            "total": 4060,
+            "type": "NPC"
+          },
+          {
+            "name": "Bloodwarder Legionnaire",
+            "total": 3425,
+            "type": "NPC"
+          },
+          {
+            "name": "Gorillatwist",
+            "total": 199,
+            "type": "Paladin"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 2027,
+      "overkill": 217,
+      "events": [
+        {
+          "timestamp": 232698,
+          "type": "damage",
+          "sourceID": 34,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 11,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Starfall",
+            "guid": 37124,
+            "type": 64,
+            "abilityIcon": "spell_arcane_starfire.jpg"
+          },
+          "fight": 2,
+          "hitType": 1,
+          "amount": 1874,
+          "unmitigatedAmount": 2091,
+          "overkill": 217,
+          "isAoE": true,
+          "tick": true,
+          "sourceMarker": 7
+        },
+        {
+          "timestamp": 231685,
+          "type": "damage",
+          "sourceID": 32,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 11,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15578,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 2,
+          "hitType": 1,
+          "amount": 3425,
+          "mitigated": 2723,
+          "unmitigatedAmount": 6148,
+          "isAoE": true,
+          "sourceMarker": 4
+        },
+        {
+          "timestamp": 231111,
+          "type": "damage",
+          "sourceID": 11,
+          "sourceIsFriendly": true,
+          "targetID": 11,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Seal of Blood",
+            "guid": 32221,
+            "type": 2,
+            "abilityIcon": "spell_holy_sealofblood.jpg"
+          },
+          "fight": 2,
+          "hitType": 1,
+          "amount": 199,
+          "unmitigatedAmount": 199,
+          "isAoE": false
+        }
+      ],
+      "killingBlow": {
+        "name": "Starfall",
+        "guid": 37124,
+        "type": 64,
+        "abilityIcon": "spell_arcane_starfire.jpg"
+      }
+    },
+    {
+      "name": "Deadmoth",
+      "id": 2,
+      "guid": 74061777,
+      "type": "Warlock",
+      "icon": "Warlock-Destruction",
+      "timestamp": 515162,
+      "fight": 4,
+      "damage": {
+        "total": 10891,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1773,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 10891,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Phoenix-Hawk",
+            "total": 10891,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 0,
+      "overkill": 10807,
+      "events": [
+        {
+          "timestamp": 515150,
+          "type": "damage",
+          "sourceID": 57,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 2,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 4,
+          "hitType": 1,
+          "amount": 84,
+          "mitigated": 1773,
+          "unmitigatedAmount": 12664,
+          "overkill": 10807,
+          "isAoE": false
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Kaver",
+      "id": 6,
+      "guid": 72822537,
+      "type": "Shaman",
+      "icon": "Shaman",
+      "timestamp": 2692045,
+      "fight": 10,
+      "damage": {
+        "total": 10126,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 7654,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 2472,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 10126,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 3345,
+      "overkill": 1127,
+      "events": [
+        {
+          "timestamp": 2692024,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "target": {
+            "name": "Kaver",
+            "id": 6,
+            "guid": 72822537,
+            "type": "Shaman",
+            "icon": "Shaman",
+            "server": "Nightslayer",
+            "region": "US"
+          },
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 1345,
+          "unmitigatedAmount": 2472,
+          "overkill": 1127,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2691770,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "target": {
+            "name": "Kaver",
+            "id": 6,
+            "guid": 72822537,
+            "type": "Shaman",
+            "icon": "Shaman",
+            "server": "Nightslayer",
+            "region": "US"
+          },
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3908,
+          "unmitigatedAmount": 3908,
+          "isAoE": true,
+          "sourceMarker": 1
+        },
+        {
+          "timestamp": 2688679,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "target": {
+            "name": "Kaver",
+            "id": 6,
+            "guid": 72822537,
+            "type": "Shaman",
+            "icon": "Shaman",
+            "server": "Nightslayer",
+            "region": "US"
+          },
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3746,
+          "unmitigatedAmount": 3746,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ],
+      "killingBlow": {
+        "name": "Fragmentation Bomb",
+        "guid": 37120,
+        "type": 4,
+        "abilityIcon": "inv_misc_bomb_02.jpg"
+      }
+    },
+    {
+      "name": "Dendrophîlîa",
+      "id": 26,
+      "guid": 62053608,
+      "type": "Druid",
+      "icon": "Druid-Restoration",
+      "timestamp": 2692047,
+      "fight": 10,
+      "damage": {
+        "total": 9227,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 6930,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 2297,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 9227,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 1032,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 1032,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 1032,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Lollz",
+            "total": 1032,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 3362,
+      "overkill": 32,
+      "events": [
+        {
+          "timestamp": 2692042,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 26,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2265,
+          "unmitigatedAmount": 2297,
+          "overkill": 32,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2691769,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 26,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3822,
+          "unmitigatedAmount": 3822,
+          "isAoE": true,
+          "sourceMarker": 1
+        },
+        {
+          "timestamp": 2688680,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 26,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3108,
+          "unmitigatedAmount": 3108,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ],
+      "killingBlow": {
+        "name": "Fragmentation Bomb",
+        "guid": 37120,
+        "type": 4,
+        "abilityIcon": "inv_misc_bomb_02.jpg"
+      }
+    },
+    {
+      "name": "Teklamonster",
+      "id": 29,
+      "guid": 69962760,
+      "type": "Warrior",
+      "icon": "Warrior-Gladiator",
+      "timestamp": 2715862,
+      "fight": 10,
+      "damage": {
+        "total": 27476,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 38670,
+        "blocked": 740,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 22541,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          },
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 4935,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 27476,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 9188,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 3004,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          },
+          {
+            "guid": 25235,
+            "name": "Flash Heal",
+            "total": 2559,
+            "type": 2,
+            "icon": "spell_holy_flashheal.jpg"
+          },
+          {
+            "guid": 33778,
+            "name": "Lifebloom",
+            "total": 1722,
+            "type": 8,
+            "icon": "inv_misc_herb_felblossom.jpg"
+          },
+          {
+            "guid": 33763,
+            "name": "Lifebloom",
+            "total": 1116,
+            "type": 8,
+            "icon": "inv_misc_herb_felblossom.jpg"
+          },
+          {
+            "guid": 25222,
+            "name": "Renew",
+            "total": 787,
+            "type": 2,
+            "icon": "spell_holy_renew.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 7839,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          },
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 1349,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Madslippery",
+            "total": 3346,
+            "type": "Priest"
+          },
+          {
+            "name": "Lollz",
+            "total": 3004,
+            "type": "Priest"
+          },
+          {
+            "name": "Taikkulol",
+            "total": 2838,
+            "type": "Druid"
+          }
+        ]
+      },
+      "deathWindow": 4910,
+      "overkill": 1389,
+      "events": [
+        {
+          "timestamp": 2715844,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 29,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Countercharge",
+            "guid": 35781,
+            "type": 64,
+            "abilityIcon": "spell_arcane_arcanepotency.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 737,
+          "mitigated": 236,
+          "unmitigatedAmount": 2362,
+          "overkill": 1389,
+          "isAoE": true,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2715813,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 29,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 4,
+          "amount": 5837,
+          "mitigated": 12135,
+          "unmitigatedAmount": 17972,
+          "blocked": 425,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2713816,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 29,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 4,
+          "amount": 3978,
+          "mitigated": 8343,
+          "unmitigatedAmount": 12321,
+          "blocked": 315,
+          "isAoE": false,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Countercharge",
+        "guid": 35781,
+        "type": 64,
+        "abilityIcon": "spell_arcane_arcanepotency.jpg"
+      }
+    },
+    {
+      "name": "Archinda",
+      "id": 20,
+      "guid": 77376464,
+      "type": "Mage",
+      "icon": "Mage",
+      "timestamp": 2716194,
+      "fight": 10,
+      "damage": {
+        "total": 21263,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 11227,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 35039,
+            "name": "Countercharge",
+            "total": 4052,
+            "type": 64,
+            "icon": "spell_frost_iceshock.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3676,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 2308,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 14903,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Devastator",
+            "total": 6360,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 9990,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 5712,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          },
+          {
+            "guid": 15290,
+            "name": "Vampiric Embrace",
+            "total": 2619,
+            "type": 32,
+            "icon": "spell_shadow_unsummonbuilding.jpg"
+          },
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 1659,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 8231,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 35039,
+            "name": "Countercharge",
+            "total": 1759,
+            "type": 64,
+            "icon": "spell_frost_iceshock.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Madslippery",
+            "total": 3740,
+            "type": "Priest"
+          },
+          {
+            "name": "Haisey",
+            "total": 2619,
+            "type": "Priest"
+          },
+          {
+            "name": "Lollz",
+            "total": 1972,
+            "type": "Priest"
+          },
+          {
+            "name": "Shampadre",
+            "total": 1659,
+            "type": "Shaman"
+          }
+        ]
+      },
+      "deathWindow": 24148,
+      "overkill": 1306,
+      "events": [
+        {
+          "timestamp": 2716175,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 20,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2370,
+          "unmitigatedAmount": 3676,
+          "overkill": 1306,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2715845,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 20,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Countercharge",
+            "guid": 35781,
+            "type": 64,
+            "abilityIcon": "spell_arcane_arcanepotency.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2308,
+          "unmitigatedAmount": 2308,
+          "isAoE": true,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2709053,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 20,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2543,
+          "unmitigatedAmount": 2543,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ],
+      "killingBlow": {
+        "name": "Shell Shock",
+        "guid": 37118,
+        "type": 4,
+        "abilityIcon": "spell_fire_selfdestruct.jpg"
+      }
+    },
+    {
+      "name": "Vanpizzy",
+      "id": 36,
+      "guid": 77224644,
+      "type": "Shaman",
+      "icon": "Shaman-Enhancement",
+      "timestamp": 2716195,
+      "fight": 10,
+      "damage": {
+        "total": 13830,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 120,
+        "abilities": [
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 4048,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3918,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37102,
+            "name": "Knock Away",
+            "total": 3880,
+            "type": 1,
+            "icon": "inv_gauntlets_05.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 1984,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 7928,
+            "type": "NPC"
+          },
+          {
+            "name": "Tempest-Smith",
+            "total": 5902,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 4827,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 1989,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          },
+          {
+            "guid": 33778,
+            "name": "Lifebloom",
+            "total": 1722,
+            "type": 8,
+            "icon": "inv_misc_herb_felblossom.jpg"
+          },
+          {
+            "guid": 33763,
+            "name": "Lifebloom",
+            "total": 1116,
+            "type": 8,
+            "icon": "inv_misc_herb_felblossom.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37102,
+            "name": "Knock Away",
+            "total": 1989,
+            "type": 1,
+            "icon": "inv_gauntlets_05.jpg"
+          },
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 1571,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 1267,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Taikkulol",
+            "total": 2838,
+            "type": "Druid"
+          },
+          {
+            "name": "Lollz",
+            "total": 1989,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 7627,
+      "overkill": 354,
+      "events": [
+        {
+          "timestamp": 2716171,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3564,
+          "unmitigatedAmount": 3918,
+          "overkill": 354,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2715844,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Countercharge",
+            "guid": 35781,
+            "type": 64,
+            "abilityIcon": "spell_arcane_arcanepotency.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2477,
+          "unmitigatedAmount": 2477,
+          "isAoE": true,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2711353,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Knock Away",
+            "guid": 37102,
+            "type": 1,
+            "abilityIcon": "inv_gauntlets_05.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3880,
+          "mitigated": 120,
+          "unmitigatedAmount": 4000,
+          "isAoE": true,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Shell Shock",
+        "guid": 37118,
+        "type": 4,
+        "abilityIcon": "spell_fire_selfdestruct.jpg"
+      }
+    },
+    {
+      "name": "Saqq",
+      "id": 39,
+      "guid": 74378735,
+      "type": "Warrior",
+      "icon": "Warrior-Arms",
+      "timestamp": 2717837,
+      "fight": 10,
+      "damage": {
+        "total": 26731,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 5025,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 9094,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 7971,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 4576,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 4466,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 30486,
+            "name": "Super Sapper Charge",
+            "total": 624,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 13670,
+            "type": "NPC"
+          },
+          {
+            "name": "Tempest-Smith",
+            "total": 12437,
+            "type": "NPC"
+          },
+          {
+            "name": "Saqq",
+            "total": 624,
+            "type": "Warrior"
+          }
+        ]
+      },
+      "healing": {
+        "total": 11589,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 33763,
+            "name": "Lifebloom",
+            "total": 3748,
+            "type": 8,
+            "icon": "inv_misc_herb_felblossom.jpg"
+          },
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 2878,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          },
+          {
+            "guid": 34299,
+            "name": "Leader of the Pack",
+            "total": 1698,
+            "type": 1,
+            "icon": "spell_nature_unyeildingstamina.jpg"
+          },
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 1678,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          },
+          {
+            "guid": 33778,
+            "name": "Lifebloom",
+            "total": 1587,
+            "type": 8,
+            "icon": "inv_misc_herb_felblossom.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 5276,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3764,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 35781,
+            "name": "Countercharge",
+            "total": 1925,
+            "type": 64,
+            "icon": "spell_arcane_arcanepotency.jpg"
+          },
+          {
+            "guid": 30486,
+            "name": "Super Sapper Charge",
+            "total": 624,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Taikkulol",
+            "total": 5335,
+            "type": "Druid"
+          },
+          {
+            "name": "Madslippery",
+            "total": 1873,
+            "type": "Priest"
+          },
+          {
+            "name": "Saqq",
+            "total": 1698,
+            "type": "Warrior"
+          },
+          {
+            "name": "Shampadre",
+            "total": 1678,
+            "type": "Shaman"
+          },
+          {
+            "name": "Lollz",
+            "total": 1005,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 24785,
+      "overkill": 4449,
+      "events": [
+        {
+          "timestamp": 2717810,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 39,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 4645,
+          "mitigated": 4930,
+          "unmitigatedAmount": 14024,
+          "overkill": 4449,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2716174,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 39,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 4466,
+          "unmitigatedAmount": 3867,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2715845,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 39,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Countercharge",
+            "guid": 35781,
+            "type": 64,
+            "abilityIcon": "spell_arcane_arcanepotency.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2810,
+          "unmitigatedAmount": 2433,
+          "isAoE": true,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Pifflock",
+      "id": 66,
+      "guid": 74249011,
+      "type": "Warlock",
+      "icon": "Warlock-Destruction",
+      "timestamp": 2717871,
+      "fight": 10,
+      "damage": {
+        "total": 24727,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 35039,
+            "name": "Countercharge",
+            "total": 11859,
+            "type": 64,
+            "icon": "spell_frost_iceshock.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 9249,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3619,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 12868,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Devastator",
+            "total": 11859,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 12492,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 7531,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          },
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 4961,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 9249,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3243,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Shampadre",
+            "total": 7531,
+            "type": "Shaman"
+          },
+          {
+            "name": "Lollz",
+            "total": 4961,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 29181,
+      "overkill": 699,
+      "events": [
+        {
+          "timestamp": 2717857,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 66,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Countercharge",
+            "guid": 35039,
+            "type": 64,
+            "abilityIcon": "spell_frost_iceshock.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 6252,
+          "unmitigatedAmount": 6951,
+          "overkill": 699,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2712617,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 66,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Countercharge",
+            "guid": 35039,
+            "type": 64,
+            "abilityIcon": "spell_frost_iceshock.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 4908,
+          "unmitigatedAmount": 4908,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2709052,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 66,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2457,
+          "unmitigatedAmount": 2457,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ],
+      "killingBlow": {
+        "name": "Countercharge",
+        "guid": 35039,
+        "type": 64,
+        "abilityIcon": "spell_frost_iceshock.jpg"
+      }
+    },
+    {
+      "name": "Turtlesjnr",
+      "id": 14,
+      "guid": 77313271,
+      "type": "Druid",
+      "icon": "Druid-Balance",
+      "timestamp": 2722407,
+      "fight": 10,
+      "damage": {
+        "total": 26237,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 8724,
+        "abilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 12711,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 6968,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 6558,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 19679,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Devastator",
+            "total": 6558,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 14043,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 11052,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          },
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 2991,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 7075,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 6968,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Shampadre",
+            "total": 11052,
+            "type": "Shaman"
+          },
+          {
+            "name": "Lollz",
+            "total": 2991,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 33716,
+      "overkill": 1711,
+      "events": [
+        {
+          "timestamp": 2722393,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 14,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 413,
+          "unmitigatedAmount": 2124,
+          "overkill": 1711,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2719831,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 14,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 6558,
+          "mitigated": 7338,
+          "unmitigatedAmount": 13896,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2714200,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 14,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2584,
+          "unmitigatedAmount": 2584,
+          "isAoE": true,
+          "sourceMarker": 1
+        }
+      ],
+      "killingBlow": {
+        "name": "Fragmentation Bomb",
+        "guid": 37120,
+        "type": 4,
+        "abilityIcon": "inv_misc_bomb_02.jpg"
+      }
+    },
+    {
+      "name": "Slevihunt",
+      "id": 68,
+      "guid": 78132458,
+      "type": "Hunter",
+      "icon": "Hunter-Survival",
+      "timestamp": 2724908,
+      "fight": 10,
+      "damage": {
+        "total": 31857,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1687,
+        "abilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 11241,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 10934,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 9682,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 22175,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Devastator",
+            "total": 9682,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 18799,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 7330,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          },
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 7091,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          },
+          {
+            "guid": 27237,
+            "name": "Master Healthstone",
+            "total": 2496,
+            "type": 1,
+            "icon": "inv_stone_04.jpg"
+          },
+          {
+            "guid": 33110,
+            "name": "Prayer of Mending",
+            "total": 1882,
+            "type": 2,
+            "icon": "spell_holy_prayerofmendingtga.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 10719,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 8080,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Shampadre",
+            "total": 7330,
+            "type": "Shaman"
+          },
+          {
+            "name": "Lollz",
+            "total": 5130,
+            "type": "Priest"
+          },
+          {
+            "name": "Madslippery",
+            "total": 3843,
+            "type": "Priest"
+          },
+          {
+            "name": "Slevihunt",
+            "total": 2496,
+            "type": "Hunter"
+          }
+        ]
+      },
+      "deathWindow": 36216,
+      "overkill": 2852,
+      "events": [
+        {
+          "timestamp": 2724891,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 68,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 6830,
+          "mitigated": 764,
+          "unmitigatedAmount": 10446,
+          "overkill": 2852,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2722380,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 68,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2404,
+          "mitigated": 100,
+          "unmitigatedAmount": 2504,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2714201,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 68,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2275,
+          "mitigated": 95,
+          "unmitigatedAmount": 2370,
+          "isAoE": true,
+          "sourceMarker": 1
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Papparadeli",
+      "id": 15,
+      "guid": 74461076,
+      "type": "Shaman",
+      "icon": "Shaman-Elemental",
+      "timestamp": 2726913,
+      "fight": 10,
+      "damage": {
+        "total": 26240,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 5170,
+        "abilities": [
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 9957,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 9864,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 6419,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 19821,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Devastator",
+            "total": 6419,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 16917,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 8828,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          },
+          {
+            "guid": 25396,
+            "name": "Healing Wave",
+            "total": 4665,
+            "type": 8,
+            "icon": "spell_nature_magicimmunity.jpg"
+          },
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 2512,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          },
+          {
+            "guid": 33110,
+            "name": "Prayer of Mending",
+            "total": 912,
+            "type": 2,
+            "icon": "spell_holy_prayerofmendingtga.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 9329,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 7588,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Shampadre",
+            "total": 13493,
+            "type": "Shaman"
+          },
+          {
+            "name": "Lollz",
+            "total": 2512,
+            "type": "Priest"
+          },
+          {
+            "name": "Madslippery",
+            "total": 912,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 38216,
+      "overkill": 514,
+      "events": [
+        {
+          "timestamp": 2726896,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 15,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 5905,
+          "mitigated": 2968,
+          "unmitigatedAmount": 9387,
+          "overkill": 514,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2725484,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 15,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3265,
+          "mitigated": 363,
+          "unmitigatedAmount": 3628,
+          "isAoE": true,
+          "sourceMarker": 1
+        },
+        {
+          "timestamp": 2722379,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 15,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 1935,
+          "mitigated": 216,
+          "unmitigatedAmount": 2151,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Haisey",
+      "id": 30,
+      "guid": 72933850,
+      "type": "Priest",
+      "icon": "Priest-Shadow",
+      "timestamp": 2739211,
+      "fight": 10,
+      "damage": {
+        "total": 9885,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1744,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 9885,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 9885,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 0,
+      "overkill": 4855,
+      "events": [
+        {
+          "timestamp": 2739201,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 30,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 5030,
+          "mitigated": 1744,
+          "unmitigatedAmount": 11629,
+          "overkill": 4855,
+          "isAoE": false,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Fizle",
+      "id": 3,
+      "guid": 75263648,
+      "type": "Rogue",
+      "icon": "Rogue-Combat",
+      "timestamp": 2741236,
+      "fight": 10,
+      "damage": {
+        "total": 11739,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 11739,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 11739,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 0,
+      "overkill": 9644,
+      "events": [
+        {
+          "timestamp": 2741204,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 3,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2095,
+          "unmitigatedAmount": 11739,
+          "overkill": 9644,
+          "isAoE": false,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Lollz",
+      "id": 13,
+      "guid": 72748424,
+      "type": "Priest",
+      "icon": "Priest-Holy",
+      "timestamp": 2744228,
+      "fight": 10,
+      "damage": {
+        "total": 14061,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 2486,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 8261,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3566,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 2234,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 8261,
+            "type": "NPC"
+          },
+          {
+            "name": "Tempest-Smith",
+            "total": 5800,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 3053,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 3053,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 2036,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 1017,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Lollz",
+            "total": 3053,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 25949,
+      "overkill": 2737,
+      "events": [
+        {
+          "timestamp": 2729175,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 13,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 5524,
+          "mitigated": 2486,
+          "unmitigatedAmount": 10747,
+          "overkill": 2737,
+          "isAoE": false,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 2722392,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 13,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 2234,
+          "unmitigatedAmount": 2234,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2703226,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 13,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 3566,
+          "unmitigatedAmount": 3566,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ]
+    },
+    {
+      "name": "Bifton",
+      "id": 16,
+      "guid": 72111486,
+      "type": "Druid",
+      "icon": "Druid-Balance",
+      "timestamp": 2747479,
+      "fight": 10,
+      "damage": {
+        "total": 11815,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 2325,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 9730,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          },
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 2085,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crystalcore Devastator",
+            "total": 9730,
+            "type": "NPC"
+          },
+          {
+            "name": "Tempest-Smith",
+            "total": 2085,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 1694,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 25423,
+            "name": "Chain Heal",
+            "total": 1694,
+            "type": 8,
+            "icon": "spell_nature_healingwavegreater.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 1694,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Shampadre",
+            "total": 1694,
+            "type": "Shaman"
+          }
+        ]
+      },
+      "deathWindow": 3740,
+      "overkill": 184,
+      "events": [
+        {
+          "timestamp": 2747461,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 16,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 1901,
+          "unmitigatedAmount": 2085,
+          "overkill": 184,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 2743721,
+          "type": "damage",
+          "sourceID": 106,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 16,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 10,
+          "hitType": 1,
+          "amount": 9730,
+          "mitigated": 2325,
+          "unmitigatedAmount": 12055,
+          "isAoE": false,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Fragmentation Bomb",
+        "guid": 37120,
+        "type": 4,
+        "abilityIcon": "inv_misc_bomb_02.jpg"
+      }
+    },
+    {
+      "name": "Dupree",
+      "id": 17,
+      "guid": 76914010,
+      "type": "Hunter",
+      "icon": "Hunter-BeastMastery",
+      "timestamp": 3012544,
+      "fight": 12,
+      "damage": {
+        "total": 11195,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1265,
+        "abilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 4123,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3589,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37123,
+            "name": "Saw Blade",
+            "total": 3483,
+            "type": 1,
+            "icon": "ability_gouge.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 7712,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Mechanic",
+            "total": 3483,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 963,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 963,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 37123,
+            "name": "Saw Blade",
+            "total": 746,
+            "type": 1,
+            "icon": "ability_gouge.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 217,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Madslippery",
+            "total": 963,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 3387,
+      "overkill": 1669,
+      "events": [
+        {
+          "timestamp": 3012542,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 17,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 12,
+          "hitType": 1,
+          "amount": 331,
+          "unmitigatedAmount": 2000,
+          "overkill": 1669,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 3011926,
+          "type": "damage",
+          "sourceID": 163,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 17,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Saw Blade",
+            "guid": 37123,
+            "type": 1,
+            "abilityIcon": "ability_gouge.jpg"
+          },
+          "fight": 12,
+          "hitType": 1,
+          "amount": 749,
+          "mitigated": 67,
+          "unmitigatedAmount": 816,
+          "isAoE": false,
+          "tick": true,
+          "sourceMarker": 3
+        },
+        {
+          "timestamp": 3011147,
+          "type": "damage",
+          "sourceID": 163,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 17,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Saw Blade",
+            "guid": 37123,
+            "type": 1,
+            "abilityIcon": "ability_gouge.jpg"
+          },
+          "fight": 12,
+          "hitType": 1,
+          "amount": 746,
+          "mitigated": 81,
+          "unmitigatedAmount": 827,
+          "isAoE": false,
+          "tick": true,
+          "sourceMarker": 5
+        }
+      ],
+      "killingBlow": {
+        "name": "Fragmentation Bomb",
+        "guid": 37120,
+        "type": 4,
+        "abilityIcon": "inv_misc_bomb_02.jpg"
+      }
+    },
+    {
+      "name": "Turtlesjnr",
+      "id": 14,
+      "guid": 77313271,
+      "type": "Druid",
+      "icon": "Druid-Balance",
+      "timestamp": 3012546,
+      "fight": 12,
+      "damage": {
+        "total": 9963,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1678,
+        "abilities": [
+          {
+            "guid": 37120,
+            "name": "Fragmentation Bomb",
+            "total": 4105,
+            "type": 4,
+            "icon": "inv_misc_bomb_02.jpg"
+          },
+          {
+            "guid": 37118,
+            "name": "Shell Shock",
+            "total": 3966,
+            "type": 4,
+            "icon": "spell_fire_selfdestruct.jpg"
+          },
+          {
+            "guid": 37123,
+            "name": "Saw Blade",
+            "total": 1892,
+            "type": 1,
+            "icon": "ability_gouge.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Tempest-Smith",
+            "total": 8071,
+            "type": "NPC"
+          },
+          {
+            "name": "Crystalcore Mechanic",
+            "total": 1892,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 2651,
+      "overkill": 656,
+      "events": [
+        {
+          "timestamp": 3012539,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 14,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Fragmentation Bomb",
+            "guid": 37120,
+            "type": 4,
+            "abilityIcon": "inv_misc_bomb_02.jpg"
+          },
+          "fight": 12,
+          "hitType": 1,
+          "amount": 1527,
+          "unmitigatedAmount": 2183,
+          "overkill": 656,
+          "isAoE": true,
+          "sourceMarker": 6
+        },
+        {
+          "timestamp": 3011895,
+          "type": "damage",
+          "sourceID": 163,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 14,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Saw Blade",
+            "guid": 37123,
+            "type": 1,
+            "abilityIcon": "ability_gouge.jpg"
+          },
+          "fight": 12,
+          "hitType": 1,
+          "amount": 555,
+          "mitigated": 314,
+          "unmitigatedAmount": 869,
+          "isAoE": false,
+          "tick": true,
+          "sourceMarker": 3
+        },
+        {
+          "timestamp": 3011021,
+          "type": "damage",
+          "sourceID": 108,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 14,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Shell Shock",
+            "guid": 37118,
+            "type": 4,
+            "abilityIcon": "spell_fire_selfdestruct.jpg"
+          },
+          "fight": 12,
+          "hitType": 1,
+          "amount": 3966,
+          "unmitigatedAmount": 3966,
+          "isAoE": true,
+          "sourceMarker": 6
+        }
+      ],
+      "killingBlow": {
+        "name": "Fragmentation Bomb",
+        "guid": 37120,
+        "type": 4,
+        "abilityIcon": "inv_misc_bomb_02.jpg"
+      }
+    },
+    {
+      "name": "Dendrophîlîa",
+      "id": 26,
+      "guid": 62053608,
+      "type": "Druid",
+      "icon": "Druid-Restoration",
+      "timestamp": 4209484,
+      "fight": 21,
+      "damage": {
+        "total": 9137,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 1266,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 9137,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Bloodwarder Legionnaire",
+            "total": 9137,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 339,
+      "overkill": 1184,
+      "events": [
+        {
+          "timestamp": 4209483,
+          "type": "damage",
+          "sourceID": 32,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 26,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 21,
+          "hitType": 1,
+          "amount": 2383,
+          "mitigated": 494,
+          "unmitigatedAmount": 4061,
+          "overkill": 1184,
+          "isAoE": false,
+          "sourceMarker": 4
+        },
+        {
+          "timestamp": 4209144,
+          "type": "damage",
+          "sourceID": 32,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 26,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 21,
+          "hitType": 1,
+          "amount": 5570,
+          "mitigated": 772,
+          "unmitigatedAmount": 6342,
+          "isAoE": false,
+          "sourceMarker": 4
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Saqq",
+      "id": 39,
+      "guid": 74378735,
+      "type": "Warrior",
+      "icon": "Warrior-Arms",
+      "timestamp": 4838468,
+      "fight": 27,
+      "damage": {
+        "total": 11474,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 11474,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crimson Hand Centurion",
+            "total": 11474,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 0,
+      "overkill": 870,
+      "events": [
+        {
+          "timestamp": 4838449,
+          "type": "damage",
+          "sourceID": 182,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 39,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 27,
+          "hitType": 2,
+          "amount": 10604,
+          "unmitigatedAmount": 9011,
+          "overkill": 870,
+          "isAoE": false,
+          "sourceMarker": 5
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Pifflock",
+      "id": 66,
+      "guid": 74249011,
+      "type": "Warlock",
+      "icon": "Warlock-Destruction",
+      "timestamp": 4905539,
+      "fight": 28,
+      "damage": {
+        "total": 13326,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 13326,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crimson Hand Blood Knight",
+            "total": 13326,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 0,
+      "overkill": 6660,
+      "events": [
+        {
+          "timestamp": 4905511,
+          "type": "damage",
+          "sourceID": 184,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 66,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 28,
+          "hitType": 2,
+          "amount": 6666,
+          "unmitigatedAmount": 8314,
+          "overkill": 6660,
+          "isAoE": false,
+          "sourceMarker": 4
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Vanpizzy",
+      "id": 36,
+      "guid": 77224644,
+      "type": "Shaman",
+      "icon": "Shaman-Enhancement",
+      "timestamp": 4937248,
+      "fight": 28,
+      "damage": {
+        "total": 12260,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 37270,
+            "name": "Arcane Flurry",
+            "total": 7002,
+            "type": 64,
+            "icon": "inv_axe_06.jpg"
+          },
+          {
+            "guid": 37259,
+            "name": "Hammer of Wrath",
+            "total": 5258,
+            "type": 2,
+            "icon": "ability_thunderclap.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crimson Hand Centurion",
+            "total": 7002,
+            "type": "NPC"
+          },
+          {
+            "name": "Crimson Hand Blood Knight",
+            "total": 5258,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 0,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [],
+        "damageAbilities": [],
+        "sources": []
+      },
+      "deathWindow": 820,
+      "overkill": 3611,
+      "events": [
+        {
+          "timestamp": 4937247,
+          "type": "damage",
+          "sourceID": 184,
+          "sourceInstance": 2,
+          "sourceIsFriendly": false,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Hammer of Wrath",
+            "guid": 37259,
+            "type": 2,
+            "abilityIcon": "ability_thunderclap.jpg"
+          },
+          "fight": 28,
+          "hitType": 1,
+          "amount": 1647,
+          "unmitigatedAmount": 5258,
+          "overkill": 3611,
+          "isAoE": false,
+          "sourceMarker": 4
+        },
+        {
+          "timestamp": 4936427,
+          "type": "damage",
+          "sourceID": 182,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 36,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Arcane Flurry",
+            "guid": 37270,
+            "type": 64,
+            "abilityIcon": "inv_axe_06.jpg"
+          },
+          "fight": 28,
+          "hitType": 1,
+          "amount": 7002,
+          "unmitigatedAmount": 7002,
+          "isAoE": true,
+          "sourceMarker": 5
+        }
+      ],
+      "killingBlow": {
+        "name": "Hammer of Wrath",
+        "guid": 37259,
+        "type": 2,
+        "abilityIcon": "ability_thunderclap.jpg"
+      }
+    },
+    {
+      "name": "Polopeter",
+      "id": 41,
+      "guid": 74095688,
+      "type": "Rogue",
+      "icon": "Rogue-Combat",
+      "timestamp": 5024258,
+      "fight": 29,
+      "damage": {
+        "total": 11094,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 3906,
+        "abilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 11094,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Crimson Hand Blood Knight",
+            "total": 11094,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 1011,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 34866,
+            "name": "Circle of Healing",
+            "total": 1011,
+            "type": 2,
+            "icon": "spell_holy_circleofrenewal.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 1,
+            "name": "Melee",
+            "total": 1011,
+            "type": 1,
+            "icon": "inv_axe_02.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Lollz",
+            "total": 1011,
+            "type": "Priest"
+          }
+        ]
+      },
+      "deathWindow": 1988,
+      "overkill": 619,
+      "events": [
+        {
+          "timestamp": 5024241,
+          "type": "damage",
+          "sourceID": 184,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 41,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 29,
+          "hitType": 1,
+          "amount": 5480,
+          "mitigated": 2148,
+          "unmitigatedAmount": 8247,
+          "overkill": 619,
+          "isAoE": false,
+          "sourceMarker": 1
+        },
+        {
+          "timestamp": 5022253,
+          "type": "damage",
+          "sourceID": 184,
+          "sourceInstance": 1,
+          "sourceIsFriendly": false,
+          "targetID": 41,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Melee",
+            "guid": 1,
+            "type": 1,
+            "abilityIcon": "inv_axe_02.jpg"
+          },
+          "fight": 29,
+          "hitType": 1,
+          "amount": 4995,
+          "mitigated": 1758,
+          "unmitigatedAmount": 6753,
+          "isAoE": false,
+          "sourceMarker": 1
+        }
+      ],
+      "killingBlow": {
+        "name": "Melee",
+        "guid": 1,
+        "type": 1,
+        "abilityIcon": "inv_axe_02.jpg"
+      }
+    },
+    {
+      "name": "Kaver",
+      "id": 6,
+      "guid": 72822537,
+      "type": "Shaman",
+      "icon": "Shaman-Enhancement",
+      "timestamp": 5309267,
+      "fight": 32,
+      "damage": {
+        "total": 10570,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "overheal": 5311,
+        "abilities": [
+          {
+            "guid": 15589,
+            "name": "Whirlwind",
+            "total": 10570,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          }
+        ],
+        "damageAbilities": [],
+        "sources": [
+          {
+            "name": "Bloodwarder Marshal",
+            "total": 10570,
+            "type": "NPC"
+          }
+        ]
+      },
+      "healing": {
+        "total": 50,
+        "activeTime": 0,
+        "activeTimeReduced": 0,
+        "abilities": [
+          {
+            "guid": 20007,
+            "name": "Holy Strength",
+            "total": 50,
+            "type": 1,
+            "icon": "spell_holy_blessingofstrength.jpg"
+          }
+        ],
+        "damageAbilities": [
+          {
+            "guid": 15589,
+            "name": "Whirlwind",
+            "total": 50,
+            "type": 1,
+            "icon": "ability_whirlwind.jpg"
+          }
+        ],
+        "sources": [
+          {
+            "name": "Kaver",
+            "total": 50,
+            "type": "Shaman"
+          }
+        ]
+      },
+      "deathWindow": 985,
+      "overkill": 1551,
+      "events": [
+        {
+          "timestamp": 5309251,
+          "type": "damage",
+          "sourceID": 46,
+          "sourceIsFriendly": false,
+          "targetID": 6,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15589,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 32,
+          "hitType": 1,
+          "amount": 3963,
+          "mitigated": 2770,
+          "unmitigatedAmount": 8284,
+          "overkill": 1551,
+          "isAoE": true,
+          "sourceMarker": 2
+        },
+        {
+          "timestamp": 5308266,
+          "type": "damage",
+          "sourceID": 46,
+          "sourceIsFriendly": false,
+          "targetID": 6,
+          "targetIsFriendly": true,
+          "ability": {
+            "name": "Whirlwind",
+            "guid": 15589,
+            "type": 1,
+            "abilityIcon": "ability_whirlwind.jpg"
+          },
+          "fight": 32,
+          "hitType": 1,
+          "amount": 5056,
+          "mitigated": 2541,
+          "unmitigatedAmount": 7597,
+          "isAoE": true,
+          "sourceMarker": 2
+        }
+      ],
+      "killingBlow": {
+        "name": "Whirlwind",
+        "guid": 15589,
+        "type": 1,
+        "abilityIcon": "ability_whirlwind.jpg"
+      }
+    }
+  ],
+  "enemy": [
+    {
+      "t": 68869,
+      "targetID": 31,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 81895,
+      "targetID": 31,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 94558,
+      "targetID": 34,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 98204,
+      "targetID": 33,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 110807,
+      "targetID": 32,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 120919,
+      "targetID": 32,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 134481,
+      "targetID": 47,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 140867,
+      "targetID": 47,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 162102,
+      "targetID": 46,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 1
+    },
+    {
+      "t": 214454,
+      "targetID": 31,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 2
+    },
+    {
+      "t": 231127,
+      "targetID": 34,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 2
+    },
+    {
+      "t": 244401,
+      "targetID": 34,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 2
+    },
+    {
+      "t": 244754,
+      "targetID": 33,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 2
+    },
+    {
+      "t": 249975,
+      "targetID": 32,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 2
+    },
+    {
+      "t": 255134,
+      "targetID": 32,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 2
+    },
+    {
+      "t": 336522,
+      "targetID": 53,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 339337,
+      "targetID": 53,
+      "targetInstance": 6,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 341842,
+      "targetID": 53,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 344782,
+      "targetID": 53,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 344916,
+      "targetID": 53,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 346349,
+      "targetID": 53,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 351244,
+      "targetID": 43,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 360887,
+      "targetID": 43,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 389774,
+      "targetID": 53,
+      "targetInstance": 7,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 390552,
+      "targetID": 53,
+      "targetInstance": 9,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 391586,
+      "targetID": 53,
+      "targetInstance": 8,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 391748,
+      "targetID": 53,
+      "targetInstance": 11,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 392341,
+      "targetID": 53,
+      "targetInstance": 12,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 392565,
+      "targetID": 53,
+      "targetInstance": 10,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 413799,
+      "targetID": 43,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 414588,
+      "targetID": 43,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 3
+    },
+    {
+      "t": 488592,
+      "targetID": 57,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 4
+    },
+    {
+      "t": 530807,
+      "targetID": 57,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 4
+    },
+    {
+      "t": 563117,
+      "targetID": 57,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 4
+    },
+    {
+      "t": 635817,
+      "targetID": 57,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 5
+    },
+    {
+      "t": 2501389,
+      "targetID": 103,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 8
+    },
+    {
+      "t": 2517322,
+      "targetID": 103,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 8
+    },
+    {
+      "t": 2545027,
+      "targetID": 106,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 8
+    },
+    {
+      "t": 2600023,
+      "targetID": 103,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 9
+    },
+    {
+      "t": 2613114,
+      "targetID": 103,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 9
+    },
+    {
+      "t": 2744571,
+      "targetID": 106,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 10
+    },
+    {
+      "t": 3002978,
+      "targetID": 106,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 12
+    },
+    {
+      "t": 3025764,
+      "targetID": 108,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 12
+    },
+    {
+      "t": 3047656,
+      "targetID": 163,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 12
+    },
+    {
+      "t": 3081190,
+      "targetID": 163,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 12
+    },
+    {
+      "t": 3161892,
+      "targetID": 103,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 13
+    },
+    {
+      "t": 3177467,
+      "targetID": 103,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 13
+    },
+    {
+      "t": 3194251,
+      "targetID": 108,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 13
+    },
+    {
+      "t": 3210004,
+      "targetID": 163,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 13
+    },
+    {
+      "t": 3222701,
+      "targetID": 163,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 13
+    },
+    {
+      "t": 3289379,
+      "targetID": 106,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 14
+    },
+    {
+      "t": 3307070,
+      "targetID": 108,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 14
+    },
+    {
+      "t": 3340383,
+      "targetID": 163,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 15
+    },
+    {
+      "t": 3343467,
+      "targetID": 163,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 15
+    },
+    {
+      "t": 3396720,
+      "targetID": 103,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 16
+    },
+    {
+      "t": 3413291,
+      "targetID": 103,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 16
+    },
+    {
+      "t": 3425868,
+      "targetID": 108,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 16
+    },
+    {
+      "t": 3451154,
+      "targetID": 163,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 16
+    },
+    {
+      "t": 3459376,
+      "targetID": 163,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 16
+    },
+    {
+      "t": 3987965,
+      "targetID": 167,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 18
+    },
+    {
+      "t": 3998641,
+      "targetID": 32,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 18
+    },
+    {
+      "t": 4006094,
+      "targetID": 32,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 18
+    },
+    {
+      "t": 4040915,
+      "targetID": 103,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 18
+    },
+    {
+      "t": 4052071,
+      "targetID": 103,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 18
+    },
+    {
+      "t": 4094917,
+      "targetID": 169,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4096823,
+      "targetID": 170,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4096868,
+      "targetID": 169,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4096887,
+      "targetID": 170,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4097385,
+      "targetID": 170,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4097386,
+      "targetID": 169,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4097386,
+      "targetID": 169,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4097447,
+      "targetID": 170,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4097854,
+      "targetID": 169,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4097945,
+      "targetID": 170,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4099463,
+      "targetID": 47,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4106817,
+      "targetID": 47,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 19
+    },
+    {
+      "t": 4149962,
+      "targetID": 169,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4150056,
+      "targetID": 169,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4150966,
+      "targetID": 170,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4152705,
+      "targetID": 169,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4152973,
+      "targetID": 170,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4152974,
+      "targetID": 169,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4153665,
+      "targetID": 169,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4153781,
+      "targetID": 47,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4154229,
+      "targetID": 170,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4154488,
+      "targetID": 170,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4157094,
+      "targetID": 170,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4162397,
+      "targetID": 47,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 20
+    },
+    {
+      "t": 4209542,
+      "targetID": 173,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 21
+    },
+    {
+      "t": 4222120,
+      "targetID": 32,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 21
+    },
+    {
+      "t": 4230769,
+      "targetID": 32,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 21
+    },
+    {
+      "t": 4287177,
+      "targetID": 170,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4287291,
+      "targetID": 169,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4287364,
+      "targetID": 170,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4287699,
+      "targetID": 169,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4288866,
+      "targetID": 170,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4289658,
+      "targetID": 169,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4292237,
+      "targetID": 170,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4293157,
+      "targetID": 47,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4293967,
+      "targetID": 169,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4294719,
+      "targetID": 170,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4299120,
+      "targetID": 169,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4301646,
+      "targetID": 47,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 22
+    },
+    {
+      "t": 4336173,
+      "targetID": 170,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4336267,
+      "targetID": 169,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4336767,
+      "targetID": 169,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4337792,
+      "targetID": 169,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4338727,
+      "targetID": 170,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4339023,
+      "targetID": 170,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4339071,
+      "targetID": 169,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4339314,
+      "targetID": 170,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4339402,
+      "targetID": 169,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4340618,
+      "targetID": 170,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4351498,
+      "targetID": 47,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4351502,
+      "targetID": 47,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 23
+    },
+    {
+      "t": 4389166,
+      "targetID": 173,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4404205,
+      "targetID": 32,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4409416,
+      "targetID": 32,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4427595,
+      "targetID": 169,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4427596,
+      "targetID": 170,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4427630,
+      "targetID": 169,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4428554,
+      "targetID": 170,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4429131,
+      "targetID": 169,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4429132,
+      "targetID": 170,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4429499,
+      "targetID": 169,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4430213,
+      "targetID": 170,
+      "targetInstance": 3,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4431005,
+      "targetID": 169,
+      "targetInstance": 4,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4433026,
+      "targetID": 170,
+      "targetInstance": 5,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4436531,
+      "targetID": 47,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4441764,
+      "targetID": 47,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 24
+    },
+    {
+      "t": 4834068,
+      "targetID": 181,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 27
+    },
+    {
+      "t": 4844543,
+      "targetID": 182,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 27
+    },
+    {
+      "t": 4855354,
+      "targetID": 182,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 27
+    },
+    {
+      "t": 4908978,
+      "targetID": 183,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 28
+    },
+    {
+      "t": 4935756,
+      "targetID": 184,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 28
+    },
+    {
+      "t": 4948515,
+      "targetID": 184,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 28
+    },
+    {
+      "t": 4948707,
+      "targetID": 183,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 28
+    },
+    {
+      "t": 4950766,
+      "targetID": 182,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 28
+    },
+    {
+      "t": 4955036,
+      "targetID": 182,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 28
+    },
+    {
+      "t": 5023725,
+      "targetID": 183,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 29
+    },
+    {
+      "t": 5030644,
+      "targetID": 183,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 29
+    },
+    {
+      "t": 5037743,
+      "targetID": 182,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 29
+    },
+    {
+      "t": 5048245,
+      "targetID": 184,
+      "targetInstance": 1,
+      "sourceID": -1,
+      "fight": 29
+    },
+    {
+      "t": 5050206,
+      "targetID": 184,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 29
+    },
+    {
+      "t": 5063482,
+      "targetID": 182,
+      "targetInstance": 2,
+      "sourceID": -1,
+      "fight": 29
+    },
+    {
+      "t": 5115843,
+      "targetID": 181,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 30
+    },
+    {
+      "t": 5136463,
+      "targetID": 184,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 30
+    },
+    {
+      "t": 5148144,
+      "targetID": 46,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 30
+    },
+    {
+      "t": 5160904,
+      "targetID": 182,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 30
+    },
+    {
+      "t": 5199478,
+      "targetID": 181,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 31
+    },
+    {
+      "t": 5209516,
+      "targetID": 184,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 31
+    },
+    {
+      "t": 5226603,
+      "targetID": 46,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 31
+    },
+    {
+      "t": 5239750,
+      "targetID": 182,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 31
+    },
+    {
+      "t": 5278250,
+      "targetID": 181,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 32
+    },
+    {
+      "t": 5289337,
+      "targetID": 184,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 32
+    },
+    {
+      "t": 5310161,
+      "targetID": 46,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 32
+    },
+    {
+      "t": 5322004,
+      "targetID": 182,
+      "targetInstance": null,
+      "sourceID": -1,
+      "fight": 32
+    }
+  ]
+}

@@ -1,0 +1,1157 @@
+{
+  "present": true,
+  "factionId": 2,
+  "factionName": "Horde",
+  "region": "US",
+  "specs": [
+    {
+      "class": "Druid",
+      "spec": "Restoration",
+      "role": "healer",
+      "metric": "hps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "hps",
+          "player": {
+            "name": "旋鳯狼",
+            "guild": "矩阵TBC周年服",
+            "server": "铁血",
+            "region": "CN",
+            "amount": 1133.9559314424,
+            "globalRank": 2,
+            "reportCode": "rhwDWcapkZmqKT8g",
+            "fightID": 1
+          },
+          "abilities": {
+            "Lifebloom": 191,
+            "Rejuvenation": 67,
+            "Regrowth": 14,
+            "Swiftmend": 13,
+            "Essence of the Martyr": 4
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "hps",
+          "player": {
+            "name": "Yablonya",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 2485.2762733434,
+            "globalRank": 1,
+            "reportCode": "ZhYgWVRX7GHjpwM6",
+            "fightID": 81
+          },
+          "abilities": {
+            "Regrowth": 63,
+            "Rejuvenation": 4,
+            "Essence of the Martyr": 2,
+            "Power of Prayer": 2,
+            "Swiftmend": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "hps",
+          "player": {
+            "name": "Obivantaran",
+            "guild": "LiberalPug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1353.1467452517,
+            "globalRank": 1,
+            "reportCode": "d4VMgTa8hrX2vGYW",
+            "fightID": 20
+          },
+          "abilities": {
+            "Rejuvenation": 60,
+            "Regrowth": 13,
+            "Swiftmend": 5,
+            "Lifebloom": 5,
+            "Essence of the Martyr": 1
+          }
+        }
+      ]
+    },
+    {
+      "class": "Priest",
+      "spec": "Holy",
+      "role": "healer",
+      "metric": "hps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "hps",
+          "player": {
+            "name": "Holyward",
+            "guild": "this is fine",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1580.2162862358,
+            "globalRank": 1,
+            "reportCode": "2vxKpLg9N7wcmWFC",
+            "fightID": 42
+          },
+          "abilities": {
+            "Circle of Healing": 97,
+            "Flash Heal": 34,
+            "Power Word: Shield": 8,
+            "Prayer of Mending": 5,
+            "Renew": 4
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "hps",
+          "player": {
+            "name": "Memfes",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 3692.0433401263,
+            "globalRank": 1,
+            "reportCode": "W2ADTYxRvZwMktKy",
+            "fightID": 66
+          },
+          "abilities": {
+            "Circle of Healing": 106,
+            "Prayer of Mending": 3,
+            "Essence of the Martyr": 2,
+            "Restore Mana": 2,
+            "Prayer of Healing": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "hps",
+          "player": {
+            "name": "Marxy",
+            "guild": "BLEACH",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1998.0890841394,
+            "globalRank": 2,
+            "reportCode": "3APqN7cbD4xTFJYr",
+            "fightID": 19
+          },
+          "abilities": {
+            "Flash Heal": 22,
+            "Circle of Healing": 16,
+            "Shadowfiend": 1,
+            "Power Word: Shield": 1,
+            "Chakra": 1
+          }
+        }
+      ]
+    },
+    {
+      "class": "Shaman",
+      "spec": "Restoration",
+      "role": "healer",
+      "metric": "hps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "hps",
+          "player": {
+            "name": "아트피러",
+            "guild": "Waves",
+            "server": "펜구스의 흉포",
+            "region": "KR",
+            "amount": 1391.8025581891,
+            "globalRank": 1,
+            "reportCode": "prHkMgnJwyAzG7Xh",
+            "fightID": 12
+          },
+          "abilities": {
+            "Chain Heal": 59,
+            "Lesser Healing Wave": 22,
+            "Healing Wave": 5
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "hps",
+          "player": {
+            "name": "Gusttá",
+            "guild": "PAF TBC",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2813.7462123165,
+            "globalRank": 2,
+            "reportCode": "8NyhbAaFBg9RwHxK",
+            "fightID": 67
+          },
+          "abilities": {
+            "Chain Heal": 70,
+            "Stoneskin Totem": 2,
+            "Essence of the Martyr": 2,
+            "Wrath of Air Totem": 2,
+            "Healing Stream Totem": 2
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "hps",
+          "player": {
+            "name": "Shamous",
+            "guild": "Simplexity",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1903.6534511732,
+            "globalRank": 1,
+            "reportCode": "XTbG9PHJwkVr1NgY",
+            "fightID": 67
+          },
+          "abilities": {
+            "Lesser Healing Wave": 26,
+            "Chain Heal": 24,
+            "Healing Stream Totem": 2,
+            "Healing Wave": 2,
+            "Earth Shield": 1
+          }
+        }
+      ]
+    },
+    {
+      "class": "Druid",
+      "spec": "Balance",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Fushi",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1426.2736621372,
+            "globalRank": 2,
+            "reportCode": "VbNGJcMzgrZdaYvj",
+            "fightID": 45
+          },
+          "abilities": {
+            "Starfire": 72,
+            "Moonfire": 15,
+            "Faerie Fire": 7,
+            "Insect Swarm": 3,
+            "Blessing of the Silver Crescent": 3
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Abracowdabra",
+            "guild": "NeverBending",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1671.7425485371,
+            "globalRank": 2,
+            "reportCode": "MGfNv8CVRxgyrbJq",
+            "fightID": 3
+          },
+          "abilities": {
+            "Starfire": 35,
+            "Moonfire": 9,
+            "Faerie Fire": 4,
+            "Barkskin": 2,
+            "Force of Nature": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Beetlejoose",
+            "guild": "WEEWOO",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2234.7174544494,
+            "globalRank": 3,
+            "reportCode": "kFDLZf8qcvYBHXAw",
+            "fightID": 85
+          },
+          "abilities": {
+            "Starfire": 22,
+            "Moonfire": 6,
+            "Faerie Fire": 2,
+            "Dark Rune": 1,
+            "Blessing of the Silver Crescent": 1
+          }
+        }
+      ]
+    },
+    {
+      "class": "Druid",
+      "spec": "Feral",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Moebunga",
+            "guild": "II High",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1565.452517218,
+            "globalRank": 1,
+            "reportCode": "DzwWnN6pfbM7FCj1",
+            "fightID": 58
+          },
+          "abilities": {
+            "Shred": 73,
+            "Cat Form": 32,
+            "Ferocious Bite": 12,
+            "Rip": 8,
+            "Mangle (Cat)": 8
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Mindificwank",
+            "guild": "burger",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2261.4593397899,
+            "globalRank": 1,
+            "reportCode": "CkXwZ8y6zcVPDGrp",
+            "fightID": 9
+          },
+          "abilities": {
+            "Shred": 55,
+            "Cat Form": 26,
+            "Rip": 8,
+            "Ferocious Bite": 7,
+            "Lust for Battle": 2
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Futzeh",
+            "guild": "No Hard Feelings",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2824.2654490955,
+            "globalRank": 1,
+            "reportCode": "Lf3br9716Rt8NzpV",
+            "fightID": 30
+          },
+          "abilities": {
+            "Shred": 22,
+            "Cat Form": 10,
+            "Ferocious Bite": 3,
+            "Rip": 2,
+            "Tiger's Fury": 2
+          }
+        }
+      ]
+    },
+    {
+      "class": "Hunter",
+      "spec": "BeastMastery",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Ezclapfr",
+            "guild": "BLEACH",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2187.3785022122,
+            "globalRank": 1,
+            "reportCode": "PFwVLC2Bkgy473M1",
+            "fightID": 24
+          },
+          "abilities": {
+            "Auto Shot": 86,
+            "Steady Shot": 55,
+            "Kill Command": 27,
+            "Arcane Shot": 18,
+            "Raptor Strike": 15
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Tribalar",
+            "guild": "DREAM",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2439.3561403128,
+            "globalRank": 1,
+            "reportCode": "9T4qVptABRvXa1dN",
+            "fightID": 73
+          },
+          "abilities": {
+            "Auto Shot": 70,
+            "Steady Shot": 39,
+            "Kill Command": 21,
+            "Raptor Strike": 18,
+            "Arcane Shot": 11
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Egzod",
+            "guild": null,
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 4356.1909889814,
+            "globalRank": 1,
+            "reportCode": "jAgtfJBxhVqdTCpL",
+            "fightID": 16
+          },
+          "abilities": {
+            "Auto Shot": 38,
+            "Steady Shot": 22,
+            "Kill Command": 10,
+            "Raptor Strike": 7,
+            "Multi-Shot": 4
+          }
+        }
+      ]
+    },
+    {
+      "class": "Hunter",
+      "spec": "Survival",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Odesza",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1565.6933195814,
+            "globalRank": 1,
+            "reportCode": "6GfbnK8t9rHqVvJR",
+            "fightID": 56
+          },
+          "abilities": {
+            "Auto Shot": 113,
+            "Steady Shot": 64,
+            "Kill Command": 41,
+            "Arcane Shot": 31,
+            "Multi-Shot": 22
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Griswood",
+            "guild": "The Pond pug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1791.6529065117,
+            "globalRank": 1,
+            "reportCode": "BRHt8Kg6FJrznam4",
+            "fightID": 53
+          },
+          "abilities": {
+            "Auto Shot": 61,
+            "Steady Shot": 55,
+            "Kill Command": 12,
+            "Multi-Shot": 11,
+            "Arcane Shot": 10
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Bomen",
+            "guild": "but did we die",
+            "server": "Dreamscythe",
+            "region": "US",
+            "amount": 3147.9986396368,
+            "globalRank": 1,
+            "reportCode": "wYyTtQ6k7BZ1KVx9",
+            "fightID": 51
+          },
+          "abilities": {
+            "Auto Shot": 37,
+            "Steady Shot": 19,
+            "Kill Command": 12,
+            "Raptor Strike": 9,
+            "Arcane Shot": 7
+          }
+        }
+      ]
+    },
+    {
+      "class": "Mage",
+      "spec": "Arcane",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Parqestwo",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 2108.6613070176,
+            "globalRank": 2,
+            "reportCode": "YN3bMWQkTKzg921h",
+            "fightID": 56
+          },
+          "abilities": {
+            "Arcane Blast": 153,
+            "Blink": 4,
+            "Icy Veins": 3,
+            "Replenish Mana": 2,
+            "Berserking": 2
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Skuggez",
+            "guild": "is a problem",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 2793.5988129852,
+            "globalRank": 1,
+            "reportCode": "QxJK2wWb6B4YRr1c",
+            "fightID": 19
+          },
+          "abilities": {
+            "Arcane Blast": 95,
+            "Icy Veins": 2,
+            "Arcane Power": 1,
+            "Cold Snap": 1,
+            "Presence of Mind": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Skuggez",
+            "guild": "is a problem",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 3769.7240273732,
+            "globalRank": 1,
+            "reportCode": "QxJK2wWb6B4YRr1c",
+            "fightID": 18
+          },
+          "abilities": {
+            "Arcane Blast": 53,
+            "Icy Veins": 2,
+            "Arcane Power": 1,
+            "Cold Snap": 1,
+            "Fire Blast": 1
+          }
+        },
+        {
+          "encounterID": 100733,
+          "name": "Kael'thas Sunstrider",
+          "metric": "dps",
+          "player": {
+            "name": "Fakelool",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1611.521780955,
+            "globalRank": 40,
+            "reportCode": "pQ7GmqLHcZM9PAt4",
+            "fightID": 32
+          },
+          "abilities": {
+            "Arcane Blast": 152,
+            "Arcane Explosion": 29,
+            "Icy Veins": 4,
+            "Restore Mana": 3,
+            "Replenish Mana": 3
+          }
+        }
+      ]
+    },
+    {
+      "class": "Paladin",
+      "spec": "Retribution",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Hardressed",
+            "guild": null,
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1686.9216563962,
+            "globalRank": 1,
+            "reportCode": "jAgtfJBxhVqdTCpL",
+            "fightID": 19
+          },
+          "abilities": {
+            "Seal of Blood": 29,
+            "Seal of Command": 27,
+            "Crusader Strike": 19,
+            "Judgment": 17,
+            "Seals of Command": 13
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Gracefield",
+            "guild": "BLEACH",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2411.5769621355,
+            "globalRank": 1,
+            "reportCode": "PFwVLC2Bkgy473M1",
+            "fightID": 32
+          },
+          "abilities": {
+            "Seal of Blood": 24,
+            "Seal of Command": 24,
+            "Crusader Strike": 16,
+            "Seals of Command": 15,
+            "Judgment": 12
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Gracefield",
+            "guild": "BLEACH",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 3655.660841985,
+            "globalRank": 1,
+            "reportCode": "3APqN7cbD4xTFJYr",
+            "fightID": 19
+          },
+          "abilities": {
+            "Seal of Command": 14,
+            "Seal of Blood": 13,
+            "Seals of Command": 10,
+            "Crusader Strike": 7,
+            "Judgment": 6
+          }
+        },
+        {
+          "encounterID": 100733,
+          "name": "Kael'thas Sunstrider",
+          "metric": "dps",
+          "player": {
+            "name": "Qadesh",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1287.1405093542,
+            "globalRank": 22,
+            "reportCode": "pQ7GmqLHcZM9PAt4",
+            "fightID": 32
+          },
+          "abilities": {
+            "Seal of Command": 55,
+            "Seal of Blood": 50,
+            "Crusader Strike": 34,
+            "Seals of Command": 29,
+            "Judgment": 26
+          }
+        }
+      ]
+    },
+    {
+      "class": "Priest",
+      "spec": "Shadow",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Pointless",
+            "guild": "The Pond pug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1388.5760190469,
+            "globalRank": 1,
+            "reportCode": "BRHt8Kg6FJrznam4",
+            "fightID": 45
+          },
+          "abilities": {
+            "Mind Flay": 36,
+            "Mind Blast": 27,
+            "Shadow Word: Death": 16,
+            "Vampiric Touch": 15,
+            "Shadow Word: Pain": 11
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Muresten",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1643.2174000355,
+            "globalRank": 2,
+            "reportCode": "fWn8DNYPFZTaLhCb",
+            "fightID": 57
+          },
+          "abilities": {
+            "Mind Flay": 31,
+            "Mind Blast": 17,
+            "Shadow Word: Death": 10,
+            "Vampiric Touch": 8,
+            "Shadow Word: Pain": 5
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Stereotypes",
+            "guild": null,
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1920.2738303559,
+            "globalRank": 1,
+            "reportCode": "jAgtfJBxhVqdTCpL",
+            "fightID": 16
+          },
+          "abilities": {
+            "Mind Flay": 15,
+            "Mind Blast": 7,
+            "Shadow Word: Death": 4,
+            "Vampiric Touch": 3,
+            "Shadow Word: Pain": 2
+          }
+        }
+      ]
+    },
+    {
+      "class": "Rogue",
+      "spec": "Combat",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Varox",
+            "guild": "why",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1394.0272978873,
+            "globalRank": 5,
+            "reportCode": "YwkXrx3q2ACHhKPT",
+            "fightID": 8
+          },
+          "abilities": {
+            "Sinister Strike": 58,
+            "Slice and Dice": 10,
+            "Expose Armor": 8,
+            "Berserking": 2,
+            "Eviscerate": 2
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Shivskii",
+            "guild": "Lawless",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2014.5384073291,
+            "globalRank": 1,
+            "reportCode": "gtL76BDbhcaQnYFy",
+            "fightID": 32
+          },
+          "abilities": {
+            "Sinister Strike": 57,
+            "Slice and Dice": 8,
+            "Expose Armor": 5,
+            "Rupture": 3,
+            "Blood Fury": 2
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Pandas",
+            "guild": "all good",
+            "server": "Dreamscythe",
+            "region": "US",
+            "amount": 3145.8974187508,
+            "globalRank": 2,
+            "reportCode": "1X4zpB9wHcWJ3kYV",
+            "fightID": 70
+          },
+          "abilities": {
+            "Sinister Strike": 27,
+            "Eviscerate": 4,
+            "Slice and Dice": 4,
+            "Expose Armor": 2,
+            "Rupture": 2
+          }
+        }
+      ]
+    },
+    {
+      "class": "Shaman",
+      "spec": "Elemental",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Scrawnynerd",
+            "guild": "burger",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1369.7781453971,
+            "globalRank": 4,
+            "reportCode": "wJfjDPT9gyzkdQVm",
+            "fightID": 7
+          },
+          "abilities": {
+            "Lightning Bolt": 79,
+            "Chain Lightning": 26,
+            "Totem of Wrath": 3,
+            "Mana Spring Totem": 3,
+            "Water Shield": 3
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Darmare",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1769.4562361027,
+            "globalRank": 1,
+            "reportCode": "3NLpKMC2tT6W19qx",
+            "fightID": 62
+          },
+          "abilities": {
+            "Lightning Bolt": 51,
+            "Chain Lightning": 14,
+            "Wrath of Air Totem": 1,
+            "Super Sapper Charge": 1,
+            "Blessing of the Silver Crescent": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Darmare",
+            "guild": "The Pond pug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 2465.5267228046,
+            "globalRank": 1,
+            "reportCode": "41GRNjVHaW39YmB6",
+            "fightID": 73
+          },
+          "abilities": {
+            "Lightning Bolt": 30,
+            "Chain Lightning": 7,
+            "Master of the Elements": 1,
+            "Blessing of the Silver Crescent": 1,
+            "Earth Shock": 1
+          }
+        }
+      ]
+    },
+    {
+      "class": "Shaman",
+      "spec": "Enhancement",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Banorama",
+            "guild": null,
+            "server": "Thunderstrike",
+            "region": "EU",
+            "amount": 1348.5757149415,
+            "globalRank": 1,
+            "reportCode": "7hapJCfcPzxd3ABg",
+            "fightID": 12
+          },
+          "abilities": {
+            "Earth Shock": 29,
+            "Windfury Totem": 20,
+            "Grace of Air Totem": 20,
+            "Stormstrike": 38
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Benspeedd",
+            "guild": "II High",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2125.2175974281,
+            "globalRank": 1,
+            "reportCode": "DzwWnN6pfbM7FCj1",
+            "fightID": 68
+          },
+          "abilities": {
+            "Grace of Air Totem": 15,
+            "Windfury Totem": 15,
+            "Stormstrike Off-Hand": 13,
+            "Stormstrike": 26
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Stormrag",
+            "guild": "DREAM",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 3066.1649692377,
+            "globalRank": 1,
+            "reportCode": "pnZdJcaNC1ywfzhK",
+            "fightID": 81
+          },
+          "abilities": {
+            "Grace of Air Totem": 6,
+            "Stormstrike Off-Hand": 6,
+            "Stormstrike": 12,
+            "Windfury Totem": 5
+          }
+        }
+      ]
+    },
+    {
+      "class": "Warlock",
+      "spec": "Destruction",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Enumawl",
+            "guild": "The Pond pug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1917.5561855458,
+            "globalRank": 1,
+            "reportCode": "78zCkWAmpaLZtJH2",
+            "fightID": 62
+          },
+          "abilities": {
+            "Shadow Bolt": 85,
+            "Life Tap": 14,
+            "Shadowburn": 3,
+            "Curse of Doom": 3,
+            "Blood Fury": 2
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Minibrainx",
+            "guild": "WEEWOO",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2508.3313006891,
+            "globalRank": 1,
+            "reportCode": "8h3vAcgy941ZjFqt",
+            "fightID": 62
+          },
+          "abilities": {
+            "Shadow Bolt": 50,
+            "Life Tap": 4,
+            "Curse of Doom": 2,
+            "Soulshatter": 1,
+            "Super Sapper Charge": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Mothw",
+            "guild": "The Pond pug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 3260.6235123754,
+            "globalRank": 1,
+            "reportCode": "Xchr2gDJR8n9p3z4",
+            "fightID": 65
+          },
+          "abilities": {
+            "Shadow Bolt": 27,
+            "Immolate": 2,
+            "Destruction": 1,
+            "Dark Rune": 1,
+            "Shadowburn": 1
+          }
+        }
+      ]
+    },
+    {
+      "class": "Warrior",
+      "spec": "Arms",
+      "role": "dps",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Oziach",
+            "guild": "The Pond pug",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1421.5008787067,
+            "globalRank": 1,
+            "reportCode": "tgnyJHbrD967jRfc",
+            "fightID": 42
+          },
+          "abilities": {
+            "Heroic Strike": 71,
+            "Mortal Strike": 22,
+            "Whirlwind": 15,
+            "Sunder Armor": 8,
+            "Intercept": 3
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Dmarcusbrown",
+            "guild": "BLEACH",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2339.5174985706,
+            "globalRank": 1,
+            "reportCode": "PFwVLC2Bkgy473M1",
+            "fightID": 32
+          },
+          "abilities": {
+            "Slam": 26,
+            "Heroic Strike": 16,
+            "Mortal Strike": 12,
+            "Whirlwind": 7,
+            "Bloodrage": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Oraqt",
+            "guild": "SQUAWK",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 3265.6529516995,
+            "globalRank": 2,
+            "reportCode": "nVGqJK2Rkzbrt7Xh",
+            "fightID": 90
+          },
+          "abilities": {
+            "Heroic Strike": 33,
+            "Hamstring": 8,
+            "Mortal Strike": 8,
+            "Whirlwind": 5,
+            "Sunder Armor": 2
+          }
+        }
+      ]
+    }
+  ]
+}

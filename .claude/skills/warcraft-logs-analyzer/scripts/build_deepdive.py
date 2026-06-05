@@ -1546,104 +1546,6 @@ def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
                          "sec": round(r["sec"])} for r in raiders[:5]]}
 
 
-def _interp_parse(x, anchors):
-    """A ROUGH ghost parse-percentile for a DPS amount, interpolated from (amount, parse) anchors we already
-    have for free — our own raiders of that spec on that boss. Coarse by design (few anchors + a nonlinear
-    curve), so it's a BAND, not a measurement — only used for first-minute deaths (the biggest, clearest
-    cases) and labelled rough. Monotonic; clamps to [0, 99]. None when <2 anchors (no basis to interpolate)."""
-    pts = sorted(((float(a), float(p)) for a, p in anchors if a and p is not None), key=lambda z: z[0])
-    if len(pts) < 2:
-        return None
-    if x <= pts[0][0]:
-        return round(pts[0][1])
-    if x >= pts[-1][0]:
-        return min(99, round(pts[-1][1]))
-    for i in range(len(pts) - 1):
-        a0, p0 = pts[i]
-        a1, p1 = pts[i + 1]
-        if a0 <= x <= a1:
-            t = (x - a0) / (a1 - a0) if a1 > a0 else 0
-            return max(0, min(99, round(p0 + t * (p1 - p0))))
-    return round(pts[-1][1])
-
-
-# Per-spec parse-distribution SHAPE, baked once by audit_parse_curves.py (parse curves don't share ONE
-# universal shape — the low tail splits by spec — but a spec's shape is boss-stable, so we characterise it
-# once and scale it at report time with a free anchor). Each value is [(percentile, amount÷median), …].
-# Refresh by re-running audit_parse_curves.py. Specs absent here fall back to sparse anchor interpolation.
-SPEC_PARSE_CURVE = {
-    "Mage|Fire": [(1,0.326), (5,0.525), (10,0.645), (20,0.779), (30,0.865), (40,0.93), (50,1.0), (60,1.062), (70,1.129), (80,1.208), (85,1.258), (90,1.318), (93,1.358), (95,1.383), (97,1.436), (99,1.536)],
-    "Mage|Arcane": [(1,0.94), (5,0.943), (10,0.948), (20,0.959), (30,0.97), (40,0.985), (50,1.0), (60,1.019), (70,1.047), (80,1.109), (85,1.27), (90,1.4), (93,1.464), (95,1.5), (97,1.569), (99,1.665)],
-    "Mage|Frost": [(1,0.853), (5,0.864), (10,0.878), (20,0.905), (30,0.936), (40,0.968), (50,1.0), (60,1.04), (70,1.082), (80,1.151), (85,1.197), (90,1.273), (93,1.327), (95,1.369), (97,1.441), (99,1.547)],
-    "Warlock|Affliction": [(1,0.915), (5,0.921), (10,0.929), (20,0.946), (30,0.962), (40,0.981), (50,1.0), (60,1.024), (70,1.052), (80,1.097), (85,1.134), (90,1.201), (93,1.317), (95,1.397), (97,1.513), (99,1.69)],
-    "Warlock|Destruction": [(1,0.943), (5,0.947), (10,0.95), (20,0.96), (30,0.971), (40,0.984), (50,1.0), (60,1.019), (70,1.048), (80,1.13), (85,1.246), (90,1.339), (93,1.405), (95,1.447), (97,1.504), (99,1.599)],
-    "Warlock|Demonology": [(1,0.148), (5,0.382), (10,0.538), (20,0.696), (30,0.802), (40,0.904), (50,1.0), (60,1.102), (70,1.198), (80,1.325), (85,1.386), (90,1.443), (93,1.466), (95,1.502), (97,1.574), (99,1.672)],
-    "Priest|Shadow": [(1,0.938), (5,0.942), (10,0.947), (20,0.958), (30,0.97), (40,0.983), (50,1.0), (60,1.017), (70,1.04), (80,1.07), (85,1.093), (90,1.154), (93,1.268), (95,1.33), (97,1.405), (99,1.504)],
-    "Hunter|BeastMastery": [(1,0.933), (5,0.937), (10,0.942), (20,0.953), (30,0.965), (40,0.981), (50,1.0), (60,1.023), (70,1.06), (80,1.182), (85,1.312), (90,1.418), (93,1.468), (95,1.512), (97,1.567), (99,1.694)],
-    "Hunter|Marksmanship": [(1,0.285), (5,0.496), (10,0.68), (20,0.786), (30,0.868), (40,0.939), (50,1.0), (60,1.062), (70,1.136), (80,1.246), (85,1.325), (90,1.416), (93,1.492), (95,1.567), (97,1.642), (99,1.762)],
-    "Hunter|Survival": [(1,0.918), (5,0.924), (10,0.93), (20,0.946), (30,0.961), (40,0.979), (50,1.0), (60,1.026), (70,1.059), (80,1.111), (85,1.157), (90,1.248), (93,1.336), (95,1.403), (97,1.479), (99,1.65)],
-    "Rogue|Combat": [(1,0.928), (5,0.933), (10,0.94), (20,0.953), (30,0.968), (40,0.983), (50,1.0), (60,1.021), (70,1.047), (80,1.081), (85,1.111), (90,1.176), (93,1.341), (95,1.448), (97,1.539), (99,1.661)],
-    "Warrior|Arms": [(1,0.895), (5,0.903), (10,0.911), (20,0.93), (30,0.948), (40,0.971), (50,1.0), (60,1.031), (70,1.068), (80,1.129), (85,1.181), (90,1.283), (93,1.422), (95,1.518), (97,1.647), (99,1.812)],
-    "Warrior|Fury": [(1,0.908), (5,0.914), (10,0.922), (20,0.94), (30,0.956), (40,0.978), (50,1.0), (60,1.027), (70,1.065), (80,1.129), (85,1.22), (90,1.382), (93,1.471), (95,1.523), (97,1.617), (99,1.72)],
-    "Druid|Balance": [(1,0.923), (5,0.928), (10,0.935), (20,0.948), (30,0.963), (40,0.979), (50,1.0), (60,1.023), (70,1.05), (80,1.089), (85,1.121), (90,1.172), (93,1.248), (95,1.341), (97,1.464), (99,1.672)],
-    "Druid|Feral": [(1,0.906), (5,0.911), (10,0.918), (20,0.937), (30,0.956), (40,0.976), (50,1.0), (60,1.029), (70,1.07), (80,1.126), (85,1.17), (90,1.269), (93,1.348), (95,1.433), (97,1.526), (99,1.681)],
-    "Shaman|Elemental": [(1,0.935), (5,0.939), (10,0.945), (20,0.956), (30,0.969), (40,0.983), (50,1.0), (60,1.021), (70,1.046), (80,1.086), (85,1.116), (90,1.182), (93,1.258), (95,1.331), (97,1.402), (99,1.514)],
-    "Shaman|Enhancement": [(1,0.928), (5,0.932), (10,0.939), (20,0.949), (30,0.963), (40,0.978), (50,1.0), (60,1.023), (70,1.062), (80,1.206), (85,1.302), (90,1.38), (93,1.426), (95,1.471), (97,1.521), (99,1.645)],
-    "Paladin|Retribution": [(1,0.917), (5,0.924), (10,0.929), (20,0.945), (30,0.961), (40,0.978), (50,1.0), (60,1.033), (70,1.068), (80,1.124), (85,1.176), (90,1.325), (93,1.421), (95,1.54), (97,1.629), (99,1.729)],
-}
-
-
-def _curve_norm_at(curve, pct):
-    """Normalized amount (amount÷median) at a percentile, linear-interpolated on a baked per-spec curve."""
-    if pct <= curve[0][0]:
-        return curve[0][1]
-    if pct >= curve[-1][0]:
-        return curve[-1][1]
-    for i in range(len(curve) - 1):
-        p0, n0 = curve[i]
-        p1, n1 = curve[i + 1]
-        if p0 <= pct <= p1:
-            return n0 + (n1 - n0) * ((pct - p0) / (p1 - p0) if p1 > p0 else 0)
-    return curve[-1][1]
-
-
-def _curve_pct_at(curve, norm):
-    """Inverse: percentile at a normalized amount (monotonic), clamped to the curve's [min pct, max pct]."""
-    if norm <= curve[0][1]:
-        return curve[0][0]
-    if norm >= curve[-1][1]:
-        return curve[-1][0]
-    for i in range(len(curve) - 1):
-        n0 = curve[i][1]
-        n1 = curve[i + 1][1]
-        if n0 <= norm <= n1:
-            p0, p1 = curve[i][0], curve[i + 1][0]
-            return p0 + (p1 - p0) * ((norm - n0) / (n1 - n0) if n1 > n0 else 0)
-    return curve[-1][0]
-
-
-def ghost_parse_from_curve(spec_key, anchors, ghost_amount):
-    """Accurate-ish ghost parse via the baked per-spec SHAPE, scaled by FREE anchors (our own raiders'
-    real (amount, parse) on this boss). Each anchor implies the pool median = amount ÷ curve-norm(parse);
-    we take the MEDIAN of those estimates as the scale, then read the percentile of ghost_amount ÷ scale off
-    the inverse curve. Works with a SINGLE anchor — even the dead raider's own depressed point recovers the
-    scale (their low amount sits at their low percentile's norm). None if the spec isn't baked / no anchor."""
-    curve = SPEC_PARSE_CURVE.get(spec_key)
-    if not curve or not ghost_amount:
-        return None
-    ests = []
-    for amt, pct in anchors:
-        if not amt or pct is None or pct < 0:
-            continue
-        n = _curve_norm_at(curve, pct)
-        if n > 0:
-            ests.append(amt / n)
-    if not ests:
-        return None
-    scale = statistics.median(ests)
-    return _curve_pct_at(curve, ghost_amount / scale) if scale > 0 else None
-
-
 def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
     """Tier-wide avoidable damage by MECHANIC — the damage analog of What's Killing Us (which counts the
     deaths). Pools each non-tank damage-taken ABILITY across the shared bosses, ours vs benchmark, as a
@@ -3994,55 +3896,12 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     ghost_bosses = []
     for p in per_boss:
         # DPS-ONLY: the ghost run is a lost-DPS-output story, so only DPS-role deaths count. A dead healer
-        # or tank costs the raid differently (healing/survivability, not raid DPS) — that lives in the
-        # deaths / death-cause-disambiguation views, not here. (Avoids a healer's tiny damage-DPS or HPS
-        # parse leaking into a DPS-distribution ghost parse.)
+        # or tank costs the raid differently (healing/survivability, not raid DPS), which lives in the death
+        # views, not here.
         dps_deaths = [d for d in p["deaths"]["ours"] if ours_role.get(d.get("name")) == "dps"]
         gb = ghost_run_for_boss(dps_deaths, p["oursDurMs"], p["oursRaidDps"], avg_dps)
         if not gb:
             continue
-        # Rough ghost-PARSE band for EVERY death — zero extra API cost: interpolate the ghost DPS against
-        # (amount, parse) anchors we already fetched (our own raiders of that spec on that boss). The
-        # distribution constants are already baked in, so projecting a parse is free. No time cutoff: the
-        # `est > parse + 2` lift guard below self-drops late deaths (the raider was alive most of the fight,
-        # so ghost ≈ actual → no lift), surfacing a band only where staying alive would actually have mattered.
-        enc = str(p["encounterID"])
-        players = (ours_idx.get(enc) or {}).get("players") or []
-        dur_sec = (p["oursDurMs"] or 0) / 1000.0
-        for r in gb["raiders"]:
-            if dur_sec <= 0:
-                continue
-            pl = next((x for x in players if x.get("name") == r["name"]), None)
-            if not pl or not pl.get("amount") or pl.get("parse", -1) < 0:
-                continue
-            anchors = [(x["amount"], x["parse"]) for x in players
-                       if x.get("class") == pl["class"] and x.get("spec") == pl["spec"]
-                       and x.get("amount") and x.get("parse", -1) >= 0]
-            # Ghost DPS = their realized output projected to the GHOST kill time, NOT the actual end: in the
-            # ghost world the boss dies sooner (by timeSavedSec), so the dead raider only deals damage until
-            # then. ghost_total = (actual total, all pre-death) + avg DPS × (ghost_dur − death_sec); the
-            # ghost parse is that total over the ghost duration. (Parse is DPS, so a shorter kill keeps the
-            # rate honest rather than crediting output past a fight that would already be over.)
-            # Ghost parse AMOUNT = the player's night-average DPS — the rate they'd sustain if alive (parse
-            # is a rate, so duration cancels). Using avg DPS — not actual+projection — avoids double-counting
-            # a battle-rezzed raider (whose actual amount already reflects a near-full fight): for them
-            # ghost ≈ actual, so the `> actual` guard self-drops them; only genuinely death-depressed raiders
-            # show a lift. (The ghost-kill-time cap lives in the output/kill-time numbers, not this rate.)
-            ghost_amount = avg_dps.get(r["name"], 0)
-            if ghost_amount <= 0:
-                continue
-            # Scale the curve from the raider's OWN point (amount, parse) when it's on-curve (parse ≥ 5):
-            # WCL derived their parse FROM their amount, so it's self-consistent and recovers this pool's
-            # median exactly — teammates can sit off-curve and mis-scale it. Fall back to same-spec anchors
-            # when their own parse is too low to be a reliable anchor, then to sparse interpolation.
-            key = "{}|{}".format(pl["class"], pl["spec"])
-            scale_anchors = [(pl["amount"], pl["parse"])] if pl["parse"] >= 5 else anchors
-            est = ghost_parse_from_curve(key, scale_anchors, ghost_amount)
-            if est is None:
-                est = _interp_parse(ghost_amount, anchors)
-            if est is not None and est > pl["parse"] + 2:  # require a real lift, not noise
-                # Round to nearest 5, cap at 99 — a coarse band, not a false-precision point estimate.
-                r["actualParse"], r["ghostParse"] = pl["parse"], min(99, int(round(est / 5.0) * 5))
         ghost_bosses.append(dict(gb, boss=p["name"]))
     ghost_run = {"bosses": ghost_bosses,
                  "totalTimeSavedSec": ssum([b["timeSavedSec"] for b in ghost_bosses]),

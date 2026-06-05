@@ -228,7 +228,8 @@ def main(argv=None):
             json.dump(obj, fh, indent=2, ensure_ascii=False)
 
     # Name each side by its guild (the report's identity). Ours shows the guild name; theirs is framed
-    # "Benchmark (Guild)" so a reader who didn't generate the report still knows which side to aspire to.
+    # "Benchmark (Guild)" so a reader who didn't generate the report still knows which side is B (the
+    # comparison target — a better guild, or your own past raid; B is not assumed to be "better").
     # Manual --ours-name/--theirs-name override wins; guild name falls back to the report title.
     ours_guild = guild_name(parse_obj[ours_code])
     theirs_guild = guild_name(parse_obj[theirs_code])

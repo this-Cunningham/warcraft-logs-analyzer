@@ -16,16 +16,19 @@ research, design, or are lower priority right now.
 ## Steps
 
 1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root) — this is the product's soul.
-   Every item must answer to it: does the idea reveal an actionable gap, honestly,
-   at a glance? Use it to frame *why* the item matters and to phrase it in the
-   product's voice (neutral analyst; gap-focused; not a data dump).
+   Every item must answer to its one-line test: *would this change how a raid leader
+   runs next week — and can they read it and trust it in seconds?* Use it to frame
+   *why* the item matters — the **leader decision** it serves and the **lever** it
+   surfaces (not a prescribed action) — and to phrase it in the product's voice
+   (neutral analyst; lever-focused, never a verdict; never a data dump).
 2. **Read `BACKLOG.md`** at the path below — understand its current sections and style.
 3. **Place the item.** Decide whether it belongs under an existing section or
    warrants a new `## BACKLOG:` header. Match the existing format exactly:
    - A `## BACKLOG: <short title>` header (only if it's a new section).
    - A `>` blockquote capturing the user's ask in their framing.
-   - A short note tying it to the product soul — the gap it reveals / the action
-     it enables — and any obvious data source or open question.
+   - A short note tying it to the product soul — the leader decision it serves and
+     the lever it surfaces, plus the magnitude that would make it matter — and any
+     obvious data source or open question.
 4. **Edit `BACKLOG.md`** to insert it. Keep it lightweight; do not rewrite or
    reorder existing items. Newest ideas go at the bottom of their section.
 5. **Commit** the change directly to main:
@@ -44,7 +47,8 @@ research, design, or are lower priority right now.
 
 - Do not invent scope the user didn't ask for. Capture the idea faithfully, just
   framed through the soul.
-- If the idea clearly conflicts with an anti-goal in the soul (data dump, blame
-  machine, WCL replacement, dishonesty), still add it but note the tension in one
-  line so it's flagged for later judgment.
+- If the idea clearly conflicts with an anti-goal in the soul (data dump, bare
+  scoreboard, blame machine, WCL replacement, dishonesty, or something a leader
+  couldn't read at a glance), still add it but note the tension in one line so it's
+  flagged for later judgment.
 - Report back in one sentence: which section you added it to (new or existing).

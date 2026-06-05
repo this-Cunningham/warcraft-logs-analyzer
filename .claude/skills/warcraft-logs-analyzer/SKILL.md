@@ -2,8 +2,8 @@
 name: warcraft-logs-analyzer
 description: >-
   Query the Warcraft Logs v2 GraphQL API to analyze a raid's encounters and
-  performance, compare one raid/report against another guild (e.g. a top
-  world guild), and generate a modern self-contained HTML report. Use whenever
+  performance, compare one raid/report against a benchmark — a better guild, or your
+  own past raid — and generate a modern self-contained HTML report. Use whenever
   the user shares a Warcraft Logs report URL or code, asks to dig into raid
   parses/damage/healing/deaths, compare their raid to another, or wants a raid
   performance report generated.
@@ -15,8 +15,10 @@ Analyze Warcraft Logs reports and produce a self-contained HTML comparison repor
 All API access uses the **client-credentials flow** against the **public** API
 (`https://www.warcraftlogs.com/api/v2/client`) — public reports only, no user auth.
 
-> **Product north star:** the report exists to surface the highest-leverage,
-> actionable gaps vs a benchmark raid — not to dump data. Read
+> **Product spine:** the report exists to help a raid leader make their team better
+> — it surfaces the lever (this spec / mechanic / phase) and lets the leader decide,
+> never dumps data, and never assumes the comparison side is better (B may be your own
+> past raid). Read
 > [`PRODUCT_MANAGER_SOUL.md`](../../../PRODUCT_MANAGER_SOUL.md) (repo root) before
 > deciding what a report should or shouldn't include.
 

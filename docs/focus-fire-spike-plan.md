@@ -1,5 +1,7 @@
 # Focus-fire / target-switch latency — spike plan
 
+> **Re-read through the current [soul](../PRODUCT_MANAGER_SOUL.md)** (rewritten 2026-06-05): lead with the leader decision, gate on magnitude, hold to the legibility floor. "Leverage" here means *would fixing this move a real outcome* — not a data-nook bonus. This plan is otherwise well-aligned (it already refuses the blame machine and false precision).
+
 **Status (updated 2026-06-02):**
 - **M1 (focus concentration) — BUILT.** Shipped in the "Target Focus & Add Handling" view (`focus_view` →
   `focusFireView`), computed for *zero extra API cost* by binning the Timeline's existing DamageDone pull by

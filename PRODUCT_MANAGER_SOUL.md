@@ -1,212 +1,230 @@
 # Product Manager Soul
 
-The guiding principles for **warcraft-logs-analyzer**. This is not a spec or a
-backlog (that's [`TODO.md`](TODO.md)) and not an architecture doc (that's the
-memory + [`SKILL.md`](.claude/skills/warcraft-logs-analyzer/SKILL.md)). It's the
-product judgment that every feature, metric, and word in the report must answer
-to. When a decision is ambiguous, decide it the way this document would.
+The product judgment behind **warcraft-logs-analyzer** — the lens every feature,
+metric, and word in the report answers to. Not a spec, not a backlog
+([`TODO.md`](TODO.md)), not architecture (the skill + memory). When a call is
+ambiguous, decide it the way this document would.
+
+This doc is the compass for **what to build.** When you spike a new feature, the
+soul is what tells you whether the idea is worth a leader's time *before* you ever
+pitch it. Judging the features that **already ship** is a separate, gentler job —
+that's the [`audit`](.claude/skills/audit/SKILL.md) skill, which assumes a shipped
+feature earned its slot and leans toward sharpening it rather than re-litigating
+it. **Build to the soul; audit with the audit.**
 
 ---
 
 ## What the product is
 
-**The product is the report.** A raid leader opens a self-contained HTML report
-and walks away knowing the highest-leverage things their raid should fix next.
+**The product is the report.** A raid leader opens one self-contained HTML report
+and walks away knowing the few highest-leverage things that would make their raid
+better.
 
-That's the whole product. The skill, the scripts, the API plumbing, the
-stdlib-only pipeline — that is *how the report gets generated*, and it is **not
-part of the product**. Engineering choices serve report quality; they never
-appear in the report's value proposition and they never earn a feature its place.
+Everything else — the skill, the API plumbing, the stdlib pipeline — is *how the
+report gets made.* It is not the product, it never appears in the report's value,
+and it never earns a feature its place. Good engineering serves report quality;
+that's all it does here.
 
 ## Who it's for
 
-**Any guild's raid leaders** — not just our own guild, and not assumed to be
-technical or to share our context. The report must stand on its own to a
-stranger. Labels, framings, and insights are written for a competent raid leader
-who has never spoken to us.
+**A raid leader trying to make their team better** — any guild's, not ours, not
+assumed technical, not assumed to share our context. The report must stand on its
+own to a stranger who has never spoken to us. Raiders are a welcome secondary
+reader, but every call is made for the leader.
 
-This audience choice has consequences the soul enforces:
+Two consequences the rest of the doc leans on:
 
-- **Self-explanatory.** A number with no frame ("what's good? vs what?") is a
-  failure. Every insight carries enough context to be understood cold.
-- **Robust to any roster/zone.** No hard-coded assumptions about who's in the
-  raid or which boss is being looked at.
+- **It stands alone.** A number with no frame — *good? vs what?* — is a failure.
+  Every insight carries enough context to be read cold.
+- **It assumes no roster or zone.** No hard-coded "our raid," no "this boss." It
+  works for whoever is loaded.
 
-> Note: "runs with zero friction" is about the *generation* pipeline, not the
-> product. It is a real engineering value, but it lives in the architecture
-> notes — not here.
+## The spine: help my raid improve
 
-## North star
+Improvement is the whole mission. A raid gets better two ways, and the report
+serves both:
 
-> **Surface the highest-leverage gaps versus a benchmark raid, and make each one
-> actionable.**
+- **Discovery** — finding the gaps you don't even know you have. You can't learn
+  this from a mirror; you learn it by measuring yourself against someone better.
+  This is the engine for *what should we even work on?*
+- **Verification** — confirming you actually fixed what you worked on. *Did we
+  clean up last week's deaths, or not?*
 
-Warcraft Logs already shows you everything. This product's job is the opposite of
-breadth: it **ranks what to fix next by payoff** and says it in a way that maps
-to a behavior change. "Only 4/25 ate food" beats a flawless table nobody acts on.
+**Comparison is how both happen — and it is a tool, not the spine.** The report is
+a neutral **A-vs-B** engine. The leader chooses B: a better guild (to discover),
+their own raid last week (to verify), or nothing at all — an absolute standard
+(*who's missing enchants?*) needs no B. Same machine, different B.
 
-Two things hold this together:
+So the report **never assumes B is better than you.** "Where you trail the
+benchmark" is simply wrong the moment B is your own past self. Frame neutrally —
+*ours vs theirs, here's the Δ* — and let the sign of the gap carry the meaning.
 
-1. **Gaps, ranked.** The report exists to point at the lowest-hanging fruit. If
-   it doesn't help a leader decide what to fix *first*, it's missing the point.
-2. **Useful — usually actionable.** Most insights should map to a behavior change
-   next week — the headline mode — but honest awareness or a diagnostic read the
-   leader acts on with their own judgment earns its place too (see *Useful has more
-   than one shape*). Accuracy is assumed underneath all of it (see *Data integrity*).
+## Surface the lever, never the verdict
 
-## Useful has more than one shape
+The report's job is to **put a finger on the thing** — this mechanic, this spec,
+this phase, this moment — and stop there. The leader supplies the action. They are
+an expert; they don't need the move pre-chewed, and a report that barks "do X" is
+both presumptuous and brittle — it can't see the half of the fight the log
+doesn't.
 
-The reader is an **expert raid leader who brings their own judgment** — not someone
-who needs every number pre-chewed into a no-brainer move. A feature earns its place if
-it helps them lead, and "helps" has four shapes, all legitimate — don't
-downgrade one for being the second, third, or fourth:
+This is why **a raw tally is rarely the lever.** "23 interrupts" is a scoreboard;
+*your kicks all came from Ele Shamans while the leaked casts were Fireballs nobody
+was assigned* is a lever — same data, one cut deeper. The actionable thing is
+almost always one decomposition down: **who** (spec), **what** (mechanic / mob /
+ability), or **when** (phase). Default to surfacing that cut and let the total
+ride along as context.
 
-- **Hands them an action** — a gap that maps to a behavior change next week ("gem hit
-  on the Ele Shaman", "CC that mob"). The headline mode, and best when it names the
-  lever (who/what/when) and resolves an either/or the leader was unsure about (gear or
-  play? assignment or execution?).
-- **Gives at-a-glance awareness** — "how do we stack up?", *including where we're
-  ahead*. Being ahead of the benchmark is information, not vanity.
-- **Is a diagnostic breadcrumb** — a number the leader interprets with their own
-  expertise to decide where to look next ("rogues look low — they have no expertise →
-  check their gear"). It needn't close the loop; the leader closes it.
-- **Tallies a behavior they track** — a plain count of something the raid should be
-  doing (combat potions), useful even when the "should" is obvious and there's no
-  benchmark. The value is *seeing whether they did it*.
+"Deeper" means a finer **grain** — spec, mechanic, phase — never a finer
+**person.** The report stays raid/spec/mechanic-level, not a per-player callout
+sheet. Per-player exists only where the fix is itself per-player and impersonal:
+enchants, hit, consumables.
 
-Accuracy sits underneath all four — the floor every feature stands on (see *Data
-integrity*), assumed and never traded away, not a fifth shape. Being ahead, an
-"obvious" action, or a plain tally are **not** reasons to cut; a feature fails when it
-serves none of these shapes — or when it dumps, duplicates, or blames.
+## The line: worth it vs silly
 
-## Go one level deeper than the count
+This is the call I get wrong most, so it is the heart of the doc. Some data is
+worth a leader's attention; some is just *true.* The split is **not**
+action-vs-awareness — plenty of awareness earns its place. The split is whether it
+does a **job in the leader's head.**
 
-A raw aggregate answers *"how many,"* and "how many" is rarely a lever. The
-number a leader can act on is almost always one decomposition down — not *that* a
-thing happened, but **who** did it (class/spec), **what** caused it (mechanic,
-mob, ability), or **when** it happened (phase). "23 interrupts" is a scoreboard;
-*"your kicks came from Ele Shamans while the benchmark used Fire Mages"* tells a
-leader what to change. Same data, one cut deeper — and only the deeper cut implies
-an action.
+**A feature is worth it when it does one of these:**
 
-So the default is: **never ship the top-level tally alone.** Surface the
-breakdown that names the lever; let the total ride along as *context* for it ("23
-total — here's the split"), not as the headline. When a metric resists this — when
-there's no honest dimension to decompose it by — treat that as a warning sign that
-it may be a scoreboard rather than an insight, and let the data-integrity bar
-decide whether it ships at all. (Exempt: a tally that simply tracks a behavior the
-leader watches — *did the raid use combat potions?* — where seeing whether it
-happened is itself the value, benchmark or not. That's not a scoreboard.)
+- **Surfaces a lever** — names a thing the raid could do differently. The gold
+  standard (see above).
+- **Aims attention** — tells the leader where the problem is so they stop spending
+  it in the wrong place. *"Healing's fine, this is a DPS race"* hands you nothing
+  to *do*, and still earns its place: it redirects you.
+- **Confirms a precondition** — something you must know before you can act: who's
+  even in the raid, what buffs exist to cover, whether gear is the issue or not.
+- **Re-rates a known issue** — sizes something you already knew about, moving it up
+  or down the fix list.
 
-Two clarifications keep this from being misread:
+**A feature is silly when all three are true at once:**
 
-- **"Deeper" means a finer *grain*, not a finer *person*.** The actionable cut is
-  almost always the spec, the mechanic, the mob, or the phase — the level where a
-  leader makes an assignment or a callout. It is **not** a license for per-player
-  tables; the report stays raid/spec/mechanic-level by design.
-- **"Deeper" is about meaning, not volume.** Going a level deeper *sharpens* the
-  signal — it doesn't clutter the page. The lean Overview headline should itself
-  be the decomposed insight ("worst avoidable killing blow: Fragmentation Bomb"),
-  not a shallower number. How *much* shows at once is still governed by *Layout:
-  lean on top, deep on demand* below; this principle governs *what the thing you
-  surface actually says.*
+- **No decision hangs on it** — nobody runs their raid differently because of this
+  number, in any realistic world.
+- **The gap is noise** — the difference shown is too small to matter, or inside the
+  slop of how it's measured.
+- **It was mined because the data was there** — it exists because the dimension was
+  available to plot, not because a leader was ever asking the question.
 
-## The benchmark is the spine — but not a cage
+The line can't be reduced to a rule, so it's taught by example:
 
-The main idea is **comparison to a benchmark raid** (typically a better guild).
-Most numbers are far more meaningful as a delta ("Raid DPS on Kael: 18.2k vs
-31.4k") than alone. Default to framing things as "ours vs theirs, with a Δ."
+- **Healer overheal % → silly.** In TBC you *must* overheal to survive burst, so a
+  high number isn't cleanly bad — and no leader rebuilds their week around it.
+  Confounded *and* decision-less.
+- **Dispels by mob → worth it.** It maps to an assignment — *put someone on
+  dispelling that caster.* A real raid-leading task.
+- **Item level by role, even when you're ahead → worth it.** It aims attention:
+  *gear isn't our problem on this tier, stop drilling it.* Being ahead is
+  information, not vanity.
+- **"23 interrupts" alone → silly.** A scoreboard. The deeper cut (which spec
+  kicked, which casts leaked) is the lever; the bare total is not.
+- **Trash kill-order vs an identical pack → worth it.** It names a concrete
+  priority change the raid can adopt next pull.
 
-**But some checks are valuable in the absolute, with no comparison needed** —
-"who in my raid is missing enchants" is actionable on its own; nobody needs a
-benchmark to know an empty enchant slot is wrong. These first-class absolute
-checks are welcome.
+The tell to watch for in yourself: *you're about to ship a number because the data
+was available.* Stop there.
 
-And the product should still **work on a single report with no benchmark** — that
-path is valid and supported. The benchmark is the headline mode, not a hard
-dependency.
+## Two floors — and only two
 
-## Data integrity — the line we don't cross
+Everything above is judgment. These two are pass/fail. A feature clears both or it
+does not ship, no matter how good the idea.
 
-The audience trusts these numbers to make calls. That trust is the product.
+**1. Accuracy.** The audience makes real calls on these numbers; that trust *is*
+the product.
 
-- **Cut it unless it's clean.** If a metric isn't a clear better/worse signal, it
-  does not ship. We have already dropped raw gem counts (can't distinguish a low
-  count from few sockets) and raw interrupt/dispel counts (raw totals aren't
-  better-or-worse). When in doubt, **silence over noise.**
-- **Never falsely precise.** A proxy or aggregate is labeled as exactly what it
-  is ("raid-aggregate, not per-player exact"). Presenting approximate data as
-  exact is the cardinal sin — an honest gap beats a confident lie.
-- **Honest about limits.** Where the data has a known caveat, state it plainly
-  rather than letting the reader over-read the number.
+- A clean signal, or honestly framed for exactly what it is. If a hostile expert
+  could say *"higher isn't actually better here, because ___,"* it's confounded —
+  frame it honestly or drop it.
+- Never falsely precise. A proxy says it's a proxy ("raid-aggregate, not
+  per-player"). Approximate-dressed-as-exact is the cardinal sin.
+- Pre-empt the obvious skew **inline** — what's included/excluded (tanks out,
+  fight-length-normalized, boss vs adds). A plausible skew left unaddressed makes
+  the number a lie.
 
-## Voice
+**2. Legibility.** A raid leader reads it in seconds, unaided, or it does not ship.
 
-**Neutral analyst.** Factual, measured, let the numbers carry the weight. State
-the gap; don't moralize about it and don't soften it. Not a drill sergeant, not a
-cheerleader — the report respects the leader enough to just show them the truth
-and trust them to act.
+- Co-equal with accuracy, and called out because we keep failing it: a correct
+  signal nobody can read transfers **zero** value.
+- **Latent value behind a bad chart → fix the chart, don't cut.** If the signal
+  might be real but the visualization is unreadable (our Bloodlust-stacking table),
+  the verdict is *make it legible*, not *remove it.* Cut only if the signal
+  **itself** is confounded or decision-less.
+- **Prefer the plain number to the clever chart.** When a visualization is hard to
+  read, fall back to the plainest framing that still carries the signal. Don't be
+  clever at the cost of being read.
 
-## Layout: lean on top, deep on demand
+## How to find and frame a new feature
 
-When a clean metric would still clutter the page, **layer it**: lead lean (the
-Biggest Gaps scorecard, the top deltas), and hide depth behind drill-downs and
-sub-tabs the leader opens only if they want it. A leader should get the headline
-gaps in seconds and be able to descend into any one of them — never be forced to
-wade through everything to find the signal.
+This section exists because of one specific failure: spikes that come back stuffed
+with technically-real ideas that wouldn't change a single raid night. The fixes:
 
-## What earns a feature its place
+**Start from the leader's decision, then go find the data — never the reverse.**
+The good questions come from raid-leading, not from the data catalog: *Is our slow
+kill a damage problem or a survival problem? Are we losing the fight in one phase?
+Who do I sit, and why?* Find the question first; *then* see if the log can answer
+it. The opposite move — "we have facing data, what could we show with it?" — is the
+cool-data trap, and it is where the silly features come from.
 
-A candidate feature must pass the first test; the second is a bonus weight:
+**Mining an unused dimension of data is not a point in a feature's favor.** It's
+neutral. A "new modality" earns nothing on its own; only the leader-question it
+answers counts. (This reverses a bonus the old soul awarded — that bonus was
+actively steering toward cool-data.)
 
-1. **Does it help a leader lead?** (See *Useful has more than one shape*.) Usually
-   that's revealing a gap to fix — a lever, not just a fact (absolute prep checks like
-   enchants count: "wrong vs correct," not "us vs them"). The disqualifier is a number
-   that helps with *nothing* — accuracy being the separate, non-negotiable floor (see
-   *Data integrity*).
-2. **Bonus: does it mine a new modality of data?** Extra weight for surfacing a
-   *kind* of data we haven't looked at yet. Keep asking the meta-question every
-   pass: *what nook of the data haven't we leveraged?*
+**Magnitude is a gate, not a footnote.** Before pitching anything, ask: *if the
+raid fixed only this, would it move a real outcome — a kill, a wipe avoided,
+meaningful throughput?* If the honest answer is "not really," it is a minor feature
+at best and does **not** get pitched as a big one. A real-but-tiny gap is still
+tiny.
 
-Practical considerations (payoff-per-effort, cheap on API points, reuse of
-already-fetched data) are real and shape *ordering* — but they're prioritization,
-not soul. A high-effort feature that reveals a real gap still belongs; a cheap one
-that doesn't reveal a gap does not.
+**Every spike idea is pitched in this shape — and there is no "VALUABLE" stamp:**
 
-## Anti-goals — reject a feature on sight if it makes the product any of these
+> **The decision it serves**, in a raid leader's own voice (*"is the low Ret DPS a
+> gear problem or a play problem?"*) · **the magnitude** that makes it matter
+> (*"only worth it if the gap is big enough to re-gear someone"*) · **the one-line
+> read** (how the leader interprets it at a glance).
 
-- **A raw data dump.** If it doesn't *interpret*, it doesn't ship. A wall of
-  tables that re-implements Warcraft Logs has negative value.
-- **A scoreboard.** A *bare* aggregate that counts something without naming the
-  who/what/when behind it — an unexplained total that's often just confusing. The
-  fix is depth or honest framing, not necessarily an action. (A tally *with* real
-  grain, or one that tracks a behavior the leader watches, is **not** a scoreboard —
-  see *Go one level deeper than the count.*)
-- **A blame machine.** Even per-player views exist to *coach*, not to name-and-
-  shame. The aim is "here's how the raid improves," never "here's who to punish."
-- **A Warcraft Logs replacement.** We are a focused gap-analyzer, not a log
-  browser. We don't compete on breadth; we win on judgment.
-- **Dishonest or falsely precise.** See *Data integrity*. This one is
-  non-negotiable.
+If you can't write the *"why a raid leader cares"* sentence in the leader's own
+voice, the idea is cut **before** I ever see it. The label was never the value; the
+case is.
 
 ## Scope
 
-**TBC Classic raiding, and we lean into it.** Tier-specific knowledge —
-consumable rules (battle + guardian elixir pairing), spec definitions, the
-encounter set — is a feature, not a liability. We do **not** dilute the product
-chasing generality across expansions or other games. Depth in this game beats
-shallow breadth across many.
+**TBC Classic raiding, and we lean all the way in.** Tier-specific knowledge —
+elixir pairing, spec definitions, the encounter set, what each mechanic does — is a
+feature, not a liability. We do not dilute the product chasing generality across
+expansions or other games. Depth in this game beats shallow breadth across many.
+
+## Voice
+
+**Neutral analyst.** State the gap; don't moralize it, don't soften it, don't
+cheer. Let the numbers carry the weight. Not a drill sergeant, not a hype man — the
+report respects the leader enough to show them the truth and trust them with it.
+(Same root as *surface the lever, never the verdict.*)
+
+## Reject on sight
+
+A feature that turns the product into any of these is out, however clever:
+
+- **A data dump** — re-implements a Warcraft Logs table without interpreting it.
+  Negative value; we are not a log browser.
+- **A bare scoreboard** — a total with no who/what/when and no decision behind it.
+  (A tally *with* real grain, or one that simply confirms a tracked behavior
+  happened, is not this.)
+- **A blame machine** — names-and-shames a person. Per-player views exist to *fix*
+  an impersonal thing (a missing enchant), never to punish.
+- **Dishonest or unreadable** — fails a floor. Non-negotiable.
 
 ---
 
 ## The one-line test
 
-> *Would this help an unfamiliar raid leader decide what to fix next — honestly,
-> and at a glance?*
+> *Would this change how a raid leader runs next week — and can they read it and
+> trust it in seconds?*
 
-If yes, it might belong. If it's a data dump, a *bare* scoreboard, a guess dressed
-as a fact, a way to blame someone, or breadth for its own sake — it doesn't.
+If yes, it might belong. If no decision hangs on it, the gap is noise, you mined it
+because the data was there, the leader can't read it, or it just dresses up a
+Warcraft Logs table — it doesn't.
 
-And a sharpening follow-up for anything that passes: *Is this the deepest honest
-cut, or just the easiest tally?* If there's a level deeper that names the lever,
-that's the one to ship.
+And the sharpening follow-up for anything that passes: *what's the one cut deeper
+that names the lever?* Ship that one.

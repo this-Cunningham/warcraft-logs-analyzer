@@ -4,7 +4,7 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 
 > Before adding or building anything here, route it through the product
 > principles in [`PRODUCT_MANAGER_SOUL.md`](PRODUCT_MANAGER_SOUL.md) — does it
-> reveal an actionable gap, honestly, at a glance?
+> change how a raid leader runs next week — and can they read it and trust it in seconds?
 
 ---
 

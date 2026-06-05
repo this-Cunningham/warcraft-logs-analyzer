@@ -1,13 +1,15 @@
 # GraphQL Data-Surface Audit — untapped, actionable insights
 
+> **⚠ Predates the 2026-06-05 soul rewrite** ([`PRODUCT_MANAGER_SOUL.md`](../PRODUCT_MANAGER_SOUL.md)). This is a *data-first* survey — "what does the API expose that we don't use?" — i.e. the **cool-data trap** the current soul warns against. It's a useful inventory of what's *available*, but availability is not a reason to build. Before building any item, re-frame it through the new soul: lead with the **leader decision** it serves, gate on **magnitude**, and hold to the **accuracy + legibility** floors. "New modality of data" is no longer a point in a feature's favor.
+
 **Date:** 2026-06-02 · **API:** WCL v2 public (client-credentials) · **Budget used:** ~14 of
 3600 pts/hr (see [Method](#method--evidence)). · **Scope:** discovery only — this is a vetted menu,
 not an implementation. Every "is the data there?" claim below is backed by a live trial query against
 real TBC SSC/TK reports.
 
 This audit systematically diffs **what the WCL API exposes** against **what our pipeline actually
-queries**, then ranks the gap by the [product soul](../PRODUCT_MANAGER_SOUL.md): does it reveal an
-*actionable gap*, with a *clean* better/worse signal, ideally from a *new modality* of data — and is
+queries**, then ranks each candidate by the [product soul](../PRODUCT_MANAGER_SOUL.md): what **leader
+decision** does it serve, is the gap big enough to **matter**, is it a *clean* signal and **legible** — and is
 it actually *populated in TBC* (a schema field ≠ usable data).
 
 ---

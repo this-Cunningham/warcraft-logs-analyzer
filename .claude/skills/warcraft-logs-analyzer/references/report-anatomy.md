@@ -15,8 +15,8 @@ literal `/*__DATA__*/null`. Seven top-level tabs, a funnel:
 | **Optimize** | How each raider's rotation compares to the world best |
 | **Trash** | How we handle trash packs |
 
-Every section compares ours vs benchmark with a delta; weak/ambiguous metrics are
-deliberately omitted (see `PRODUCT_MANAGER_SOUL.md`). Symbols below are
+Most sections compare ours vs benchmark with a delta (B is whatever's loaded — a better
+guild or your own past raid; some checks are absolute, no B); weak/ambiguous or hard-to-read metrics are deliberately omitted (the soul's accuracy + legibility floors — see `PRODUCT_MANAGER_SOUL.md`). Symbols below are
 `build_deepdive.py` Python builders → `report.html` JS renderers, unless noted.
 
 ---

@@ -1,6 +1,8 @@
 # Positioning — Feature Brainstorm
 
 > Auto-generated from a multi-agent brainstorm + adversarial KEEP / SHARPEN / CUT filter over the Warcraft Logs positional dimension (`events(includeResources:true)`). 47 ideas were generated across 7 lenses; this doc keeps the **32 that survived** the filter (the 15 cuts have been removed). Section 1 is the decision-ready synthesis; Appendices A-B list every surviving idea.
+>
+> **⚠ Predates the 2026-06-05 soul rewrite** ([`PRODUCT_MANAGER_SOUL.md`](PRODUCT_MANAGER_SOUL.md)). This doc was built *data-first* — "here's the positioning modality, what could it unlock?" — which the current soul names the **cool-data trap**. Treat it as a raw idea catalog, NOT a model for how to brainstorm. Before building any item, re-frame it through the new soul: lead with the **leader decision** it serves, gate it on **magnitude** (would fixing it move a real outcome?), and hold it to the **legibility** floor. The "leverage" tiers and any "new modality unlocks…" framing below reflect the older soul and the now-killed new-data-nook bonus — don't take them at face value.
 
 ---
 

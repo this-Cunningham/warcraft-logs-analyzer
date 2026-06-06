@@ -1,0 +1,72 @@
+{
+  "enc": 100730,
+  "durMs": 447919,
+  "startMs": 1930378,
+  "targets": [
+    {
+      "name": "Al'ar",
+      "activeMs": 446318,
+      "debuffs": {
+        "Consecration": 8603,
+        "Curse of Recklessness": 239997,
+        "Curse of the Elements": 350080,
+        "Deadly Poison VII": 261982,
+        "Deep Wounds": 314597,
+        "Demoralizing Shout": 213789,
+        "Drain Soul": 1277,
+        "Expose Armor": 248008,
+        "Expose Weakness": 218115,
+        "Faerie Fire": 361171,
+        "Force of Nature": 6010,
+        "Gift of Arthas": 415332,
+        "Growl": 12005,
+        "Hunter's Mark": 408199,
+        "Insect Swarm": 72026,
+        "Judgement of Wisdom": 121085,
+        "Lacerate": 277988,
+        "Mangle (Bear)": 150490,
+        "Mind Flay": 120977,
+        "Misery": 374429,
+        "Moonfire": 289460,
+        "Mortal Strike": 233351,
+        "Righteous Defense": 3003,
+        "Rupture": 92779,
+        "Scorpid Sting": 40015,
+        "Serpent Sting": 202911,
+        "Shadow Weaving": 383004,
+        "Shadow Word: Pain": 343157,
+        "Shadow and Flame": 251618,
+        "Shadowburn": 8485,
+        "Stormstrike": 108101,
+        "Sunder Armor": 90566,
+        "Taunt": 12034,
+        "Thunder Clap": 59994,
+        "Vampiric Embrace": 398892,
+        "Vampiric Touch": 295834
+      }
+    },
+    {
+      "name": "Ember of Al'ar",
+      "activeMs": 408954,
+      "debuffs": {
+        "Consecration": 143574,
+        "Deep Wounds": 13510,
+        "Expose Weakness": 21026,
+        "Faerie Fire": 40008,
+        "Gift of Arthas": 81755,
+        "Mind Flay": 2532,
+        "Misery": 21804,
+        "Moonfire": 22789,
+        "Righteous Defense": 6006,
+        "Seed of Corruption": 3055,
+        "Shadow Weaving": 17809,
+        "Shadow Word: Pain": 21824,
+        "Shadow and Flame": 24025,
+        "Sunder Armor": 34789,
+        "Taunt": 3003,
+        "Vampiric Touch": 6439,
+        "War Stomp": 2004
+      }
+    }
+  ]
+}

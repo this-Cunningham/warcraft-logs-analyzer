@@ -453,6 +453,98 @@ def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, abil
     }
 
 
+def _page_enemy_debuffs(code, fid, start, end, cap_pages=20):
+    """Yield every ENEMY-target debuff event (apply/refresh/remove) on one fight. `hostilityType:Enemies`
+    is the ONLY filter that surfaces raid-applied debuffs landing ON enemies (the aggregate Debuffs table
+    pools them with no per-target split, and the targetID/filterExpression table args are silently ignored;
+    verified live 2026-06-06). Paginated via nextPageTimestamp."""
+    q = ("query E($c:String!,$f:[Int]!,$s:Float!,$e:Float!){reportData{report(code:$c){"
+         "events(dataType:Debuffs,hostilityType:Enemies,fightIDs:$f,startTime:$s,endTime:$e,"
+         "limit:10000){data nextPageTimestamp}}}}")
+    cur = float(start)
+    for _ in range(cap_pages):
+        ev = lib.invoke_query(q, {"c": code, "f": [fid], "s": cur, "e": float(end)})["reportData"]["report"]["events"]
+        for e in (ev.get("data") or []):
+            yield e
+        nxt = ev.get("nextPageTimestamp")
+        if not nxt or nxt <= cur:
+            break
+        cur = float(nxt)
+
+
+def _fetch_enemy_debuffs(code, fid, enc, start, end, npc_id_to_name, ability_names):
+    """Per-ENEMY-TARGET debuff uptime for one boss — the zoom under the aggregate Boss Debuffs. Reconstructs
+    each debuff's on/off intervals per (ability, target, targetInstance) from the enemy-debuff event stream,
+    then rolls instances up by target NAME (stable across raids, unlike per-report ids). Each target also
+    carries its ACTIVE window (first→last debuff event on it) so the build can normalize uptime by the time
+    that enemy was actually engaged — a council add tanked for 40s of a 9-min fight reads ~100%, not ~7%.
+    Deterministic (sorted targets/abilities) so the artifact is byte-stable. durMs is the fight length."""
+    dur = max(1, int(end) - int(start))
+    # (abilityGameID, targetID, targetInstance) -> list of [open_ts, close_ts] intervals
+    open_iv = {}
+    closed = {}
+    span = {}  # targetID -> [firstTs, lastTs] across all its debuff events (active-window proxy)
+
+    def merge(intervals):
+        tot = 0
+        cs = ce = None
+        for s, e in sorted(intervals):
+            if cs is None:
+                cs, ce = s, e
+            elif s <= ce:
+                ce = max(ce, e)
+            else:
+                tot += ce - cs
+                cs, ce = s, e
+        if cs is not None:
+            tot += ce - cs
+        return tot
+
+    for e in _page_enemy_debuffs(code, fid, start, end):
+        g = e.get("abilityGameID")
+        tid = e.get("targetID")
+        ti = e.get("targetInstance", 0)
+        ty = e.get("type")
+        ts = e.get("timestamp")
+        if g is None or tid is None or ts is None:
+            continue
+        sp = span.get(tid)
+        span[tid] = [ts, ts] if sp is None else [min(sp[0], ts), max(sp[1], ts)]
+        k = (g, tid, ti)
+        if ty in ("applydebuff", "applydebuffstack", "refreshdebuff"):
+            open_iv.setdefault(k, ts)
+        elif ty == "removedebuff":
+            if k in open_iv:
+                closed.setdefault((g, tid), []).append((open_iv.pop(k), ts))
+    # close anything still open at fight end
+    for (g, tid, ti), ts in open_iv.items():
+        closed.setdefault((g, tid), []).append((ts, int(end)))
+
+    # roll up per target NAME: uptime per ability + the target's active window
+    by_name = {}
+    for (g, tid), ivs in closed.items():
+        nm = npc_id_to_name.get(tid)
+        if not nm:
+            continue
+        an = ability_names.get(int(g)) if g is not None else None
+        if not an:
+            continue
+        ent = by_name.setdefault(nm, {"debuffs": {}, "spans": []})
+        ent["debuffs"][an] = ent["debuffs"].get(an, 0) + merge(ivs)
+        sp = span.get(tid)
+        if sp:
+            ent["spans"].append(sp)
+
+    targets = []
+    for nm in sorted(by_name):
+        ent = by_name[nm]
+        spans = ent["spans"]
+        active = max(1, max(s[1] for s in spans) - min(s[0] for s in spans)) if spans else dur
+        debuffs = {a: ent["debuffs"][a] for a in sorted(ent["debuffs"])}
+        targets.append({"name": nm, "activeMs": int(active), "debuffs": debuffs})
+    return {"enc": int(enc), "durMs": dur, "startMs": int(start), "targets": targets}
+
+
 # Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,
 # in one cheap call. WCL already splits trash into discrete pulls; enemyNPCs carries the report
 # actor id + game id + how many of each mob, and masterData resolves those ids to names.
@@ -588,6 +680,11 @@ def _fetch_one_boss(code, out_dir, fight, full_encounters, player_ids, ability_n
         positions = _fetch_positions(code, fid, enc, fight["startTime"], fight["endTime"],
                                      fight.get("name"), npc_id_to_name, ability_names)
         _save(positions, os.path.join(out_dir, "positions-{}.json".format(enc)))
+        # Per-enemy-target debuff uptime (the zoom under the aggregate Boss Debuffs — which enemy each key
+        # raid debuff lands on, e.g. a council fight where the curse must follow the kill target).
+        endeb = _fetch_enemy_debuffs(code, fid, enc, fight["startTime"], fight["endTime"],
+                                     npc_id_to_name, ability_names)
+        _save(endeb, os.path.join(out_dir, "enemydebuffs-{}.json".format(enc)))
         # In-combat mana-potion / healthstone usage, per source actor id, from cast EVENTS (untruncated;
         # the Casts table caps each player at 5 abilities, hiding these). Read by per_player_incombat.
         incombat = _incombat_casts(code, fid, fight["startTime"], fight["endTime"], ability_names)
@@ -703,10 +800,14 @@ def fetch_positions_only(code, out_dir, full_encounters):
         pos = _fetch_positions(code, int(fight["id"]), enc, fight["startTime"], fight["endTime"],
                                fight.get("name"), npc_id_to_name, ability_names)
         _save(pos, os.path.join(out_dir, "positions-{}.json".format(enc)))
+        endeb = _fetch_enemy_debuffs(code, int(fight["id"]), enc, fight["startTime"], fight["endTime"],
+                                     npc_id_to_name, ability_names)
+        _save(endeb, os.path.join(out_dir, "enemydebuffs-{}.json".format(enc)))
         b = pos.get("boss")
-        return "[{}]   positions: {} (enc {}) - {} actors, {} adds, boss {}, {} hit-abilities".format(
+        return ("[{}]   positions: {} (enc {}) - {} actors, {} adds, boss {}, {} hit-abilities, "
+                "{} debuff-targets").format(
             code, fight.get("name"), enc, len(pos["actors"]), len(pos.get("adds") or {}),
-            "yes" if b else "NO", len(pos["hitsByAbility"]))
+            "yes" if b else "NO", len(pos["hitsByAbility"]), len(endeb.get("targets") or []))
 
     for line in lib.parallel_map(one, fights):
         if line:

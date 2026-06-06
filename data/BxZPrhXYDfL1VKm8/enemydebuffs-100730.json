@@ -1,0 +1,69 @@
+{
+  "enc": 100730,
+  "durMs": 247457,
+  "startMs": 10292621,
+  "targets": [
+    {
+      "name": "Al'ar",
+      "activeMs": 247282,
+      "debuffs": {
+        "Consecration": 95078,
+        "Corruption": 185044,
+        "Curse of Agony": 51993,
+        "Curse of Doom": 120007,
+        "Curse of Recklessness": 224223,
+        "Curse of the Elements": 223015,
+        "Deadly Poison VII": 173116,
+        "Deep Wounds": 204171,
+        "Demoralizing Screech": 151121,
+        "Demoralizing Shout": 212548,
+        "Expose Armor": 153885,
+        "Expose Weakness": 202992,
+        "Faerie Fire": 223483,
+        "Faerie Fire (Feral)": 818,
+        "Gift of Arthas": 202391,
+        "Growl": 9026,
+        "Hunter's Mark": 132697,
+        "Judgement of Light": 96403,
+        "Judgement of Wisdom": 226107,
+        "Judgement of the Crusader": 226300,
+        "Lacerate": 154232,
+        "Mangle (Bear)": 150673,
+        "Mangle (Cat)": 36029,
+        "Mortal Strike": 176510,
+        "Righteous Defense": 3006,
+        "Rip": 36026,
+        "Rupture": 16009,
+        "Shadow Embrace": 210357,
+        "Shadow and Flame": 140388,
+        "Shadowburn": 1378,
+        "Siphon Life": 128033,
+        "Stormstrike": 116281,
+        "Sunder Armor": 38777,
+        "Target Dummy Spawn Effect": 5546
+      }
+    },
+    {
+      "name": "Ember of Al'ar",
+      "activeMs": 197664,
+      "debuffs": {
+        "Consecration": 102584,
+        "Corruption": 90199,
+        "Curse of the Elements": 89601,
+        "Deadly Poison VII": 14554,
+        "Deep Wounds": 71661,
+        "Demoralizing Screech": 7216,
+        "Demoralizing Shout": 30002,
+        "Expose Weakness": 24030,
+        "Faerie Fire": 4035,
+        "Gift of Arthas": 141154,
+        "Judgement of Wisdom": 28315,
+        "Shadow Embrace": 98681,
+        "Shadow and Flame": 7071,
+        "Siphon Life": 43416,
+        "Stormstrike": 22002,
+        "Target Dummy Spawn Effect": 5931
+      }
+    }
+  ]
+}

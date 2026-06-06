@@ -1,0 +1,41 @@
+{
+  "enc": 100732,
+  "durMs": 66427,
+  "startMs": 10084257,
+  "targets": [
+    {
+      "name": "High Astromancer Solarian",
+      "activeMs": 64559,
+      "debuffs": {
+        "Consecration": 49844,
+        "Corruption": 59269,
+        "Curse of Agony": 24009,
+        "Curse of Doom": 60006,
+        "Curse of Recklessness": 64029,
+        "Curse of the Elements": 64364,
+        "Deadly Poison VII": 51118,
+        "Deep Wounds": 63099,
+        "Demoralizing Screech": 58312,
+        "Demoralizing Shout": 30006,
+        "Expose Armor": 51979,
+        "Expose Weakness": 59982,
+        "Faerie Fire": 62190,
+        "Flame Shock": 40678,
+        "Immolate": 15006,
+        "Insect Swarm": 1836,
+        "Judgement of Wisdom": 63115,
+        "Judgement of the Crusader": 62245,
+        "Mangle (Cat)": 52740,
+        "Mortal Strike": 56981,
+        "Rip": 44981,
+        "Rupture": 16016,
+        "Shadow Embrace": 62909,
+        "Shadow and Flame": 42056,
+        "Shadowburn": 6278,
+        "Siphon Life": 60009,
+        "Stormstrike": 15859,
+        "Sunder Armor": 11970
+      }
+    }
+  ]
+}

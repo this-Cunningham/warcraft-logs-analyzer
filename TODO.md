@@ -78,27 +78,28 @@ missing from would meaningfully change the assignment. If the section already re
 explained by a single target, the zoom earns its place. If the aggregate gap is trivially small, re-rate
 downward.
 
-**Investigation — DONE (verified live against report `pkHqfrBbhQK9GP1a`, Kael'thas, 2026-06-06). Two blockers
-found; BLOCKED on the user's call before building:**
+**IMPLEMENTED (2026-06-06).** Shipped as a per-boss zoom under **Boss Debuffs** ("Debuffs by Enemy Target"),
+ours vs benchmark, grouped by enemy. The first investigation pass wrongly concluded this was blocked — a
+query-escaping bug had `events(dataType:Debuffs, hostilityType:Enemies)` silently returning 0. The correct
+path:
 
-- **Magnitude gate FAILS on the current encounter set.** Computed per-target debuff uptime across *every*
-  enemy NPC on Kael'thas (15 enemies — the most multi-target shared boss in TK/SSC: advisors, weapons,
-  phoenixes). **No debuff lands meaningfully (≥3% uptime) on more than one target** — each debuff concentrates
-  on whichever single target matters at the time. There is no boss-vs-add split to surface, so the zoom would
-  render single-target bars everywhere (no "assignment vs throughput" lever). Void Reaver / Al'ar have no
-  debuff-absorbing adds at all; Solarian's Solarium Agents die too fast to hold a debuff.
-- **The per-target data isn't cleanly/accurately available.** (1) The aggregate Debuffs table has no
-  `targetID`. (2) The `targetID` arg on `table(dataType:Debuffs)` is silently ignored — returns empty auras
-  for every enemy. (3) Per-target *events* (`events(dataType:Debuffs, targetID:N)`, which DO work per target)
-  return an **incomplete set that omits the key raid debuffs** (Sunder Armor, Expose Armor, Curse of the
-  Elements, Judgement of Wisdom never appear in the per-target event stream, though the aggregate table shows
-  them at high uptime). So reconstructed per-target uptime would **not reconcile** with the aggregate the rest
-  of the report trusts — an accuracy-floor violation (numbers that contradict the section above them).
-
-**Recommendation:** re-rate this DOWN / park it — on TBC TK+SSC the lever doesn't exist in the data, and the
-per-target reconstruction can't be made to reconcile with the trusted aggregate. Revisit only on a tier with a
-genuine multi-target debuff assignment (e.g. a council fight where the raid splits Sunder across live targets)
-*and* a WCL path whose per-target sum matches the aggregate table.
+- **Data source:** `events(dataType:Debuffs, hostilityType:Enemies)` — ONE paginated sweep per boss surfaces
+  every raid-applied debuff landing on enemies (verified: 2453 events on Kael'thas, all player-sourced). The
+  aggregate Debuffs table has no per-target split, and the `targetID` / `filterExpression` table args are
+  silently ignored — but the enemy-hostility event stream carries `targetID` + `targetInstance` per event.
+- **Pipeline:** `fetch_report._fetch_enemy_debuffs` reconstructs each debuff's on/off intervals per (ability,
+  target, instance), rolls them up by target NAME (stable across raids), and stores `enemydebuffs-<enc>.json`
+  with each target's ACTIVE window. `build_deepdive.per_target_debuffs` normalizes uptime to that engaged
+  window (so a briefly-tanked council add reads "how well we held the debuff WHILE we fought it," not against
+  the whole fight), keyed to `KEY_DEBUFFS`, only emitting when ≥2 enemies carry a key debuff (single-target
+  bosses fall back to the aggregate bar). Capped to the 6 worst-deficit targets so a phased fight isn't a data
+  dump. `report.html` `targetDebuffsView` renders it with `mirrorGrid` grouped by target.
+- **Accuracy note:** per-target uptime is framed as "% of time engaged on THIS enemy," NOT as a decomposition
+  that sums to the aggregate `totalUptime` (which is union-style across targets) — so the two are honestly
+  different measures, no contradiction.
+- **Magnitude confirmed real:** Al'ar — Judgement of the Crusader 0% (ours) vs 92% (benchmark) on the boss;
+  Solarian — Judgement of Wisdom 21% vs 98%; Kael'thas — the benchmark holds Curse of the Elements ~90% on the
+  weapons while we sit at 0%. Exactly the assignment lever the zoom was meant to surface.
 
 ---
 

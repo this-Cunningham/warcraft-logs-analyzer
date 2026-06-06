@@ -806,7 +806,7 @@ function execPanel(b){
   const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
   const body={
     timeline:b.timeline?timelineChart(b):"",
-    buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
+    buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}${targetDebuffsView(b)}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
     specdps:specDpsView(b),
     dmg:topSources(b),
     deaths:deathsView(b),
@@ -1516,6 +1516,22 @@ function uptimeCompare(rows,label){
   return mirrorGrid(rows,{label:label||"Uptime %", max:100,
     ours:r=>r.o, theirs:r=>r.t, name:r=>esc(r.name),
     delta:r=>dDelta(r.o,r.t,v=>Math.round(v),"%",false)});
+}
+// Per-enemy-target debuff zoom (under the aggregate Boss Debuffs) — which enemy each key debuff landed on,
+// ours vs benchmark, grouped by target. Uptime is % of the time that enemy was ENGAGED, so a briefly-tanked
+// council add reads how well the debuff was held WHILE fought, not diluted by the whole fight. Only present
+// when the boss has a real multi-target split (the builder returns [] otherwise).
+function targetDebuffsView(b){
+  const groups=asArr(b.targetDebuffs);
+  if(!groups.length) return "";
+  const rows=[];
+  for(const g of groups){ for(const r of asArr(g.rows)){ rows.push({target:g.target,name:r.name,o:r.ours,t:r.theirs}); } }
+  if(!rows.length) return "";
+  return `<div style="margin-top:16px"><h4>Debuffs by Enemy Target<span class="xp">Experimental</span><span class="hint" style="display:block">Which enemy each key debuff actually landed on, ours vs the benchmark — uptime as a share of the time that enemy was <b>engaged</b> (so a briefly-tanked council add reads how well you held the debuff <i>while you fought it</i>, not against the whole fight). A gap on the kill target is an assignment lever: put someone on keeping it up there. Higher is better. <b>Experimental.</b></span></h4>`
+    + mirrorGrid(rows,{label:"Debuff uptime % (of time engaged)", max:100,
+        ours:r=>r.o, theirs:r=>r.t, name:r=>esc(r.name), group:r=>r.target,
+        delta:r=>dDelta(r.o,r.t,v=>Math.round(v),"%",false)})
+    + `</div>`;
 }
 
 // The damage-taken toggle lives on Execution (Output Quality) but also drives the per-boss damage

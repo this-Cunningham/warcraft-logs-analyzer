@@ -1715,6 +1715,66 @@ def tier_uptime_gap(acc):
     return rows
 
 
+def load_enemy_debuffs(directory, enc):
+    """enemydebuffs-<enc>.json for one boss (per-enemy-target debuff uptime), or None if absent."""
+    p = os.path.join(directory, "enemydebuffs-{}.json".format(enc))
+    if not os.path.isfile(p):
+        return None
+    try:
+        return read_json(p)
+    except (OSError, ValueError):
+        return None
+
+
+def per_target_debuffs(o_dir, t_dir, enc):
+    """The ZOOM under the aggregate Boss Debuffs: which specific ENEMY each KEY raid debuff lands on, ours vs
+    benchmark, for one boss. Uptime is normalized to each target's ACTIVE window (the time that enemy was
+    engaged), not the whole fight — so a council add tanked for 40s reads "how well we held the curse WHILE we
+    fought it," the honest grain. Targets are matched across raids by NAME. Only surfaced when there's a real
+    multi-target split (≥2 distinct enemies carry a key debuff) — on a single-target boss the aggregate bar
+    already says everything and this would just repeat it. Returns a list of per-target groups, each with the
+    key-debuff rows present on it (ours/theirs % of that enemy's active window), or [] when there's no split."""
+    o = load_enemy_debuffs(o_dir, enc)
+    t = load_enemy_debuffs(t_dir, enc)
+    if not o and not t:
+        return []
+
+    def by_name(side):
+        return {tg["name"]: tg for tg in ((side or {}).get("targets") or [])}
+    om, tm = by_name(o), by_name(t)
+
+    def upt(tg, ability):
+        if not tg:
+            return None
+        active = tg.get("activeMs") or 0
+        ms = (tg.get("debuffs") or {}).get(ability)
+        if not active or ms is None:
+            return None
+        return min(100, round(ms / active * 100))
+
+    groups = []
+    for nm in sorted(set(om) | set(tm)):
+        o_tg, t_tg = om.get(nm), tm.get(nm)
+        rows = []
+        for ability in KEY_DEBUFFS:
+            o_u, t_u = upt(o_tg, ability), upt(t_tg, ability)
+            if (o_u or 0) < 5 and (t_u or 0) < 5:
+                continue  # neither raid meaningfully held this debuff on this enemy
+            rows.append({"name": ability, "ours": o_u or 0, "theirs": t_u or 0,
+                         "deficit": (t_u or 0) - (o_u or 0)})
+        if rows:
+            rows.sort(key=lambda r: -r["deficit"])
+            groups.append({"target": nm, "rows": rows})
+    # Only a real split is worth the zoom: a single enemy carrying the debuffs == the aggregate bar already.
+    if len(groups) < 2:
+        return []
+    # Rank targets by the biggest single deficit on them (where coverage most slipped vs the benchmark), and
+    # cap to the worst few — a phased fight (Kael'thas weapons) can field a dozen enemies; showing them all is
+    # a data dump. The top offenders carry the lever; the rest repeat it.
+    groups.sort(key=lambda g: -max(r["deficit"] for r in g["rows"]))
+    return groups[:6]
+
+
 def tier_debuff_timing(acc):
     """Debuff RAMP + CONTINUITY across the shared bosses — EXPERIMENTAL. Per key debuff, average the
     establish-time (sec into fight before it first lands) and the longest continuous gap, ours vs theirs,
@@ -3793,6 +3853,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
                                 theirs_spec, theirs_role, theirs_cls, o_dur, t_dur),
             "buffs": buff_rows, "debuffs": debuff_rows,
+            # Per-enemy-target debuff zoom (which enemy each key debuff lands on, ours vs theirs); [] unless
+            # the boss has a real multi-target split (e.g. Kael'thas council). Renders under Boss Debuffs.
+            "targetDebuffs": per_target_debuffs(ours_dir, theirs_dir, enc),
             "oursActivity": activity_pct(o_b, o_dur, ours_dps), "theirsActivity": activity_pct(t_b, t_dur, theirs_dps),
             "oursOverheal": overheal_pct(o_b, ours_heal), "theirsOverheal": overheal_pct(t_b, theirs_heal),
             "oursDmgTaken": o_dmg, "theirsDmgTaken": t_dmg,

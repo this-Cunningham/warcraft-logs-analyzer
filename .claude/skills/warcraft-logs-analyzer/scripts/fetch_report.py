@@ -25,6 +25,7 @@ Writes:
 
 import argparse
 import json
+import math
 import os
 import sys
 
@@ -246,6 +247,7 @@ _POS_BIN_TARGET_MS = 2000.0   # aim ~2s per time bin (per-bin median position = 
 _POS_MIN_BINS, _POS_MAX_BINS = 20, 200
 _POS_HIT_CAP = 800            # max hit positions kept per ability (enough for a dense scatter/heatmap)
 _POS_HIT_MIN = 4              # drop abilities hit fewer times than this (noise, no spatial signal)
+_POS_ADD_MIN = 12            # drop enemy NPC (add) tracks with fewer position samples than this (noise)
 
 
 def _resolve_boss_actor_id(npc_id_to_name, boss_name):
@@ -263,9 +265,11 @@ def _resolve_boss_actor_id(npc_id_to_name, boss_name):
 
 
 def _page_resourced(code, fid, data_type, extra="", cap_pages=12):
-    """Yield (timestamp, positioned_actor_id, x, y, targetID, abilityGameID) for every RESOURCED event of
-    one type on one fight. resourceActor picks which actor the x/y describe: 1=source, 2=target. Miss/dodge
-    events carry no resources (guard `x`). Paginated via nextPageTimestamp; single-page on TBC fight lengths."""
+    """Yield (timestamp, positioned_actor_id, x, y, targetID, abilityGameID, facing) for every RESOURCED event
+    of one type on one fight. resourceActor picks which actor the x/y (and `facing`) describe: 1=source,
+    2=target. `facing` is centiradians (rad x100; decode heading=-facing/100) and rides every resourced event,
+    so its coverage equals position coverage. Miss/dodge events carry no resources (guard `x`). Paginated via
+    nextPageTimestamp; single-page on TBC fight lengths."""
     q = ("query P($c:String!,$f:[Int]!,$s:Float!){reportData{report(code:$c){"
          "events(dataType:" + data_type + ",hostilityType:Friendlies,fightIDs:$f,"
          "includeResources:true,startTime:$s,limit:10000" + extra + "){data nextPageTimestamp}}}}")
@@ -279,7 +283,8 @@ def _page_resourced(code, fid, data_type, extra="", cap_pages=12):
             aid = e.get("sourceID") if ra == 1 else e.get("targetID") if ra == 2 else None
             if aid is None:
                 continue
-            yield (e.get("timestamp"), aid, e["x"], e["y"], e.get("targetID"), e.get("abilityGameID"))
+            yield (e.get("timestamp"), aid, e["x"], e["y"], e.get("targetID"),
+                   e.get("abilityGameID"), e.get("facing"))
         nxt = ev.get("nextPageTimestamp")
         if not nxt or nxt <= start:
             break
@@ -295,10 +300,30 @@ def _median(vals):
     return s[m] if n % 2 else (s[m - 1] + s[m]) / 2.0
 
 
+def _mean_heading(facings):
+    """Circular-mean heading (radians) from raw `facing` centiradian samples in one bin; None if all absent.
+    Decode each (heading = -facing/100), then average via atan2(sum sin, sum cos) so the wraparound at +/-pi is
+    handled (a plain median of angles would be wrong across the seam). Rounded to milliradians so the cached
+    artifact stays byte-stable."""
+    sx = sy = 0.0
+    n = 0
+    for f in facings:
+        if f is None:
+            continue
+        h = -float(f) / 100.0
+        sx += math.cos(h)
+        sy += math.sin(h)
+        n += 1
+    if not n:
+        return None
+    return round(math.atan2(sy, sx), 3)
+
+
 def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, ability_names):
-    """Build positions-<enc>.json for one shared boss: per-actor time-binned positions, the boss anchor
-    track, and per-ability hit positions for the scatter/heatmap. Deterministic (median per bin, abilities
-    sorted, hit lists capped in timestamp order) so the cached artifact is byte-stable."""
+    """Build positions-<enc>.json for one shared boss: per-actor time-binned positions AND per-bin heading
+    (facing), the boss anchor track (+ facing), the enemy-NPC "add" tracks (+ facing), and per-ability hit
+    positions for the scatter/heatmap. Deterministic (median per bin, abilities sorted, hit lists capped in
+    timestamp order) so the cached artifact is byte-stable. Headings are circular-mean per bin, in radians."""
     dur = max(1, int(end) - int(start))
     n_bins = max(_POS_MIN_BINS, min(_POS_MAX_BINS, round(dur / _POS_BIN_TARGET_MS)))
     bin_ms = dur / n_bins
@@ -307,19 +332,25 @@ def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, abil
     def bin_of(ts):
         return min(max(int((int(ts) - int(start)) // bin_ms), 0), n_bins - 1)
 
-    # actor id -> {bin -> [(x,y), ...]}; filled from DamageTaken (player targets) + Casts (player sources)
-    # and, for the boss id, DamageDone-to-boss (boss targets).
+    # actor id -> {bin -> [(x,y), ...]} (positions) + {bin -> [facing, ...]} (headings), filled from
+    # DamageTaken (player targets) + Casts (player sources). Facing rides every resourced event.
     samp = {}
+    face = {}
     hits = {}  # ability name -> [(ts,[x,y,tid]), ...] (capped, timestamp order)
 
-    def add(aid, ts, x, y):
+    def add(aid, ts, x, y, fac):
         d = samp.get(aid)
         if d is None:
             d = samp[aid] = {}
         d.setdefault(bin_of(ts), []).append((x, y))
+        if fac is not None:
+            f = face.get(aid)
+            if f is None:
+                f = face[aid] = {}
+            f.setdefault(bin_of(ts), []).append(fac)
 
-    for ts, aid, x, y, tid, _gid in _page_resourced(code, fid, "DamageTaken"):
-        add(aid, ts, x, y)
+    for ts, aid, x, y, tid, _gid, fac in _page_resourced(code, fid, "DamageTaken"):
+        add(aid, ts, x, y, fac)
         # Per-ability hit positions (the ability that LANDED, resolved to its name so it joins the
         # build's name-keyed avoidable-damage gap). aid here is the target (the player who got hit).
         gid = _gid
@@ -328,24 +359,48 @@ def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, abil
             lst = hits.setdefault(nm, [])
             if len(lst) < _POS_HIT_CAP:
                 lst.append((ts, [int(round(x)), int(round(y)), tid]))
-    for ts, aid, x, y, _tid, _gid in _page_resourced(code, fid, "Casts"):
-        add(aid, ts, x, y)
-    boss_bins = None
-    if boss_id is not None:
-        bsamp = {}
-        for ts, aid, x, y, _tid, _gid in _page_resourced(
-                code, fid, "DamageDone", extra=",targetID:{}".format(int(boss_id))):
-            if aid == boss_id:
-                bsamp.setdefault(bin_of(ts), []).append((x, y))
-        boss_bins = [None] * n_bins
-        for bi, pts in bsamp.items():
-            boss_bins[bi] = [round(_median([p[0] for p in pts])), round(_median([p[1] for p in pts]))]
+    for ts, aid, x, y, _tid, _gid, fac in _page_resourced(code, fid, "Casts"):
+        add(aid, ts, x, y, fac)
 
     def median_track(per_bin):
         out = [None] * n_bins
         for bi, pts in per_bin.items():
             out[bi] = [round(_median([p[0] for p in pts])), round(_median([p[1] for p in pts]))]
         return out
+
+    def heading_track(per_bin):
+        out = [None] * n_bins
+        for bi, fs in (per_bin or {}).items():
+            out[bi] = _mean_heading(fs)
+        return out
+
+    # Boss anchor track (+ facing) from the targeted DamageDone-to-boss sweep (cheap, reliable).
+    boss_bins = None
+    boss_face = None
+    if boss_id is not None:
+        bsamp = {}
+        bface = {}
+        for ts, aid, x, y, _tid, _gid, fac in _page_resourced(
+                code, fid, "DamageDone", extra=",targetID:{}".format(int(boss_id))):
+            if aid == boss_id:
+                bsamp.setdefault(bin_of(ts), []).append((x, y))
+                if fac is not None:
+                    bface.setdefault(bin_of(ts), []).append(fac)
+        boss_bins = median_track(bsamp)
+        boss_face = heading_track(bface)
+
+    # Enemy-NPC "add" tracks (+ facing) — a dedicated UNTARGETED DamageDone sweep surfaces every hostile NPC
+    # as a resourced target; we keep the non-boss NPCs (id in npc_id_to_name) so cleave/cone-threat geometry
+    # can be drawn. Capped pages (this sweep is wider than the targeted boss one); short-lived adds below the
+    # sample floor are dropped as noise. Players (not in npc_id_to_name) are ignored here.
+    asamp = {}
+    aface = {}
+    for ts, aid, x, y, _tid, _gid, fac in _page_resourced(code, fid, "DamageDone", cap_pages=16):
+        if aid == boss_id or aid not in npc_id_to_name:
+            continue
+        asamp.setdefault(aid, {}).setdefault(bin_of(ts), []).append((x, y))
+        if fac is not None:
+            aface.setdefault(aid, {}).setdefault(bin_of(ts), []).append(fac)
 
     actors = {}
     all_x, all_y = [], []
@@ -354,13 +409,28 @@ def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, abil
             continue  # the boss rides in `boss`, not the per-player actor map
         track = median_track(per_bin)
         cnt = sum(len(v) for v in per_bin.values())
-        actors[str(aid)] = {"bins": track, "n": cnt}
+        actors[str(aid)] = {"bins": track, "n": cnt, "facing": heading_track(face.get(aid))}
         for p in track:
             if p:
                 all_x.append(p[0])
                 all_y.append(p[1])
     if boss_bins:
         for p in boss_bins:
+            if p:
+                all_x.append(p[0])
+                all_y.append(p[1])
+
+    # Adds: id-keyed (sorted for byte-stability), each with name + bins + facing, dropping noise-count tracks.
+    adds = {}
+    for aid in sorted(asamp):
+        per_bin = asamp[aid]
+        cnt = sum(len(v) for v in per_bin.values())
+        if cnt < _POS_ADD_MIN:
+            continue
+        track = median_track(per_bin)
+        adds[str(aid)] = {"name": npc_id_to_name.get(aid), "bins": track, "n": cnt,
+                          "facing": heading_track(aface.get(aid))}
+        for p in track:
             if p:
                 all_x.append(p[0])
                 all_y.append(p[1])
@@ -377,9 +447,102 @@ def _fetch_positions(code, fid, enc, start, end, boss_name, npc_id_to_name, abil
         frame = {"minX": min(all_x), "maxX": max(all_x), "minY": min(all_y), "maxY": max(all_y)}
     return {
         "enc": int(enc), "durMs": dur, "startMs": int(start), "nBins": n_bins, "binMs": round(bin_ms, 2),
-        "boss": ({"id": int(boss_id), "name": boss_name, "bins": boss_bins} if boss_bins else None),
-        "actors": actors, "hitsByAbility": hits_out, "frame": frame,
+        "boss": ({"id": int(boss_id), "name": boss_name, "bins": boss_bins, "facing": boss_face}
+                 if boss_bins else None),
+        "actors": actors, "adds": adds, "hitsByAbility": hits_out, "frame": frame,
     }
+
+
+def _page_enemy_debuffs(code, fid, start, end, cap_pages=20):
+    """Yield every ENEMY-target debuff event (apply/refresh/remove) on one fight. `hostilityType:Enemies`
+    is the ONLY filter that surfaces raid-applied debuffs landing ON enemies (the aggregate Debuffs table
+    pools them with no per-target split, and the targetID/filterExpression table args are silently ignored;
+    verified live 2026-06-06). Paginated via nextPageTimestamp."""
+    q = ("query E($c:String!,$f:[Int]!,$s:Float!,$e:Float!){reportData{report(code:$c){"
+         "events(dataType:Debuffs,hostilityType:Enemies,fightIDs:$f,startTime:$s,endTime:$e,"
+         "limit:10000){data nextPageTimestamp}}}}")
+    cur = float(start)
+    for _ in range(cap_pages):
+        ev = lib.invoke_query(q, {"c": code, "f": [fid], "s": cur, "e": float(end)})["reportData"]["report"]["events"]
+        for e in (ev.get("data") or []):
+            yield e
+        nxt = ev.get("nextPageTimestamp")
+        if not nxt or nxt <= cur:
+            break
+        cur = float(nxt)
+
+
+def _fetch_enemy_debuffs(code, fid, enc, start, end, npc_id_to_name, ability_names):
+    """Per-ENEMY-TARGET debuff uptime for one boss — the zoom under the aggregate Boss Debuffs. Reconstructs
+    each debuff's on/off intervals per (ability, target, targetInstance) from the enemy-debuff event stream,
+    then rolls instances up by target NAME (stable across raids, unlike per-report ids). Each target also
+    carries its ACTIVE window (first→last debuff event on it) so the build can normalize uptime by the time
+    that enemy was actually engaged — a council add tanked for 40s of a 9-min fight reads ~100%, not ~7%.
+    Deterministic (sorted targets/abilities) so the artifact is byte-stable. durMs is the fight length."""
+    dur = max(1, int(end) - int(start))
+    # (abilityGameID, targetID, targetInstance) -> list of [open_ts, close_ts] intervals
+    open_iv = {}
+    closed = {}
+    span = {}  # targetID -> [firstTs, lastTs] across all its debuff events (active-window proxy)
+
+    def merge(intervals):
+        tot = 0
+        cs = ce = None
+        for s, e in sorted(intervals):
+            if cs is None:
+                cs, ce = s, e
+            elif s <= ce:
+                ce = max(ce, e)
+            else:
+                tot += ce - cs
+                cs, ce = s, e
+        if cs is not None:
+            tot += ce - cs
+        return tot
+
+    for e in _page_enemy_debuffs(code, fid, start, end):
+        g = e.get("abilityGameID")
+        tid = e.get("targetID")
+        ti = e.get("targetInstance", 0)
+        ty = e.get("type")
+        ts = e.get("timestamp")
+        if g is None or tid is None or ts is None:
+            continue
+        sp = span.get(tid)
+        span[tid] = [ts, ts] if sp is None else [min(sp[0], ts), max(sp[1], ts)]
+        k = (g, tid, ti)
+        if ty in ("applydebuff", "applydebuffstack", "refreshdebuff"):
+            open_iv.setdefault(k, ts)
+        elif ty == "removedebuff":
+            if k in open_iv:
+                closed.setdefault((g, tid), []).append((open_iv.pop(k), ts))
+    # close anything still open at fight end
+    for (g, tid, ti), ts in open_iv.items():
+        closed.setdefault((g, tid), []).append((ts, int(end)))
+
+    # roll up per target NAME: uptime per ability + the target's active window
+    by_name = {}
+    for (g, tid), ivs in closed.items():
+        nm = npc_id_to_name.get(tid)
+        if not nm:
+            continue
+        an = ability_names.get(int(g)) if g is not None else None
+        if not an:
+            continue
+        ent = by_name.setdefault(nm, {"debuffs": {}, "spans": []})
+        ent["debuffs"][an] = ent["debuffs"].get(an, 0) + merge(ivs)
+        sp = span.get(tid)
+        if sp:
+            ent["spans"].append(sp)
+
+    targets = []
+    for nm in sorted(by_name):
+        ent = by_name[nm]
+        spans = ent["spans"]
+        active = max(1, max(s[1] for s in spans) - min(s[0] for s in spans)) if spans else dur
+        debuffs = {a: ent["debuffs"][a] for a in sorted(ent["debuffs"])}
+        targets.append({"name": nm, "activeMs": int(active), "debuffs": debuffs})
+    return {"enc": int(enc), "durMs": dur, "startMs": int(start), "targets": targets}
 
 
 # Trash structure: every trash pull segment (with the NPCs in it) + the NPC name master data,
@@ -517,6 +680,11 @@ def _fetch_one_boss(code, out_dir, fight, full_encounters, player_ids, ability_n
         positions = _fetch_positions(code, fid, enc, fight["startTime"], fight["endTime"],
                                      fight.get("name"), npc_id_to_name, ability_names)
         _save(positions, os.path.join(out_dir, "positions-{}.json".format(enc)))
+        # Per-enemy-target debuff uptime (the zoom under the aggregate Boss Debuffs — which enemy each key
+        # raid debuff lands on, e.g. a council fight where the curse must follow the kill target).
+        endeb = _fetch_enemy_debuffs(code, fid, enc, fight["startTime"], fight["endTime"],
+                                     npc_id_to_name, ability_names)
+        _save(endeb, os.path.join(out_dir, "enemydebuffs-{}.json".format(enc)))
         # In-combat mana-potion / healthstone usage, per source actor id, from cast EVENTS (untruncated;
         # the Casts table caps each player at 5 abilities, hiding these). Read by per_player_incombat.
         incombat = _incombat_casts(code, fid, fight["startTime"], fight["endTime"], ability_names)
@@ -632,10 +800,14 @@ def fetch_positions_only(code, out_dir, full_encounters):
         pos = _fetch_positions(code, int(fight["id"]), enc, fight["startTime"], fight["endTime"],
                                fight.get("name"), npc_id_to_name, ability_names)
         _save(pos, os.path.join(out_dir, "positions-{}.json".format(enc)))
+        endeb = _fetch_enemy_debuffs(code, int(fight["id"]), enc, fight["startTime"], fight["endTime"],
+                                     npc_id_to_name, ability_names)
+        _save(endeb, os.path.join(out_dir, "enemydebuffs-{}.json".format(enc)))
         b = pos.get("boss")
-        return "[{}]   positions: {} (enc {}) - {} actors, boss {}, {} hit-abilities".format(
-            code, fight.get("name"), enc, len(pos["actors"]),
-            "yes" if b else "NO", len(pos["hitsByAbility"]))
+        return ("[{}]   positions: {} (enc {}) - {} actors, {} adds, boss {}, {} hit-abilities, "
+                "{} debuff-targets").format(
+            code, fight.get("name"), enc, len(pos["actors"]), len(pos.get("adds") or {}),
+            "yes" if b else "NO", len(pos["hitsByAbility"]), len(endeb.get("targets") or []))
 
     for line in lib.parallel_map(one, fights):
         if line:

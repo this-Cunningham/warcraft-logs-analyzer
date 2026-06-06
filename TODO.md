@@ -78,6 +78,29 @@ missing from would meaningfully change the assignment. If the section already re
 explained by a single target, the zoom earns its place. If the aggregate gap is trivially small, re-rate
 downward.
 
+**IMPLEMENTED (2026-06-06).** Shipped as a per-boss zoom under **Boss Debuffs** ("Debuffs by Enemy Target"),
+ours vs benchmark, grouped by enemy. The first investigation pass wrongly concluded this was blocked — a
+query-escaping bug had `events(dataType:Debuffs, hostilityType:Enemies)` silently returning 0. The correct
+path:
+
+- **Data source:** `events(dataType:Debuffs, hostilityType:Enemies)` — ONE paginated sweep per boss surfaces
+  every raid-applied debuff landing on enemies (verified: 2453 events on Kael'thas, all player-sourced). The
+  aggregate Debuffs table has no per-target split, and the `targetID` / `filterExpression` table args are
+  silently ignored — but the enemy-hostility event stream carries `targetID` + `targetInstance` per event.
+- **Pipeline:** `fetch_report._fetch_enemy_debuffs` reconstructs each debuff's on/off intervals per (ability,
+  target, instance), rolls them up by target NAME (stable across raids), and stores `enemydebuffs-<enc>.json`
+  with each target's ACTIVE window. `build_deepdive.per_target_debuffs` normalizes uptime to that engaged
+  window (so a briefly-tanked council add reads "how well we held the debuff WHILE we fought it," not against
+  the whole fight), keyed to `KEY_DEBUFFS`, only emitting when ≥2 enemies carry a key debuff (single-target
+  bosses fall back to the aggregate bar). Capped to the 6 worst-deficit targets so a phased fight isn't a data
+  dump. `report.html` `targetDebuffsView` renders it with `mirrorGrid` grouped by target.
+- **Accuracy note:** per-target uptime is framed as "% of time engaged on THIS enemy," NOT as a decomposition
+  that sums to the aggregate `totalUptime` (which is union-style across targets) — so the two are honestly
+  different measures, no contradiction.
+- **Magnitude confirmed real:** Al'ar — Judgement of the Crusader 0% (ours) vs 92% (benchmark) on the boss;
+  Solarian — Judgement of Wisdom 21% vs 98%; Kael'thas — the benchmark holds Curse of the Elements ~90% on the
+  weapons while we sit at 0%. Exactly the assignment lever the zoom was meant to surface.
+
 ---
 
 ## TODO: Cooldown & Trinket Usage — per-cooldown mirror bars, class label above group
@@ -291,3 +314,41 @@ starting with the two that need new sub-row logic (CD Usage, threat pulls) since
 abstraction. The existing `topSources` and `uptimeCompare` functions can be re-expressed as thin wrappers
 around `mirrorGrid` or left as-is — don't refactor them for its own sake, only when touching them for
 another reason.
+
+---
+
+## TODO: BUG — CD & Trinket Usage breakdown numbers don't add up to the spec total
+
+> bug COOLDOWN & TRINKET USAGE — BY SPEC, it seems the breakdown numbers dont add up to the overall number?
+
+**The bug:** in the CD & Trinket Usage section, the per-cooldown sub-rows (`byAbility` entries — each ability's
+ours/min and theirs/min) do not sum to the spec-level activation rate shown in the anchor row above them. A
+leader comparing "Paladin total" to "Holy Light + Divine Shield + ..." can see the numbers don't reconcile,
+which breaks trust in both.
+
+**Likely cause:** `cd_usage_pool()` in `build_deepdive.py` builds the spec total (`r.ours`, `r.theirs`) and
+the `byAbility` list in separate passes — or the spec total counts all tracked CD activations for that spec
+combined (including CDs that only appear in one of the two raids), while `byAbility` is filtered to a subset
+(e.g. only CDs present in both raids, or only trailing ones). If the total includes abilities not in
+`byAbility`, or the two use different fight-length normalizations, the numbers will never reconcile.
+
+**Fix:** verify whether `r.ours`/`r.theirs` at the spec level is derived as the sum of `byAbility` values or
+computed independently in the builder. If independently, either (a) make the spec total *exactly* the sum of
+the listed sub-rows, or (b) clearly label what each level represents (e.g. "all tracked CDs" vs "CDs active
+in both raids") so a leader can read it without suspecting the math is wrong.
+
+**Soul floor:** this is an **accuracy** violation — the product's non-negotiable first floor. A discrepancy a
+leader can't reconcile makes the whole section untrustworthy. Fix before shipping further CD improvements.
+
+---
+
+## TODO: Mobile — truncate benchmark guild name to 10 chars
+
+> plz truncate benchmark guild name to 10 chars on mobile
+
+**What to change:** wherever the benchmark (theirs) guild name is rendered in the report header or section
+titles, truncate it to 10 characters on mobile viewports (add `…` suffix when truncated). On desktop the full
+name can stay.
+
+**Scope:** renderer-only CSS/JS change — likely a `max-width` + `text-overflow: ellipsis` on the guild name
+element, or a JS truncation on the `DATA.theirs.title` string at the mobile breakpoint. No builder changes.

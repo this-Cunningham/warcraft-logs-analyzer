@@ -1715,6 +1715,66 @@ def tier_uptime_gap(acc):
     return rows
 
 
+def load_enemy_debuffs(directory, enc):
+    """enemydebuffs-<enc>.json for one boss (per-enemy-target debuff uptime), or None if absent."""
+    p = os.path.join(directory, "enemydebuffs-{}.json".format(enc))
+    if not os.path.isfile(p):
+        return None
+    try:
+        return read_json(p)
+    except (OSError, ValueError):
+        return None
+
+
+def per_target_debuffs(o_dir, t_dir, enc):
+    """The ZOOM under the aggregate Boss Debuffs: which specific ENEMY each KEY raid debuff lands on, ours vs
+    benchmark, for one boss. Uptime is normalized to each target's ACTIVE window (the time that enemy was
+    engaged), not the whole fight — so a council add tanked for 40s reads "how well we held the curse WHILE we
+    fought it," the honest grain. Targets are matched across raids by NAME. Only surfaced when there's a real
+    multi-target split (≥2 distinct enemies carry a key debuff) — on a single-target boss the aggregate bar
+    already says everything and this would just repeat it. Returns a list of per-target groups, each with the
+    key-debuff rows present on it (ours/theirs % of that enemy's active window), or [] when there's no split."""
+    o = load_enemy_debuffs(o_dir, enc)
+    t = load_enemy_debuffs(t_dir, enc)
+    if not o and not t:
+        return []
+
+    def by_name(side):
+        return {tg["name"]: tg for tg in ((side or {}).get("targets") or [])}
+    om, tm = by_name(o), by_name(t)
+
+    def upt(tg, ability):
+        if not tg:
+            return None
+        active = tg.get("activeMs") or 0
+        ms = (tg.get("debuffs") or {}).get(ability)
+        if not active or ms is None:
+            return None
+        return min(100, round(ms / active * 100))
+
+    groups = []
+    for nm in sorted(set(om) | set(tm)):
+        o_tg, t_tg = om.get(nm), tm.get(nm)
+        rows = []
+        for ability in KEY_DEBUFFS:
+            o_u, t_u = upt(o_tg, ability), upt(t_tg, ability)
+            if (o_u or 0) < 5 and (t_u or 0) < 5:
+                continue  # neither raid meaningfully held this debuff on this enemy
+            rows.append({"name": ability, "ours": o_u or 0, "theirs": t_u or 0,
+                         "deficit": (t_u or 0) - (o_u or 0)})
+        if rows:
+            rows.sort(key=lambda r: -r["deficit"])
+            groups.append({"target": nm, "rows": rows})
+    # Only a real split is worth the zoom: a single enemy carrying the debuffs == the aggregate bar already.
+    if len(groups) < 2:
+        return []
+    # Rank targets by the biggest single deficit on them (where coverage most slipped vs the benchmark), and
+    # cap to the worst few — a phased fight (Kael'thas weapons) can field a dozen enemies; showing them all is
+    # a data dump. The top offenders carry the lever; the rest repeat it.
+    groups.sort(key=lambda g: -max(r["deficit"] for r in g["rows"]))
+    return groups[:6]
+
+
 def tier_debuff_timing(acc):
     """Debuff RAMP + CONTINUITY across the shared bosses — EXPERIMENTAL. Per key debuff, average the
     establish-time (sec into fight before it first lands) and the longest continuous gap, ours vs theirs,
@@ -1803,10 +1863,10 @@ def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights
                 continue
             cls = class_map.get(nm) or "Unknown"
             b = pool.setdefault("{}|{}".format(cls, spec),
-                                {"class": cls, "spec": spec, "rates": [], "abilUses": {}, "minsTotal": 0.0})
-            b["rates"].append(sum(abil_counts.values()) / mins)
-            # Per-cooldown pooled totals (uses + the player-minutes they were on the boss) so the breakdown
-            # can show WHICH cooldown is the gap: a spec's pooled per-minute rate, cooldown by cooldown.
+                                {"class": cls, "spec": spec, "abilUses": {}, "minsTotal": 0.0})
+            # Per-cooldown pooled totals (uses + the player-minutes they were on the boss) so both the spec
+            # total and the breakdown share one minutes-weighted denominator and reconcile: a spec's pooled
+            # per-minute rate, cooldown by cooldown.
             b["minsTotal"] += mins
             for an, c in abil_counts.items():
                 b["abilUses"][an] = b["abilUses"].get(an, 0) + c
@@ -1814,24 +1874,32 @@ def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights
 
 
 def tier_cd_usage(o_pool, t_pool):
-    """Tier-wide cooldown-usage rollup: average each spec's per-minute CD activations across all shared
-    bosses, ours vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our
-    cooldowns). Only specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap. Each row
-    also carries a per-cooldown breakdown (`byAbility`) — the spec's pooled rate cooldown by cooldown vs the
-    benchmark's same spec — so the leader sees the actual lever (which CD to push), not just the spec total."""
+    """Tier-wide cooldown-usage rollup: each spec's per-minute CD activations across all shared bosses, ours
+    vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our cooldowns). Only
+    specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap. Each row also carries a
+    per-cooldown breakdown (`byAbility`) — the spec's pooled rate cooldown by cooldown vs the benchmark's same
+    spec — so the leader sees the actual lever (which CD to push), not just the spec total.
+
+    The spec total is the SAME minutes-weighted pooled rate as the breakdown (total activations / total
+    player-minutes on the boss), so the per-cooldown rows sum to the spec total — they reconcile by
+    construction (modulo ±0.01 display rounding), rather than the total being an unweighted mean-of-rates that
+    silently disagreed with the minutes-weighted breakdown beneath it."""
     def pooled_rate(pool_ent, ability):
         m = pool_ent.get("minsTotal", 0) if pool_ent else 0
         return round(pool_ent["abilUses"].get(ability, 0) / m, 2) if m else 0
+
+    def pooled_total(pool_ent):
+        m = pool_ent.get("minsTotal", 0) if pool_ent else 0
+        return round(sum((pool_ent.get("abilUses") or {}).values()) / m, 2) if m else 0
     rows = []
     for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o, t = o_pool.get(key), t_pool.get(key)
         ref = o or t
-        o_r = o["rates"] if o else []
-        t_r = t["rates"] if t else []
-        o_avg = round(sum(o_r) / len(o_r), 2) if o_r else 0
-        t_avg = round(sum(t_r) / len(t_r), 2) if t_r else 0
+        o_avg = pooled_total(o)
+        t_avg = pooled_total(t)
         # Per-cooldown breakdown: every cooldown/trinket either side's same spec used, pooled to a per-minute
-        # rate, ranked by the biggest deficit (where this spec most sits on a specific cooldown).
+        # rate, ranked by the biggest deficit (where this spec most sits on a specific cooldown). Same
+        # denominator (minsTotal) as the spec total above, so the rows sum back to it.
         abilities = set((o or {}).get("abilUses", {})) | set((t or {}).get("abilUses", {}))
         by_ability = []
         for an in abilities:
@@ -1840,8 +1908,9 @@ def tier_cd_usage(o_pool, t_pool):
                 continue
             by_ability.append({"name": an, "ours": o_ar, "theirs": t_ar, "deficit": round(t_ar - o_ar, 2)})
         by_ability.sort(key=lambda a: -a["deficit"])
+        both = bool(o and o.get("minsTotal")) and bool(t and t.get("minsTotal"))
         rows.append({"class": ref["class"], "spec": ref["spec"], "ours": o_avg, "theirs": t_avg,
-                     "deficit": round(t_avg - o_avg, 2), "both": bool(o_r) and bool(t_r),
+                     "deficit": round(t_avg - o_avg, 2), "both": both,
                      "byAbility": by_ability})
     rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
     return rows
@@ -3784,6 +3853,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
                                 theirs_spec, theirs_role, theirs_cls, o_dur, t_dur),
             "buffs": buff_rows, "debuffs": debuff_rows,
+            # Per-enemy-target debuff zoom (which enemy each key debuff lands on, ours vs theirs); [] unless
+            # the boss has a real multi-target split (e.g. Kael'thas council). Renders under Boss Debuffs.
+            "targetDebuffs": per_target_debuffs(ours_dir, theirs_dir, enc),
             "oursActivity": activity_pct(o_b, o_dur, ours_dps), "theirsActivity": activity_pct(t_b, t_dur, theirs_dps),
             "oursOverheal": overheal_pct(o_b, ours_heal), "theirsOverheal": overheal_pct(t_b, theirs_heal),
             "oursDmgTaken": o_dmg, "theirsDmgTaken": t_dmg,

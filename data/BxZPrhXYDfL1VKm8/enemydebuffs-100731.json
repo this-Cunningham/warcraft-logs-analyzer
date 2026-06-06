@@ -1,0 +1,42 @@
+{
+  "enc": 100731,
+  "durMs": 155922,
+  "startMs": 11070412,
+  "targets": [
+    {
+      "name": "Void Reaver",
+      "activeMs": 154910,
+      "debuffs": {
+        "Consecration": 126018,
+        "Corruption": 145811,
+        "Curse of Agony": 24008,
+        "Curse of Doom": 118472,
+        "Curse of Recklessness": 153303,
+        "Curse of the Elements": 154109,
+        "Deep Wounds": 153650,
+        "Demoralizing Screech": 147255,
+        "Demoralizing Shout": 154382,
+        "Drain Soul": 1827,
+        "Expose Armor": 141894,
+        "Expose Weakness": 152338,
+        "Faerie Fire": 151879,
+        "Faerie Fire (Feral)": 1501,
+        "Flame Shock": 86313,
+        "Hunter's Mark": 90129,
+        "Immolate": 75024,
+        "Judgement of Light": 145017,
+        "Judgement of Wisdom": 146156,
+        "Judgement of the Crusader": 154563,
+        "Lacerate": 149862,
+        "Mangle (Bear)": 148286,
+        "Mortal Strike": 145631,
+        "Rupture": 30014,
+        "Shadow Embrace": 145854,
+        "Shadow and Flame": 109679,
+        "Shadowburn": 1404,
+        "Stormstrike": 103222,
+        "Sunder Armor": 10988
+      }
+    }
+  ]
+}

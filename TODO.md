@@ -22,3 +22,11 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 - `templates/report.html:490` — remove the `+parseSpreadView(d)` call from the Overview renderer
 - `templates/report.html:494–~530` — delete the full `function parseSpreadView(d){...}` block (and any scoped CSS inside it)
 - `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — delete the **Parse Spread** bullet under the Overview section
+
+---
+
+## TODO: Provider Count & Coverage — Bloodlust scope bug (TBC Anniversary)
+
+> bug PROVIDER COUNT & COVERAGE — shaman lust is raidwide in tbc anniversary, not party wide
+
+Accuracy floor violation. The Composition tab's Provider Count & Coverage section currently classifies Bloodlust as `group`-scoped, meaning it treats more Shaman providers as "more groups covered" — a leader reading this could think a second Shaman is needed when one already covers the whole raid. In TBC Anniversary, Bloodlust/Heroism is raid-wide, so the right classification is `raid`-scoped: one provider delivers it in full, and count >1 is a single-point-of-failure note, not a coverage gap. Fix the scope entry for Bloodlust (and verify Heroism) in `PROVIDER_CHECKS` to match Anniversary reality.

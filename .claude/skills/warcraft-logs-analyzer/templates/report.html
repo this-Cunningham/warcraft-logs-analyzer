@@ -96,6 +96,15 @@
   .xp{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:6px;
     background:rgba(148,130,201,.18);color:#ccbff2;border:1px solid rgba(148,130,201,.4);vertical-align:middle;margin-left:8px}
 
+  /* Positioning views (server-rendered SVG fragments + their captions/verdicts). */
+  .poshd{font-size:12.5px;font-weight:700;margin:0 0 3px}
+  .posnote{font-size:12.5px;line-height:1.5;color:var(--text);background:var(--panel2);border-left:3px solid var(--accent,#7c83ff);
+    padding:7px 11px;border-radius:0 6px 6px 0;margin:9px 0 2px}
+  .poscl{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-left:7px}
+  .poshl{background:linear-gradient(90deg,rgba(124,131,255,.16),rgba(124,131,255,.04));border:1px solid rgba(124,131,255,.32);
+    border-radius:9px;padding:11px 15px;margin:14px 0}
+  .poshl-k{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#aab2ff;margin-bottom:3px}
+  .poshl-v{font-size:14px;line-height:1.5;color:var(--text)}
   .upt{position:relative;height:16px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:90px}
   .upt .f{position:absolute;top:0;bottom:0;left:0}
   .upt .f.ours{background:var(--ours)}.upt .f.theirs{background:var(--theirs)}
@@ -471,7 +480,8 @@ function renderOverview(d){
   const s=d.summary, parseD=deltaHigh(s.oursAvgParse,s.theirsAvgParse),
     deathD=deltaLow(s.oursDeaths,s.theirsDeaths), timeD=deltaLow(Math.round(s.oursDurationMs/1000),Math.round(s.theirsDurationMs/1000));
   const wipeCard=s.hasAttempts?`<div class="card"><div class="label">Total Wipes</div><div class="vals"><span class="v ours">${s.oursWipes}</span><span class="v theirs">${s.theirsWipes}</span><span class="delta ${deltaLow(s.oursWipes,s.theirsWipes).cls}">${deltaLow(s.oursWipes,s.theirsWipes).txt}</span></div></div>`:"";
-  let h=gapsScorecard(d)+didWellScorecard(d)+`<h2 class="section">Raid Summary</h2><div class="cards">
+  const posHl=(d.deep&&d.deep.positioning&&d.deep.positioning.headline)||"";
+  let h=gapsScorecard(d)+didWellScorecard(d)+posHl+`<h2 class="section">Raid Summary</h2><div class="cards">
     <div class="card"><div class="label">Avg Raid Parse</div><div class="vals"><span class="v ours">${s.oursAvgParse}</span><span class="v theirs">${s.theirsAvgParse}</span><span class="delta ${parseD.cls}">${parseD.txt}</span></div></div>
     <div class="card"><div class="label">Total Deaths${s.nightWideDeaths?` <span class="hint">trash + all pulls</span>`:``}</div><div class="vals"><span class="v ours">${s.oursDeaths}</span><span class="v theirs">${s.theirsDeaths}</span><span class="delta ${deathD.cls}">${deathD.txt}</span></div></div>
     <div class="card"><div class="label">Total Boss Kill Time</div><div class="vals"><span class="v ours">${fmtTime(s.oursDurationMs)}</span><span class="v theirs">${fmtTime(s.theirsDurationMs)}</span><span class="delta ${timeD.cls}">${timeD.txt}s</span></div></div>
@@ -738,6 +748,10 @@ function renderExecution(d){
   /* 2b. Activity by spec (EXPERIMENTAL) — the uptime decomposition of the DPS gap above. */
   h+=activityGapView(d);
 
+  /* 2c. Melee uptime on the boss (EXPERIMENTAL, Positioning) — the GEOMETRIC cause beneath the activity
+     gap: were our melee actually in range? Pre-rendered fragment; "" when no non-mobile boss supports it. */
+  h+=(d.deep&&d.deep.positioning&&d.deep.positioning.meleeView)||"";
+
   /* (DPS Ramp cut in the /audit pass: low leverage + an honesty wobble — it's normalized to each raid's
      OWN median, so a weak raid can read a "fast ramp" while its absolute opener DPS trails. The DPS
      timelines on the Bosses tab + the Prep prepot check already cover "ramp faster" more honestly.) */
@@ -825,6 +839,10 @@ function execPanel(b){
     {k:"disp",label:"Dispels"},
     {k:"phases",label:"Phases"}
   );
+  // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (formation map, spread-vs-demand, spread
+  // over time, the avoidable-ability scatter + heatmap). Only present on non-mobile bosses with a positions
+  // file; shown last because it's the newest/most-experimental lens.
+  if(b.positioning) subs.push({k:"pos",label:"Positioning"});
   const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
   const body={
     timeline:b.timeline?timelineChart(b):"",
@@ -834,7 +852,8 @@ function execPanel(b){
     deaths:deathsView(b),
     intr:interruptView(b),
     disp:dispelsView(b),
-    phases:phasesView(b)
+    phases:phasesView(b),
+    pos:b.positioning||""
   };
   return `<div class="boss"><h3>${esc(b.name)}<span class="badge">Bloodlust: <span style="color:var(--ours)">${lust(b.oursLustSec)}</span> vs <span style="color:var(--theirs)">${lust(b.theirsLustSec)}</span></span></h3>
     ${statStrip(b)}

@@ -64,6 +64,17 @@ The report today says *what* happened and *how much* (DPS, deaths, damage-taken 
 
 ### 3. Build-first shortlist (ranked by leverage × feasibility × fits-existing-tab)
 
+> **SHIPPED (2026-06-05).** All five below are implemented — `positioning.py` (analysis + stdlib-SVG
+> render) reading `positions-<enc>.json` (`fetch_report._fetch_positions`), wired into `build_deepdive`
+> and the template: feature 1+4+5+the map in a per-boss **Positioning** sub-tab on the Bosses card,
+> feature 2 also as an Overview headline, feature 3 in Execution under Activity by Spec. No new top-level
+> tab (the embed guardrail). See `references/report-anatomy.md` → "Positioning". Implementation notes that
+> diverged from this plan: median-NN was replaced by a robust **spread radius** (median dist to the median
+> centroid) because a stacked raid collapses NN to sub-yard; the melee ring was widened to ~12 computed-yd
+> (computed yards run ~1.3× true since SCALE is a floor); the ability scatter requires ≥5 distinct non-tank
+> targets so self-damage/melee can't masquerade as a mechanic; bosses are auto-classed STATIONARY/PLANT/
+> MOBILE and MOBILE bosses get no section.
+
 1. **Why we eat more of this ability — positional cause** *(flagship; flagship-tier effort)* — rides `avoidable_damage_gap`/`ability_agg` which already pick the ability + id; turns a bare intake-rate delta into a clustered-vs-scattered verdict that names the fix. Gate to the single top intake-gap ability on the one worst boss to cap the heavy fetch at 1 boss × 2 sides.
 2. **Spread-vs-demand index per shared boss** *(flagship)* — the single most reusable raid-level scalar; one number + direction arrow per boss, worst gap on Overview. Needs the curated stack/spread per-boss table (small, stable, ~6–8 bosses) and phase/cast-gated windowing. This *is* the "Raid Spacing" feature everything else folds into.
 3. **Melee uptime gap (geometry behind the DPS/kill-time gap)** *(quick-ish win once the fetch exists)* — slots directly under Activity-by-Spec as its spatial cause; render only when on-boss% diverges >5pts from activeTime% so it's never redundant pixels. Anchor to stationary/slow bosses (Void Reaver, Gruul) so the action stays "stop chasing," not "the boss kited."

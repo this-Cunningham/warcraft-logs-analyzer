@@ -104,3 +104,28 @@ change — no builder work required.
 
 **Scope:** renderer-only change. Match the existing `.dval`/`.lbar`/`.rbar` mirror-bar CSS already used in
 the section; extend with a `.cdclass-label` separator row if needed.
+
+---
+
+## TODO: Early Aggro — verify Feral Druid bear-tank false positive in Threat Pulls
+
+> possible bug — EARLY AGGRO — THREAT PULLS — make sure you arent counting tanks in this calculation, i see feral druid and i immediately think you are counting tanks accidentally
+
+**Short answer — not a blanket bug, but a real edge case exists:**
+
+`threat_pulls()` (`build_deepdive.py:1340`) already excludes players whose `role_map` entry is `"tank"`:
+`if nm not in role_map or role_map.get(nm) == "tank": continue`. A dedicated bear tank would be skipped.
+
+**The edge case:** `role_map` is built from `primary_spec_map` — majority role across all fights in the
+report. A Feral Druid who cat-DPS'd most fights but bear-tanked one would have `role_map = "dps"` and be
+INCLUDED in threat-pull counting for the fight where they were actually tanking. Result: a false positive —
+they "pulled aggro" from themselves.
+
+**The fix pattern already exists:** `_druid_form(abil)` (`build_deepdive.py:1888`) distinguishes bear vs cat
+from cast mix on a per-fight basis (Lacerate/Maul/Swipe = bear; Shred/Rake/Mangle(Cat) = cat). It's used in
+the Optimize section to avoid phantom rotation gaps but NOT called in `threat_pulls()`. Applying it there
+would catch the "dps-classified bear" case: if their cast mix on that fight is bear-dominant, skip them.
+
+**Verify first:** check a real report where Feral Druid appears in Threat Pulls — confirm whether the named
+player is cat-DPS (correct inclusion) or a bear-tanking Feral classified as dps by role_map (false positive).
+If the former, no bug. If the latter, wire `_druid_form()` into the non-tank check inside `threat_pulls()`.

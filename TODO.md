@@ -30,3 +30,22 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 > bug PROVIDER COUNT & COVERAGE — shaman lust is raidwide in tbc anniversary, not party wide
 
 Accuracy floor violation. The Composition tab's Provider Count & Coverage section currently classifies Bloodlust as `group`-scoped, meaning it treats more Shaman providers as "more groups covered" — a leader reading this could think a second Shaman is needed when one already covers the whole raid. In TBC Anniversary, Bloodlust/Heroism is raid-wide, so the right classification is `raid`-scoped: one provider delivers it in full, and count >1 is a single-point-of-failure note, not a coverage gap. Fix the scope entry for Bloodlust (and verify Heroism) in `PROVIDER_CHECKS` to match Anniversary reality.
+
+---
+
+## TODO: Drums Uptime — remove from Consumables Coverage
+
+> DRUMS UPTIME remove from consumables coverage
+
+**Cut reason:** *Silly / redundant.* No prep decision hangs on it — a leader can’t "fix" drums uptime the way they fix missing flasks; Drums coverage depends on group composition and fight length, not an individual raider showing up ready. It’s already visible in the per-boss **Buff Uptime** sub-tab via `KEY_BUFFS` ("Drums of Battle"), so it’s also *redundant* in Consumables. The hint text on the Coverage section already hedges it as an uptime %, not a prep signal — which is the tell that it doesn’t belong here.
+
+**Cleanup checklist:**
+
+- `scripts/build_deepdive.py:483` — delete `DRUM_NAMES` constant (only used by the drums uptime path)
+- `scripts/build_deepdive.py:555–556` — remove `if name in DRUM_NAMES: return "drums"` branch from `_consumable_cat`
+- `scripts/build_deepdive.py:582` — delete `drum_upt = []` initialization
+- `scripts/build_deepdive.py:595–600` — delete the drums uptime computation block (the `# Drums uptime` comment + loop)
+- `scripts/build_deepdive.py:647` — delete `"drumsUptime": iavg(drum_upt)` from the consumable_report DATA dict
+- `templates/report.html:628` — remove "Drums shown as uptime" clause from the Consumables Coverage `<span class="hint">`
+- `templates/report.html:632` — delete the `acard("Drums Uptime", ...)` render line
+- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — remove the "Drums uptime % = fight-uptime from aggregate Buffs" clause from the Consumables Coverage bullet

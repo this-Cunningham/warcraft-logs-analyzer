@@ -77,3 +77,30 @@ implementing — confirm the overall uptime gap is large enough that knowing *wh
 missing from would meaningfully change the assignment. If the section already reads clearly and the gap is
 explained by a single target, the zoom earns its place. If the aggregate gap is trivially small, re-rate
 downward.
+
+---
+
+## TODO: Cooldown & Trinket Usage — per-cooldown mirror bars, class label above group
+
+> COOLDOWN & TRINKET USAGE — BY SPEC — thanks for zooming on the cooldown data , just make a horizontal mirror bar comparison for each cooldown instead if shoving a bunch of text, and cleanly separate with class in center and above the classes bars
+
+**What to change:** the current `cdUsageView()` renderer ships per-cooldown text rows beneath each trailing
+spec (`r.byAbility` list — name, ours/min, theirs/min, Δ). Replace that text dump with **horizontal mirror
+bars per cooldown** (ours left ← | → theirs right, same mirrored-bar idiom the rest of the section uses)
+so the deficit reads at a glance instead of parsing numbers. Each bar row is one cooldown; the Δ is encoded
+in bar length, not typed out.
+
+**Layout:** group the cooldown bars by class, with the **class name centered above its group** as a separator
+— not inline in the spec row. Spec rows become the anchor; their cooldown bars nest beneath them, visually
+separated from the next class by the centered class label.
+
+**Legibility rationale:** the soul's *prefer the plain number to the clever chart* cuts the other way here —
+the current text output is *less* readable than a bar because the reader must mentally subtract ours/min from
+theirs/min for every row. A bar encodes the gap pre-attentively. This is a floor fix, not decoration.
+
+**Data is already present:** `byAbility` is built in `cd_usage_pool()` / `tier_cd_usage()` in
+`build_deepdive.py` and shipped in the payload. Only the renderer (`cdUsageView()` in `report.html`) needs to
+change — no builder work required.
+
+**Scope:** renderer-only change. Match the existing `.dval`/`.lbar`/`.rbar` mirror-bar CSS already used in
+the section; extend with a `.cdclass-label` separator row if needed.

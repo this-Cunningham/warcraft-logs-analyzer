@@ -288,6 +288,22 @@ Note: the `dmgMode` toggle inside Output Quality also re-renders the Bosses tab 
 
 ---
 
+## TODO: DPS by Spec (Bosses tab) — remove ×N vs ×N count badge
+
+> on dps by spec in bosses tab, remove the "x2 vs x2" type value in the center of the viz
+
+**Cut reason:** *Scoreboard noise / redundant.* The count badge `×${r.oursCount} vs ×${r.theirsCount}` sits inside the already-crowded center label of each spec row alongside the spec name and the per-player gap delta. It exists to justify why avg-DPS is a fair comparison (3 mages vs 2 mages stays per-player), but the section intro prose already makes that point explicitly and the hint text says the same. Displaying the raw roster counts inline on every row adds visual noise to the center column without adding a lever — the composition question ("they run 3 mages, we run 2") is for the Composition tab, not a DPS bar chart.
+
+**Cleanup checklist — one ref, renderer only:**
+
+- `templates/report.html:1360` — in `specDpsView`, delete `<span class="role">×${r.oursCount} vs ×${r.theirsCount}</span>` from the `dmid` div
+
+**Note:** `.role` CSS (line 75) is shared across many other rendering contexts (roster table role column, consumables matrix spec labels, potion-by-spec table) — do **not** delete the CSS rule. The `oursCount`/`theirsCount` fields in the DATA payload also stay — they may be used to compute `oursAvg`/`theirsAvg` in the builder; verify before touching them.
+
+**Note:** `tierSpecGapView` (Execution tab equivalent, line 1067) does **not** have the count badge — no change needed there.
+
+---
+
 ## TODO: Hint text — trim all to ≤50 words  *(EXECUTE LAST)*
 
 > all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting

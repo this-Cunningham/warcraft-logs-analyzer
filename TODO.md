@@ -78,6 +78,28 @@ missing from would meaningfully change the assignment. If the section already re
 explained by a single target, the zoom earns its place. If the aggregate gap is trivially small, re-rate
 downward.
 
+**Investigation — DONE (verified live against report `pkHqfrBbhQK9GP1a`, Kael'thas, 2026-06-06). Two blockers
+found; BLOCKED on the user's call before building:**
+
+- **Magnitude gate FAILS on the current encounter set.** Computed per-target debuff uptime across *every*
+  enemy NPC on Kael'thas (15 enemies — the most multi-target shared boss in TK/SSC: advisors, weapons,
+  phoenixes). **No debuff lands meaningfully (≥3% uptime) on more than one target** — each debuff concentrates
+  on whichever single target matters at the time. There is no boss-vs-add split to surface, so the zoom would
+  render single-target bars everywhere (no "assignment vs throughput" lever). Void Reaver / Al'ar have no
+  debuff-absorbing adds at all; Solarian's Solarium Agents die too fast to hold a debuff.
+- **The per-target data isn't cleanly/accurately available.** (1) The aggregate Debuffs table has no
+  `targetID`. (2) The `targetID` arg on `table(dataType:Debuffs)` is silently ignored — returns empty auras
+  for every enemy. (3) Per-target *events* (`events(dataType:Debuffs, targetID:N)`, which DO work per target)
+  return an **incomplete set that omits the key raid debuffs** (Sunder Armor, Expose Armor, Curse of the
+  Elements, Judgement of Wisdom never appear in the per-target event stream, though the aggregate table shows
+  them at high uptime). So reconstructed per-target uptime would **not reconcile** with the aggregate the rest
+  of the report trusts — an accuracy-floor violation (numbers that contradict the section above them).
+
+**Recommendation:** re-rate this DOWN / park it — on TBC TK+SSC the lever doesn't exist in the data, and the
+per-target reconstruction can't be made to reconcile with the trusted aggregate. Revisit only on a tier with a
+genuine multi-target debuff assignment (e.g. a council fight where the raid splits Sunder across live targets)
+*and* a WCL path whose per-target sum matches the aggregate table.
+
 ---
 
 ## TODO: Cooldown & Trinket Usage — per-cooldown mirror bars, class label above group

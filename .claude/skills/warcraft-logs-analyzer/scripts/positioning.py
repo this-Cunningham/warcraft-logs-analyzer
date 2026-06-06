@@ -37,6 +37,7 @@ SCALE = 52.8  # WCL units per yard — a FLOOR (UiMap 334 bounds fit); yard figu
 # Role palette (matches references/rendering.md): red is reserved for melee, so the boss is neutral silver.
 COLORS = {"tank": "#f59e0b", "melee": "#ef4444", "healer": "#a3e635", "ranged": "#a855f7"}
 BOSS_COLOR = "#e5e7eb"
+ADD_COLOR = "#fb7185"  # enemy NPC (add) — a hostile rose, distinct from melee red and the silver boss
 MELEE_CLASSES = {"Warrior", "Rogue", "DeathKnight"}
 RANGED_CLASSES = {"Mage", "Warlock", "Hunter", "Priest"}
 
@@ -126,6 +127,50 @@ def _actor_median(actor):
     if not pts:
         return None
     return (_median([p[0] for p in pts]), _median([p[1] for p in pts]))
+
+
+def _circ_mean(headings):
+    """Circular mean of per-bin headings (radians), ignoring None — averages unit vectors via atan2 so the
+    +/-pi seam is handled (a plain mean of angles would be wrong across it). None when nothing is present."""
+    sx = sy = 0.0
+    n = 0
+    for h in headings:
+        if h is None:
+            continue
+        sx += math.cos(h)
+        sy += math.sin(h)
+        n += 1
+    return math.atan2(sy, sx) if n else None
+
+
+def _heading_all(actor):
+    """Whole-fight mean heading (radians) for an actor/boss/add track, or None when no facing was captured."""
+    return _circ_mean(actor.get("facing") or [])
+
+
+def _heading_at(actor, lo, hi):
+    """Mean heading (radians) over the window [lo,hi) of a track's per-bin facings, or None when absent."""
+    fac = actor.get("facing")
+    if not fac:
+        return None
+    return _circ_mean(fac[lo:hi])
+
+
+def _arrow_svg(px, py, heading, col, ln=12.0):
+    """A short facing arrow (line + barbed head) from a dot at (px,py) along `heading` (radians, WCL x/y
+    frame). The screen y-axis is flipped vs the WCL frame, so the y component is negated. '' when no heading
+    (we never INFER a facing — an actor with no captured facing simply gets no arrow)."""
+    if heading is None:
+        return ""
+    dx, dy = math.cos(heading), -math.sin(heading)  # negate y: screen y grows downward
+    tx, ty = px + dx * ln, py + dy * ln
+    sa = math.atan2(dy, dx)  # screen-space angle for the barbs
+    bl = 4.0
+    lx, ly = tx - bl * math.cos(sa - 0.5), ty - bl * math.sin(sa - 0.5)
+    rx, ry = tx - bl * math.cos(sa + 0.5), ty - bl * math.sin(sa + 0.5)
+    return ('<line x1="{:.1f}" y1="{:.1f}" x2="{:.1f}" y2="{:.1f}" stroke="{}" stroke-width="1.5" '
+            'opacity="0.9"/><polygon points="{:.1f},{:.1f} {:.1f},{:.1f} {:.1f},{:.1f}" fill="{}"/>').format(
+        px, py, tx, ty, col, tx, ty, lx, ly, rx, ry, col)
 
 
 def _fill(track):
@@ -312,6 +357,11 @@ def _robust_frame(sides, pad_frac=0.06):
             if c:
                 xs.append(c[0])
                 ys.append(c[1])
+        for a in (pos.get("adds") or {}).values():
+            c = _actor_median(a)
+            if c:
+                xs.append(c[0])
+                ys.append(c[1])
         bm = boss_median(pos)
         if bm:
             xs.append(bm[0])
@@ -335,6 +385,11 @@ def _window_frame(specs, pad_frac=0.06):
     xs, ys = [], []
     for pos, lo, hi in specs:
         for a in pos["actors"].values():
+            pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+            if pts:
+                xs.append(_median([p[0] for p in pts]))
+                ys.append(_median([p[1] for p in pts]))
+        for a in (pos.get("adds") or {}).values():
             pts = [p for p in _fill(a["bins"])[lo:hi] if p]
             if pts:
                 xs.append(_median([p[0] for p in pts]))
@@ -378,7 +433,7 @@ def _grid_and_border(W, H, scale):
     return parts
 
 
-def _boss_marker(parts, bm, sx, sy, scale, W, H):
+def _boss_marker(parts, bm, sx, sy, scale, W, H, heading=None):
     if not bm:
         return
     bx, by = sx(bm[0]), sy(bm[1])
@@ -386,9 +441,23 @@ def _boss_marker(parts, bm, sx, sy, scale, W, H):
     by = min(max(by, 0), H)
     parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="none" stroke="#94a3b8" '
                  'stroke-width="1.4" stroke-dasharray="5 4" opacity="0.55"/>'.format(bx, by, _RING_YD * SCALE * scale))
+    # Facing arrow (cleave/cone-threat direction) drawn from the boss centre when a heading was captured.
+    parts.append(_arrow_svg(bx, by, heading, BOSS_COLOR, ln=16.0))
     parts.append('<polygon points="{0:.1f},{1:.1f} {2:.1f},{3:.1f} {0:.1f},{4:.1f} {5:.1f},{3:.1f}" '
                  'fill="{6}" stroke="#0f1420" stroke-width="1.6"/>'.format(
                      bx, by - 9, bx + 9, by, by + 9, bx - 9, BOSS_COLOR))
+
+
+def _add_marker(parts, c, heading, sx, sy, W, H):
+    """An enemy NPC (add): a small hostile-rose square + its facing arrow (cleave/cone), clamped into frame."""
+    if not c:
+        return
+    ax, ay = sx(c[0]), sy(c[1])
+    ax = min(max(ax, 5), W - 5)
+    ay = min(max(ay, 5), H - 5)
+    parts.append(_arrow_svg(ax, ay, heading, ADD_COLOR, ln=12.0))
+    parts.append('<rect x="{:.1f}" y="{:.1f}" width="9" height="9" fill="{}" stroke="#0f1420" '
+                 'stroke-width="1.2"/>'.format(ax - 4.5, ay - 4.5, ADD_COLOR))
 
 
 def _formation_panel(pos, roles, frame, W=300):
@@ -396,18 +465,23 @@ def _formation_panel(pos, roles, frame, W=300):
     a neutral diamond + dashed ~8yd ring. Outliers clamp to the border (hollow) so the core stays readable."""
     scale, H, sx, sy = _projector(frame, W)
     parts = _grid_and_border(W, H, scale)
-    _boss_marker(parts, boss_median(pos), sx, sy, scale, W, H)
+    bd = pos.get("boss") or {}
+    _boss_marker(parts, boss_median(pos), sx, sy, scale, W, H, heading=_heading_all(bd) if bd else None)
+    # Enemy NPCs (adds) under the raid dots, each at its whole-fight median + facing arrow.
+    for a in (pos.get("adds") or {}).values():
+        _add_marker(parts, _actor_median(a), _heading_all(a), sx, sy, W, H)
     items = []
     for aid, a in pos["actors"].items():
         c = _actor_median(a)
         if c:
-            items.append((roles.get(aid, "ranged"), c))
-    for role, c in sorted(items, key=lambda z: z[0]):
+            items.append((roles.get(aid, "ranged"), c, _heading_all(a)))
+    for role, c, hd in sorted(items, key=lambda z: z[0]):
         col = COLORS.get(role, "#9ca3af")
         px, py = sx(c[0]), sy(c[1])
         inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
         px = min(max(px, 5), W - 5)
         py = min(max(py, 5), H - 5)
+        parts.append(_arrow_svg(px, py, hd, col, ln=11.0))
         if inframe:
             parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
         else:
@@ -416,11 +490,13 @@ def _formation_panel(pos, roles, frame, W=300):
         W, H, "".join(parts))
 
 
-def _legend():
+def _legend(has_adds=False):
     items = [("tank", "Tank"), ("melee", "Melee"), ("ranged", "Ranged"), ("healer", "Healer")]
     sp = "".join('<span style="color:{}">&#9679; {}</span>'.format(COLORS[k], lbl) for k, lbl in items)
+    add_leg = ('<span style="color:{}">&#9632; add</span>'.format(ADD_COLOR)) if has_adds else ""
     return ('<div style="color:#94a3b8;font-size:11px;margin:4px 0 2px;display:flex;gap:14px;flex-wrap:wrap">'
-            + sp + '<span style="color:#94a3b8">&#9670; boss (dashed ~8yd ring)</span></div>')
+            + sp + '<span style="color:#94a3b8">&#9670; boss (dashed ~8yd ring)</span>' + add_leg
+            + '<span style="color:#94a3b8">&#8594; facing</span></div>')
 
 
 def _dual(o_svg, t_svg, o_name, t_name, sub=""):
@@ -447,24 +523,34 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
     idle actor in the window isn't dropped. Same shared frame/scale as every other snapshot → comparable."""
     scale, H, sx, sy = _projector(frame, W)
     parts = _grid_and_border(W, H, scale)
-    bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
+    bd = pos.get("boss") or {}
+    bb = bd.get("bins") if bd else None
     bm = None
     if bb:
         bpts = [p for p in _fill(bb)[lo:hi] if p]
         if bpts:
             bm = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
-    _boss_marker(parts, bm, sx, sy, scale, W, H)
+    _boss_marker(parts, bm, sx, sy, scale, W, H, heading=_heading_at(bd, lo, hi) if bd else None)
+    # Enemy NPCs (adds) present in this window, each at its window median + facing arrow.
+    for a in (pos.get("adds") or {}).values():
+        pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+        if pts:
+            ac = (_median([p[0] for p in pts]), _median([p[1] for p in pts]))
+            _add_marker(parts, ac, _heading_at(a, lo, hi), sx, sy, W, H)
     items = []
     for aid, a in pos["actors"].items():
         pts = [p for p in _fill(a["bins"])[lo:hi] if p]
         if pts:
-            items.append((roles.get(aid, "ranged"), (_median([p[0] for p in pts]), _median([p[1] for p in pts]))))
-    for role, c in sorted(items, key=lambda z: z[0]):
+            items.append((roles.get(aid, "ranged"),
+                          (_median([p[0] for p in pts]), _median([p[1] for p in pts])),
+                          _heading_at(a, lo, hi)))
+    for role, c, hd in sorted(items, key=lambda z: z[0]):
         col = COLORS.get(role, "#9ca3af")
         px, py = sx(c[0]), sy(c[1])
         inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
         px = min(max(px, 5), W - 5)
         py = min(max(py, 5), H - 5)
+        parts.append(_arrow_svg(px, py, hd, col, ln=11.0))
         if inframe:
             parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
         else:
@@ -534,8 +620,9 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
     view consume. When phase data is available the single whole-fight median map is replaced by PHASE-ANCHORED
     snapshots (the raid's settled formation at the opening + each phase, ours vs benchmark) — where the raid
     stood *when it mattered*, not a whole-fight smear; it falls back to the single map otherwise (no
-    regression). Add positions + per-actor facing arrows are NOT yet captured by the fetch pipeline, so they're
-    deferred (see TODO.md). Any sub-view whose data is missing is silently omitted."""
+    regression). Enemy adds (rose squares) and per-actor/boss facing arrows are drawn when the fetch captured
+    them (decoded from each resourced event's `facing`); an actor with no captured facing simply gets no arrow.
+    Any sub-view whose data is missing is silently omitted."""
     if not o_pos or not t_pos:
         return None
     travel_o = boss_travel_yd(o_pos)
@@ -618,8 +705,8 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
             maps_html = ("".join(rows)
                          + '<p class="posnote" style="opacity:.8">{}Snapshots are <b>phase-anchored</b> — each is '
                            'the settled formation a few seconds after that phase begins (times approximate; '
-                           'cross-check the Timeline). Add positions and per-actor facing aren\'t captured '
-                           'yet.</p>'.format(plant_note))
+                           'cross-check the Timeline). Arrows show each actor\'s (and the boss\'s) facing where '
+                           'captured; rose squares are enemy adds.</p>'.format(plant_note))
         elif is_mobile:
             # mobile boss with no detectable plant window → no honest map; keep the (frame-independent) verdict
             maps_html = ('<p class="posnote" style="opacity:.8">This is a <b>mobile</b> boss with no settled '
@@ -630,10 +717,11 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
             t_map = _formation_panel(t_pos, t_roles, frame)
             maps_html = _dual(o_map, t_map, o_name, t_name,
                               "median position per player &middot; one shared frame &amp; zoom")
+        has_adds = bool((o_pos.get("adds") or {}) or (t_pos.get("adds") or {}))
         spread_html = (
             '<h4 style="margin:14px 0 4px">Raid formation &amp; spread'
             '<span class="xp">Experimental</span></h4>'
-            + _legend()
+            + _legend(has_adds)
             + maps_html
             + '<p class="posnote">{}</p>'.format(verdict))
 

@@ -42,3 +42,38 @@ already in the events stream we fetch; no new query type, only plumbing + a re-f
 (`positioning.py`) — **only when `facing` is present** for that actor at that moment, never inferred — and
 draw adds as distinct shapes/colours (add facing = cleave/cone-threat arcs). Extend the snapshot caption.
 Requires regenerating the cached `positions-<enc>.json` (a live re-fetch) before the render half can show.
+
+---
+
+## TODO: Buff & Debuff Coverage Gaps — zoom on enemy targets with debuffs
+
+> BUFF & DEBUFF COVERAGE GAPS zoom on enemy targets with debuffs and compare across raids
+
+**Current grain:** `tier_uptime_gap()` in `build_deepdive.py` pulls from WCL's aggregate Buffs/Debuffs table
+(`_auras(rep, "debuffs")`), which returns per-name uptime **pooled across all enemies on all shared bosses**.
+The renderer (`tierUptimeGapView(d)` in `report.html`) shows mirrored bars sorted by deficit — ours vs theirs
+for each buff/debuff name. No enemy target breakdown.
+
+**Proposed deeper grain:** per-target debuff attribution — which specific enemy (main boss vs named adds, e.g.
+Void Reaver vs pylons, Solarian vs Solarium Agents) each key debuff lands on, ours vs theirs, so the leader
+can see whether a gap is a boss-coverage problem or an add-coverage problem. *"Sunder Armor is 90% uptime
+overall but only 15% on the main boss — the off-tank's coverage is good, the main-tank assignment isn't"* is
+the lever. The bare aggregate can't name that.
+
+**Leader decision this serves:** *"Is the debuff gap an assignment problem (wrong enemy) or a throughput
+problem (not enough application)?"* — a different fix each way.
+
+**Magnitude gate:** only worth the complexity if at least one shared boss has named adds that absorb a
+meaningful share of debuffs at different rates than the main boss. Verify on a real report before building.
+
+**Feasibility flag:** the current pipeline reads WCL's Buffs/Debuffs **summary table** — no `targetID`.
+Per-target debuff uptime likely requires switching to a per-target Buffs query (WCL supports filtering by
+`targetID` in the Buffs table, but it's a separate query per target) or event-level data. Cost: N queries per
+boss per enemy NPC of interest. Assess whether the WCL API exposes a single multi-target Buffs call before
+building.
+
+**Judge as consumer first:** view the rendered Buff & Debuff Coverage Gaps section in a live report before
+implementing — confirm the overall uptime gap is large enough that knowing *which target* the debuff is
+missing from would meaningfully change the assignment. If the section already reads clearly and the gap is
+explained by a single target, the zoom earns its place. If the aggregate gap is trivially small, re-rate
+downward.

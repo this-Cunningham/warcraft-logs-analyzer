@@ -67,3 +67,25 @@ Accuracy floor check. The Hit & Expertise view is the one per-player gear fix in
 > all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting
 
 Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip is a wall they skip. The soul's rule: a correct signal nobody reads transfers zero value. **23 of ~30 hints** currently exceed 50 words (the longest runs 114). Trim each to ≤50 words, preserving the signal: what the section shows, what direction is better, and any honest caveat the leader needs to act on it. No new hedges, no new examples — just cut filler and redundant framing. All changes are in `templates/report.html` hint `<span>` blocks only.
+
+---
+
+## TODO: Activity by Spec — remove from Execution tab
+
+> ACTIVITY BY SPEC in execution tab
+
+**Cut reason:** *Silly* — no decision hangs on it. The section names which spec is trailing on active-GCD uptime but explicitly disclaims it can’t say *why* (movement, range, target swaps — the hint itself tells the leader to go diagnose elsewhere). That’s a raw dimension, not a lever. The cause — the thing a leader can actually act on — is already surfaced in Add Control, Damage Taken, and per-boss Positioning. Mined because `activeTime` was available; the activity aggregate (raid-wide) already lives in Output Quality and feeds the Overview scorecard — the spec breakdown adds noise, not resolution.
+
+**Important:** `activity_pct` (raid-wide aggregate, line 1366) and the per-boss `oursActivity`/`theirsActivity` fields (line 3857) are **not** touched — they feed Output Quality and the Overview scorecard independently. Only the *spec-level* rollup is removed.
+
+**Cleanup checklist:**
+
+- `scripts/build_deepdive.py:1435` — delete `def activity_buckets(...)` function
+- `scripts/build_deepdive.py:1732` — delete `def tier_activity_gap(...)` function
+- `scripts/build_deepdive.py:3698` — delete `tier_o_act, tier_t_act = {}, {}` initialization
+- `scripts/build_deepdive.py:3781–3788` — delete the `# Pool per-spec activity` comment + accumulation loop block
+- `scripts/build_deepdive.py:3921` — delete `tier_activity = tier_activity_gap(tier_o_act, tier_t_act)` call
+- `scripts/build_deepdive.py:4043` — delete `"tierActivityGap": tier_activity` from the DATA dict
+- `templates/report.html:749` — remove `h+=activityGapView(d)` call from the Execution renderer
+- `templates/report.html:1084–~end` — delete the full `function activityGapView(d){...}` block
+- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — delete the **Activity by Spec** bullet under Execution

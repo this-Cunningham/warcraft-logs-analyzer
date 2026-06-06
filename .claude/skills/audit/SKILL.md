@@ -1,7 +1,7 @@
 ---
 name: audit
 description: Audit existing report features (a tab, a section, or all of them) for whether each earns its place — whether it helps a raid leader make their team better, whether it's accurate, and whether it's legible. Returns a KEEP / SHARPEN / CUT verdict per feature with a short why and a leverage tier. Use when the user asks "is this tab actually useful?", "are these insights helpful?", "what should we cut?", or "audit the ___ tab". Invoked as `/audit <tab | section | all>`.
-allowed-tools: Read, Grep, Glob, Bash, Agent
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # audit
@@ -133,15 +133,17 @@ drill-down (lean on top, deep on demand). This is ordering, never a cut criterio
    it clears both floors (accurate — probe the data when in doubt; legible — could a
    stranger read it in seconds), note which worth-it job it does for a leader, then a
    verdict + leverage tier.
-3. **Fan out for breadth.** For a whole tab or `all`, consider one `Agent` per
-   tab/section (each reads soul + anatomy, audits its slice, returns verdicts) and
-   synthesize. Audit a single section inline.
-4. **Don't only cut.** SHARPEN is usually the higher-value verdict — name the deeper,
+3. **Don't only cut.** SHARPEN is usually the higher-value verdict — name the deeper,
    better-framed, or more-legible version the feature should be.
 
 ## Output format
 
-A ranked table, highest-leverage and clearest verdicts first:
+**Default: a scalpel, not a wall.** Lead with only what's worth acting on — what to
+**CUT** and the highest-value **SHARPEN**s, one line each, plus the single biggest
+*missing* thing. Don't list features that just KEEP as-is; if nothing's wrong, say so
+in a sentence.
+
+Only if the user asks for the full picture, add the ranked table below (every feature):
 
 | Feature | Verdict | Why | Leverage |
 |---|---|---|---|

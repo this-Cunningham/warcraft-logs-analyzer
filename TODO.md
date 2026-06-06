@@ -183,3 +183,43 @@ samples to compute a stable spread radius — verify on the live Al'ar fight bef
 **Verify the data:** confirm the cached `positions-<enc>.json` for Al'ar has enough per-bin boss anchor +
 roster samples *during* the plant windows to compute spread (it should — the suppression happens after fetch,
 on classification, so the data is already there).
+
+---
+
+## TODO: BUG — Positioning snapshots clip outliers and use whole-fight frame instead of window frame
+
+> bug — you are clipping the positioning viz, and also reframing them, i need the same perspective for both raids for all positioning viz snapshots with no clamping outliers
+
+**Two bugs in `_robust_frame` (`positioning.py:302`) and `_formation_at` / `_formation_panel`:**
+
+**Bug 1 — 3rd/97th-percentile clipping:** `_robust_frame` computes the bounding box as the 3rd–97th
+percentile of actor median positions (`pct(xs, 0.03)` / `pct(xs, 0.97)`). Any actor whose median position
+falls outside that range has their dot clamped to the border and shown hollow. A leader sees a fake
+formation: actors who were genuinely far out are pinned to the edge, misrepresenting the spread. **Fix:**
+use the full min–max range (or at most 1st–99th with a large roster — never 3rd/97th). Every actor is shown
+where they actually were; if the frame gets wide, that's the honest read.
+
+**Bug 2 — frame built from whole-fight medians, not window positions:** `_robust_frame` collects each
+actor's `_actor_median(a)` (median over the ENTIRE fight), then derives the shared bounding box from those
+whole-fight medians. Phase-anchored snapshots (`_formation_at`) then use that same frame even though a
+snapshot represents a specific 5–10s window where the raid may have been positioned very differently from
+their whole-fight average. An actor who camped the far side of the room during Phase 1 but stood on the boss
+median for the rest of the fight will have a whole-fight median near center — and their Phase 1 dot will
+appear outside the frame and get clamped, or the frame will be too tight to show Phase 2's spread. **Fix:**
+for snapshot panels, derive the frame from the WINDOW positions (the actual actor positions in bins [lo, hi)),
+not from whole-fight medians. The frame expands to show where everyone actually stood in that moment.
+
+**Shared frame across both raids must be preserved:** the shared frame (both sides combined into one box) is
+correct and must stay — the fix is in the DATA used to build the shared frame (window positions, not
+whole-fight medians), not in separating ours vs theirs into independent frames. A raid leader comparing ours
+vs benchmark must see both at the same scale and origin.
+
+**Where to fix:**
+- `positioning.py:302` — `_robust_frame`: remove 3rd/97th percentile; use full min/max (or pass the actual
+  window-bin positions rather than whole-fight medians for snapshot contexts)
+- `positioning.py:417` — `_formation_at`: compute the frame inside this function from the window-bin
+  positions `[lo:hi)` across both sides (pass both sides' pos objects, not a pre-baked frame), then pass
+  that window frame into `_projector`
+- `positioning.py:505` — call site in `boss_positioning`: the single-panel fallback (`_formation_panel`) can
+  keep a whole-fight frame since it shows the whole fight, but the phase-snapshot path must compute per-window
+  frames (or one combined window frame across all shown windows)

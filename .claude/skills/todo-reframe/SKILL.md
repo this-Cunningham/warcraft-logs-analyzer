@@ -35,6 +35,13 @@ So the item must instruct the future executor to **view the rendered report firs
 and explicitly **not** open `build_deepdive.py` / `report.html` to form the initial
 judgment.
 
+**Note — this is the one todo skill where evaluation IS the ask.** The user is
+explicitly asking *"is there latent value here?"*, so the consumer-first verdict is
+legitimate here (unlike `/todo-add`, `/todo-zoom`, `/todo-remove`, where the user has
+already decided and you only record). Even so: capture the user's hunch **faithfully and
+without pre-judging it against them** — the verdict is formed later, from the rendered
+view, not asserted now from the code or from the soul.
+
 ## Always write to `main`
 
 This skill only ever touches `TODO.md` in the **canonical main checkout** (the repo

@@ -8,306 +8,286 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 
 ---
 
-## TODO: Parse Spread — remove
+## TODO: Positioning snapshots — fetch add positions + per-actor facing
 
-> remove parse spread
+> the remaining half of the formation-snapshot reframe — adds shown too, and the direction each is facing
 
-**Cut reason:** *Silly* — all three conditions met. No decision hangs on it: the floor-spec breakdown ("which specs are anchors?") is already answered, more precisely, by **DPS by Spec** in Execution — a leader who wants to know which specs to coach goes there. The gap shown is noise: median vs floor parse repackages the same `rankPercent` signal the Avg Raid Parse headline already carries. And it was mined because `rankPercent` was already in the parses file, not because a leader was asking for a parse distribution. An EXPERIMENTAL label on a feature that doesn't survive the worth-it test is still a dead-weight block in the Overview.
+**Status of the reframe so far:** the phase-anchored snapshot half shipped — the Positioning sub-tab now
+shows the raid's *settled formation at the opening + each phase* (ours vs benchmark per moment) instead of
+one whole-fight median smear, with a graceful fallback to the single map on single-phase bosses. What's
+left is the half the **fetch pipeline can't yet feed**: the cached `positions-<enc>.json` carries only
+roster actor x/y bins + the single boss anchor track — **no `facing` field and no non-boss hostile (add)
+actors**. So facing arrows and add dots can't be drawn without first capturing that data.
 
-**Cleanup checklist:**
+**Investigation — DONE (verified live against report `pkHqfrBbhQK9GP1a`, 2026-06-06). Both pieces are
+already in the events stream we fetch; no new query type, only plumbing + a re-fetch:**
 
-- `scripts/build_deepdive.py:3215` — delete `def parse_spread(...)` builder function and its docstring
-- `scripts/build_deepdive.py:3610` — delete the `parse_spread_payload = parse_spread(...)` call site
-- `scripts/build_deepdive.py:4036` — delete the `"parseSpread": parse_spread_payload` key from the DATA dict
-- `templates/report.html:490` — remove the `+parseSpreadView(d)` call from the Overview renderer
-- `templates/report.html:494–~530` — delete the full `function parseSpreadView(d){...}` block (and any scoped CSS inside it)
-- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — delete the **Parse Spread** bullet under the Overview section
+- **Per-actor facing — available NOW, not captured.** Every resourced event (`includeResources:true`)
+  already carries a `facing` field right next to `x`/`y` (`mapID` too). It's **centiradians** (radians ×
+  100); decode `heading = -facing / 100.0` (confirmed in the positioning skill's `coordinate-system.md`).
+  `_page_resourced` in `fetch_report.py` simply drops it on the floor — it yields `(ts, aid, x, y, tid,
+  gid)` and never reads `e["facing"]`. **Fix:** yield `facing` too, and store a per-bin median *heading*
+  per actor in `positions-<enc>.json`.
+- **Add (non-boss hostile) positions — already in the sweep, just discarded.** The boss track is built by
+  the `DamageDone` resourced sweep, keeping only the event whose resourced actor *is the boss* (`targetID`
+  pinned to the boss id). Dropping that restriction surfaces **every enemy NPC as a resourced actor** —
+  verified on the Solarian fight, the same sweep returned the boss (`High Astromancer Solarian`, 1598
+  position samples) **and** the add (`Solarium Agent`, 322 samples), each with `facing`. **Fix:** in
+  `_fetch_positions`, bucket every resourced **NPC** actor (id → name via `masterData.actors type:NPC`),
+  store each non-boss NPC as its own track (bins + facing) in `positions-<enc>.json` under e.g. `adds`.
+  Cost note: removing `targetID:boss` widens the sweep (more pages); cap pages or add a dedicated enemy
+  sweep if it gets heavy.
 
----
-
-## TODO: Provider Count & Coverage — Bloodlust scope bug (TBC Anniversary)
-
-> bug PROVIDER COUNT & COVERAGE — shaman lust is raidwide in tbc anniversary, not party wide
-
-Accuracy floor violation. The Composition tab's Provider Count & Coverage section currently classifies Bloodlust as `group`-scoped, meaning it treats more Shaman providers as "more groups covered" — a leader reading this could think a second Shaman is needed when one already covers the whole raid. In TBC Anniversary, Bloodlust/Heroism is raid-wide, so the right classification is `raid`-scoped: one provider delivers it in full, and count >1 is a single-point-of-failure note, not a coverage gap. Fix the scope entry for Bloodlust (and verify Heroism) in `PROVIDER_CHECKS` to match Anniversary reality.
-
----
-
-## TODO: Drums Uptime — remove from Consumables Coverage
-
-> DRUMS UPTIME remove from consumables coverage
-
-**Cut reason:** *Silly / redundant.* No prep decision hangs on it — a leader can't "fix" drums uptime the way they fix missing flasks; Drums coverage depends on group composition and fight length, not an individual raider showing up ready. It's already visible in the per-boss **Buff Uptime** sub-tab via `KEY_BUFFS` ("Drums of Battle"), so it's also *redundant* in Consumables. The hint text on the Coverage section already hedges it as an uptime %, not a prep signal — which is the tell that it doesn't belong here.
-
-**Cleanup checklist:**
-
-- `scripts/build_deepdive.py:483` — delete `DRUM_NAMES` constant (only used by the drums uptime path)
-- `scripts/build_deepdive.py:555–556` — remove `if name in DRUM_NAMES: return "drums"` branch from `_consumable_cat`
-- `scripts/build_deepdive.py:582` — delete `drum_upt = []` initialization
-- `scripts/build_deepdive.py:595–600` — delete the drums uptime computation block (the `# Drums uptime` comment + loop)
-- `scripts/build_deepdive.py:647` — delete `"drumsUptime": iavg(drum_upt)` from the consumable_report DATA dict
-- `templates/report.html:628` — remove "Drums shown as uptime" clause from the Consumables Coverage `<span class="hint">`
-- `templates/report.html:632` — delete the `acard("Drums Uptime", ...)` render line
-- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — remove the "Drums uptime % = fight-uptime from aggregate Buffs" clause from the Consumables Coverage bullet
+**Then build (render):** add facing arrows to player + add dots in `_formation_at`/`_formation_panel`
+(`positioning.py`) — **only when `facing` is present** for that actor at that moment, never inferred — and
+draw adds as distinct shapes/colours (add facing = cleave/cone-threat arcs). Extend the snapshot caption.
+Requires regenerating the cached `positions-<enc>.json` (a live re-fetch) before the render half can show.
 
 ---
 
-## TODO: Hit & Expertise — verify accuracy for Feral/Guardian bear tanks
+## TODO: Buff & Debuff Coverage Gaps — zoom on enemy targets with debuffs
 
-> confirm no bug in Imminent — hit & expertise by raider for calculating beartreebear hit for standard tanking feral/guardian in tbc
+> BUFF & DEBUFF COVERAGE GAPS zoom on enemy targets with debuffs and compare across raids
 
-Accuracy floor check. The Hit & Expertise view is the one per-player gear fix in Prep — a false flag or a silent miss on a tank directly misleads the leader about what to gem/enchant. The code path for bears looks correct on a read: `_hit_kind("Druid", "Guardian"/"Feral", "tank")` returns "melee" — right, since bears use melee attacks; `SPEC_TALENT_HIT` deliberately omits Feral/Guardian (0 talent hit — correct, bears gear to the 9% cap through gear alone, no standard hit talent); `HIT_CAP["melee"]` = 9% — correct vs a +3 raid boss; and `stat_audit` iterates the "tanks" bucket in `playerdetails.json` so Beartreebear is included.
+**Current grain:** `tier_uptime_gap()` in `build_deepdive.py` pulls from WCL's aggregate Buffs/Debuffs table
+(`_auras(rep, "debuffs")`), which returns per-name uptime **pooled across all enemies on all shared bosses**.
+The renderer (`tierUptimeGapView(d)` in `report.html`) shows mirrored bars sorted by deficit — ours vs theirs
+for each buff/debuff name. No enemy target breakdown.
 
-**The one thing to verify in the live report:** whether `spec_map` resolves Beartreebear to "Guardian" or "Feral" (both miss `SPEC_TALENT_HIT`, giving 0 talent hit — the correct answer either way), and whether their effective hit reads plausibly against the 9% cap. Open the rendered Hit & Expertise table in the Imminent report and spot-check Beartreebear's gear/talent/effective columns.
+**Proposed deeper grain:** per-target debuff attribution — which specific enemy (main boss vs named adds, e.g.
+Void Reaver vs pylons, Solarian vs Solarium Agents) each key debuff lands on, ours vs theirs, so the leader
+can see whether a gap is a boss-coverage problem or an add-coverage problem. *"Sunder Armor is 90% uptime
+overall but only 15% on the main boss — the off-tank's coverage is good, the main-tank assignment isn't"* is
+the lever. The bare aggregate can't name that.
+
+**Leader decision this serves:** *"Is the debuff gap an assignment problem (wrong enemy) or a throughput
+problem (not enough application)?"* — a different fix each way.
+
+**Magnitude gate:** only worth the complexity if at least one shared boss has named adds that absorb a
+meaningful share of debuffs at different rates than the main boss. Verify on a real report before building.
+
+**Feasibility flag:** the current pipeline reads WCL's Buffs/Debuffs **summary table** — no `targetID`.
+Per-target debuff uptime likely requires switching to a per-target Buffs query (WCL supports filtering by
+`targetID` in the Buffs table, but it's a separate query per target) or event-level data. Cost: N queries per
+boss per enemy NPC of interest. Assess whether the WCL API exposes a single multi-target Buffs call before
+building.
+
+**Judge as consumer first:** view the rendered Buff & Debuff Coverage Gaps section in a live report before
+implementing — confirm the overall uptime gap is large enough that knowing *which target* the debuff is
+missing from would meaningfully change the assignment. If the section already reads clearly and the gap is
+explained by a single target, the zoom earns its place. If the aggregate gap is trivially small, re-rate
+downward.
 
 ---
 
-## TODO: Activity by Spec — remove from Execution tab
+## TODO: Cooldown & Trinket Usage — per-cooldown mirror bars, class label above group
 
-> ACTIVITY BY SPEC in execution tab
+> COOLDOWN & TRINKET USAGE — BY SPEC — thanks for zooming on the cooldown data , just make a horizontal mirror bar comparison for each cooldown instead if shoving a bunch of text, and cleanly separate with class in center and above the classes bars
 
-**Cut reason:** *Silly* — no decision hangs on it. The section names which spec is trailing on active-GCD uptime but explicitly disclaims it can't say *why* (movement, range, target swaps — the hint itself tells the leader to go diagnose elsewhere). That's a raw dimension, not a lever. The cause — the thing a leader can actually act on — is already surfaced in Add Control, Damage Taken, and per-boss Positioning. Mined because `activeTime` was available; the activity aggregate (raid-wide) already lives in Output Quality and feeds the Overview scorecard — the spec breakdown adds noise, not resolution.
+**What to change:** the current `cdUsageView()` renderer ships per-cooldown text rows beneath each trailing
+spec (`r.byAbility` list — name, ours/min, theirs/min, Δ). Replace that text dump with **horizontal mirror
+bars per cooldown** (ours left ← | → theirs right, same mirrored-bar idiom the rest of the section uses)
+so the deficit reads at a glance instead of parsing numbers. Each bar row is one cooldown; the Δ is encoded
+in bar length, not typed out.
 
-**Important:** `activity_pct` (raid-wide aggregate, line 1366) and the per-boss `oursActivity`/`theirsActivity` fields (line 3857) are **not** touched — they feed Output Quality and the Overview scorecard independently. Only the *spec-level* rollup is removed.
+**Layout:** group the cooldown bars by class, with the **class name centered above its group** as a separator
+— not inline in the spec row. Spec rows become the anchor; their cooldown bars nest beneath them, visually
+separated from the next class by the centered class label.
 
-**Cleanup checklist:**
+**Legibility rationale:** the soul's *prefer the plain number to the clever chart* cuts the other way here —
+the current text output is *less* readable than a bar because the reader must mentally subtract ours/min from
+theirs/min for every row. A bar encodes the gap pre-attentively. This is a floor fix, not decoration.
 
-- `scripts/build_deepdive.py:1435` — delete `def activity_buckets(...)` function
-- `scripts/build_deepdive.py:1732` — delete `def tier_activity_gap(...)` function
-- `scripts/build_deepdive.py:3698` — delete `tier_o_act, tier_t_act = {}, {}` initialization
-- `scripts/build_deepdive.py:3781–3788` — delete the `# Pool per-spec activity` comment + accumulation loop block
-- `scripts/build_deepdive.py:3921` — delete `tier_activity = tier_activity_gap(tier_o_act, tier_t_act)` call
-- `scripts/build_deepdive.py:4043` — delete `"tierActivityGap": tier_activity` from the DATA dict
-- `templates/report.html:749` — remove `h+=activityGapView(d)` call from the Execution renderer
-- `templates/report.html:1084–~end` — delete the full `function activityGapView(d){...}` block
-- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — delete the **Activity by Spec** bullet under Execution
+**Data is already present:** `byAbility` is built in `cd_usage_pool()` / `tier_cd_usage()` in
+`build_deepdive.py` and shipped in the payload. Only the renderer (`cdUsageView()` in `report.html`) needs to
+change — no builder work required.
+
+**Scope:** renderer-only change. Match the existing `.dval`/`.lbar`/`.rbar` mirror-bar CSS already used in
+the section; extend with a `.cdclass-label` separator row if needed.
 
 ---
 
-## TODO: Ghost Run — reframe as interactive Timeline overlay on Bosses tab
+## TODO: Mirror bars — drop side value columns, show Δ with units in center
 
-> turn GHOST RUN — WHAT DYING COSTS YOU into a visualization instead of text, can also show up to top 5 players deaths stats per boss in this section
+> for our horizontal mirror bars, we currently have: val1 - bar1 - label and other info - bar2 - val2 — (sometimes optional context on rightmost column (keep))
 >
-> Make it like a mini timeline and draw the dmg lost over time from where they died — ooo maybe do we move this section/stats/projection onto the bosses timeline tab, and theres a toggle that when clicked, rerenders our dps line based on if they never died, and would also update the kill time, yeah lets do this timeline thing on bosses tab thats cool
->
-> And you can toggle each person that died, and it would incrementally update the kill time / DPS trendline when toggling each player death on/off
->
-> Make sure this section is moved/integrated into bosses per-boss timeline tab. Should just project the raider-that-died's average DPS across all bosses for the ghost DPS projection.
+> Lets get rid of the val1 and val2 on the sides and just put the difference in val with proper units in center under label
 
-**Mandate: view the rendered HTML as a raid leader first.** Open the current report (`reports/` or the published link), navigate to the Ghost Run section as it exists today, and read it cold — as a leader who hasn't seen the code. Only after forming that impression, build the reframe below.
+**Current layout:** `val1 | bar← | LABEL (Δ) | →bar | val2 | (optional ctx)`
+The outer `dval.lo` / `dval.ro` columns (46px each) hold the raw ours/theirs values.
 
-**This is a MOVE, not a copy.** The standalone Ghost Run text block is removed from wherever it lives today and lives **only** inside the per-boss **Timeline** sub-tab (Bosses tab) as an interactive overlay. No duplicate section remains behind.
+**New layout:** `bar← | LABEL · Δval+units | →bar | (optional ctx)`
+Drop the two side value divs and their grid columns entirely. The center `.dmid` block
+already renders a `.delta` child — extend it to also show the signed difference with
+proper units (e.g. `−2.3k DPS`, `+12%`, `−8s`) directly under the label, formatted the
+same way as the bar scale. The `Δ` carries the sign; units make it self-explanatory
+without the raw values.
 
-**The overlay:** a toggle re-renders our raid-DPS curve as if the DPS deaths never happened — the ghost line sits above the actual line, the area between them is the output the deaths consumed, and a projected kill time updates alongside it. Up to 5 costliest DPS deaths per boss annotated on the timeline (the death tick already exists; this adds the DPS-cost label). The benchmark line stays untouched — the ghost is ours-only.
+**CSS change:** `.ugrid` columns shrink from 5 to 3: `1fr · <label-width> · 1fr` (plus
+optional `.dctx` for `ugridc`). `.dgrid` same treatment. Bars get the full space the
+outer columns freed up → signal reads more clearly at smaller widths. Remove `.dval`
+CSS rules; the `.delta` inside `.dmid` already handles colour (good/bad/flat/warn).
 
-**Projection method (pinned):** the ghost rate for each dead raider = **that raider's average DPS across all shared bosses**, NOT their noisy pre-death rate on this one fight. A raider who died 20s into a pull has too short/erratic a same-fight sample to project from; their all-boss average is the stable per-raider rate. Apply that rate to the dead window (death → kill) to get the recovered output, then re-derive the projected kill time. (Open question for the build: their all-boss average is per-second, so the dead window in seconds × avg DPS = recovered damage — straightforward.)
-
-**Per-death toggles (the interactive core):** each dead player is its own toggle, not one all-or-nothing switch. Flipping a single raider's death on/off **incrementally** recomputes the ghost DPS curve and the projected kill time — so a leader can isolate "what did *just* the warrior dying at 40% cost us?" vs. the full set. The toggles compose: the ghost line and kill-time projection reflect whichever subset of deaths is currently switched off. This is the lever — it lets a leader weigh individual deaths against each other and see which one actually decided the kill.
-
-**Why the Timeline is the right home:** it's already where a leader reads the fight shape; the gap between actual and ghost DPS lands in exactly the right context (you can see *when* in the fight the deaths hurt most). The current text block answers "how much?" but not "when?", "relative to what?", or "which death?" — the interactive timeline answers all four.
-
-**Before building, validate from the rendered view:**
-- Does the current Ghost Run text block read as useful or as a curiosity? Does the player-minutes framing land?
-- Is the timeline already dense enough that an overlay + per-death toggles would clutter it, or is there room?
-- Would a leader actually toggle individual deaths, or would they read the headline number and move on?
-- Honesty check: the all-boss-average projection is an *estimate* (assumes the dead raider would have sustained their average rate, no battle-res, no compounding) — the surface must label it an upper-bound projection, not a counterfactual fact.
-
-If the rendered section already reads clearly and the timeline feels like overengineering, a `/todo-remove` may be the right verdict instead.
+**Scope:** renderer + CSS only. Pairs naturally with the `mirrorGrid()` refactor TODO
+already in this file — best done together so the column-drop is implemented once in the
+extracted function rather than at 14 call-sites independently. Do **not** remove the
+optional `.dctx` context column (rightmost, `ugridc` variant).
 
 ---
 
-## TODO: Buff & Debuff Coverage Gaps — verify debuff target scoping
+## TODO: Early Aggro — verify Feral Druid bear-tank false positive in Threat Pulls
 
-> check that BUFF & DEBUFF COVERAGE GAPS aren't only checking the main boss, maybe the paladin tank can't apply his debuff to the main boss because he is tanking an add
+> possible bug — EARLY AGGRO — THREAT PULLS — make sure you arent counting tanks in this calculation, i see feral druid and i immediately think you are counting tanks accidentally
 
-Accuracy floor concern. Debuff uptime is read from the WCL aggregate Buffs table via `_auras(report, "debuffs")` and `uptime_pct(..., totalUptime)`. The open question: does WCL scope that table to the **main boss only**, or does it aggregate debuff uptime across **all hostile targets** in the encounter? If it's main-boss-only, a Prot Paladin tanking adds who applies Judgement/Sunder to the add — not the main boss — reads as a false debuff gap on the main target, misleading the leader into a coverage problem that isn't one (or masking a real one if the debuff should be on the main boss).
+**Short answer — not a blanket bug, but a real edge case exists:**
 
-**How to verify:** pull the raw WCL API response for a known multi-add fight (e.g. Al'ar, Kael) and inspect whether the `debuffs` auras table contains uptime contributions from the off-tank's add, or only from the main boss. If main-boss-only, the section needs an inline caveat for multi-target fights — or, if the key debuffs (`KEY_DEBUFFS`: Sunder, Expose, CoE, Faerie Fire, Misery, Judgements) are all expected on the main boss regardless, confirm the off-tank scenario actually produces a false flag before treating it as a bug.
+`threat_pulls()` (`build_deepdive.py:1340`) already excludes players whose `role_map` entry is `"tank"`:
+`if nm not in role_map or role_map.get(nm) == "tank": continue`. A dedicated bear tank would be skipped.
 
----
+**The edge case:** `role_map` is built from `primary_spec_map` — majority role across all fights in the
+report. A Feral Druid who cat-DPS'd most fights but bear-tanked one would have `role_map = "dps"` and be
+INCLUDED in threat-pull counting for the fight where they were actually tanking. Result: a false positive —
+they "pulled aggro" from themselves.
 
-## TODO: Cooldown & Trinket Usage — reframe (or zoom?) the by-spec cut
+**The fix pattern already exists:** `_druid_form(abil)` (`build_deepdive.py:1888`) distinguishes bear vs cat
+from cast mix on a per-fight basis (Lacerate/Maul/Swipe = bear; Shred/Rake/Mangle(Cat) = cat). It's used in
+the Optimize section to avoid phantom rotation gaps but NOT called in `threat_pulls()`. Applying it there
+would catch the "dps-classified bear" case: if their cast mix on that fight is bear-dominant, skip them.
 
-> Reframe or todo-zoom for COOLDOWN & TRINKET USAGE — BY SPEC — im not sure
-
-**Mandate: view the rendered HTML as a raid leader first.** Open the current report, go to Execution → **Cooldown & Trinket Usage** (`cd_usage_pool`/`tier_cd_usage` → `cdUsageView`), and read it cold — major DPS cooldowns + on-use trinkets fired per minute, pooled by (class, spec), ours vs benchmark. Form the consumer impression *before* opening the builder/renderer.
-
-**The hunch (user unsure: reframe vs zoom):** the by-spec cut may be the wrong axis, or the right axis at the wrong grain. Decide which from the rendered view:
-- **Reframe (different axis, same data)** — if the per-spec rows read as a scoreboard a leader can't act on, re-cut: **by cooldown/trinket** (which specific CD is the raid under-firing, across everyone?), **by phase/window** (are CDs landing where they matter?), or fold the better/worse delta into a single "who's leaving a cooldown on cooldown" lever.
-- **Zoom (one cut deeper, finer grain)** — if the axis is right but the row is too coarse, go deeper: the per-minute *number* per spec hides *which* cooldown is missed (a Fury warrior at 0.8 Death Wish/min vs the benchmark's 1.1 is the lever; "cooldowns: 3.2/min" is not). Break the spec's pooled rate into its individual cooldowns/trinkets.
-- **Note the overlap with Bloodlust:** the "CDs in window" column already lives in the Bloodlust section. Whatever reframe lands here must not duplicate that — decide whether cooldown *alignment* belongs there and cooldown *frequency* belongs here, or whether they should merge.
-
-**Verdict path:** if the rendered view already names a clear lever, leave it. If it's a true better/worse signal buried by the axis/grain — reframe or zoom per above. If no decision hangs on it at any cut, it's a `/todo-remove`.
-
----
-
-## TODO: Bloodlust — reframe "are you stacking burst into it?"
-
-> reframe BLOODLUST — ARE YOU STACKING BURST INTO IT?
-
-**Mandate: view the rendered HTML as a raid leader first.** Open the current report, go to Execution → **Bloodlust — Timing & Payoff** (`lust_window_mult` + per-boss `lust_sec` → `bloodlustView`), and read it cold. Today it shows three things per boss: **when** lust popped (descriptive), the **window payoff** (raid DPS in the 40s lust window ÷ fight-average DPS, >1× = burst stacked), and **CDs in window** (share of major-cooldown TYPES whose buff overlapped the window). Form the consumer impression *before* opening the code.
-
-**The hunch:** the section's whole question is "are you stacking burst into Bloodlust?" — but it may not *answer* that legibly. Three columns (timing / payoff multiplier / CDs-in-window) ask the leader to synthesize the verdict themselves. From the rendered view, decide:
-- **Reframe (clearer presentation of the same data)** — if the three columns are individually true but collectively unreadable, collapse them into the one read the heading promises: a single "did burst land in the window?" signal (payoff × alignment), with timing as context, not a co-equal column.
-- **Reframe (different slice)** — if the raid-aggregate payoff hides *who* failed to align, re-cut **by spec**: which spec's cooldowns missed the window (the actionable assignment — "tell the mages to hold Icy Veins for lust"), instead of a raid-wide multiplier that names no one.
-- **Honesty guard:** timing is explicitly descriptive (on-pull vs saved-for-a-phase is strategy, not a target) — any reframe must keep timing neutral and not imply a "correct" lust time.
-
-**Verdict path:** if the rendered view already answers "are you stacking burst into it?" at a glance, leave it. If the signal is real but buried across three columns or hidden at raid-aggregate grain — reframe per above. If no decision hangs on it, it's a `/todo-remove`.
+**Verify first:** check a real report where Feral Druid appears in Threat Pulls — confirm whether the named
+player is cat-DPS (correct inclusion) or a bear-tanking Feral classified as dps by role_map (false positive).
+If the former, no bug. If the latter, wire `_druid_form()` into the non-tank check inside `threat_pulls()`.
 
 ---
 
-## TODO: Early Aggro — Threat Pulls — zoom in by spec
+## TODO: Ghost Run — clip dashed projection line at the ghost kill marker
 
-> /todo-zoom EARLY AGGRO — THREAT PULLS
+> for ghost run — what dying cost you — make the green dashed line stop where the vertical green ghost line is (and it should update when it changes from selecting/deselecting dead players)
 
-**Current grain:** per-boss count of times a non-tank held the named boss's aggro, plus an opener count (first 30s). Clean better/worse (fewer = better). Under-counts by design (only brief holds ≤15s tagged). Opener count feeds the Overview scorecard.
+**What to fix:** in `tlChart()` (`report.html:1326`), the dashed ghost DPS line is drawn for the full
+`gDur` duration — it runs past the vertical "ghost kill" marker at `ghost.killSec`. The line should end
+exactly at `killSec`: a projection beyond the projected kill is meaningless and clutters the read.
 
-**Proposed deeper grain:** break the pull count by **spec** — which spec's players are responsible for the threat events per boss? The total-count row already tells the leader *that* there's an aggro problem; the spec split tells them *who to address*: "your Fire Mages are pulling on the opener" → Misdirection assignment or hold-for-tanks cue; "your Combat Rogues" → Vanish/Feint discipline. Same data, one cut down from a boss-level tally to a spec-level attribution — from scoreboard to lever.
+**Fix:** when building the dashed path, filter out points where `i/(n-1)*gDur > ghost.killSec` — i.e. only
+draw points up to and including the bucket that crosses `killSec`. The filled gap polygon (lines 1323-1325)
+should be clipped the same way so the green shaded area also stops at the kill line.
 
-**Builder / renderer:** `threat_pulls` (builder, `scripts/build_deepdive.py`) → `threatPullsView` (renderer, `templates/report.html`). The DATA payload today is a per-boss object `{ count, openerCount, better }`. To add the spec cut, accumulate a `bySpec: { [specKey]: count }` map inside the per-boss object, sourced from the raw threat-event records already iterated in `threat_pulls`. The renderer then renders a compact spec breakdown row beneath each boss's count.
+**Already updates on toggle:** `ghostInner()` re-renders the whole chart block on every death toggle, so
+clipping by the recomputed `killSec` will update automatically — no additional wiring needed.
 
-**Before building, judge it as a consumer first.** Open the rendered report, navigate to Execution → **Early Aggro — Threat Pulls**, and read it cold:
-- Does the current per-boss count read as a lever or as a bare scoreboard? (If it already feels actionable — maybe pull counts are so low they name the single offender — the spec breakdown may be overkill.)
-- Is the opener count the real signal, and the per-boss total just context? If so, the zoom may belong *there* (which specs fire the opener?), not on the general pull count.
-- Honesty check: the under-count caveat (brief holds only) means the spec attribution is also an under-count — label it as a floor, not a full accounting.
-
-If the rendered view shows low pull counts that don't warrant a breakdown, or if the opener count is already the only number that matters, this may resolve as a cosmetic polish rather than a structural zoom.
-
----
-
-## TODO: Add Control — Kill Speed — center rightmost column values
-
-> Move the rightmost column values to be centered under the add name
-
-Legibility fix. In `targetEngagementView` (`templates/report.html:1315–1342`), each add row uses the `ugridc` grid: `[ours value] [ours bar→] [add name + delta] [←theirs bar] [theirs value] [counts]`. The theirs-lifespan value (`<div class="dval ro">`) currently sits flush to the right edge of the container rather than visually centering under the add name column. A leader scanning the row has to hunt for the benchmark number.
-
-Fix: adjust CSS alignment so the rightmost lifespan value centers under (or directly adjacent to) the add name. The `ugridc` grid is defined at `report.html:236` (`grid-template-columns:38px 1fr 90px 1fr 38px minmax(48px,auto)`); `.dval.ro` may need `text-align:center` or a grid placement tweak. Match whatever the fix is to `.dval.lo` (the ours side) so both sides read symmetrically.
+**Scope:** renderer-only, one-line path filter in `tlChart()`. No builder changes.
 
 ---
 
-## TODO: Execution tab — move Output Quality and Clear Efficiency to top
+## TODO: BUG — mobile bosses hide ALL positioning; should snapshot their plant windows
 
-> OUTPUT QUALITY move to top of tab section
-> Same for CLEAR EFFICIENCY
+> No why are we hiding positioning if labelled mobile, "BUG", it is still possible for mobile bosses to plant and for us to find relatively stable positioning states
 
-Legibility improvement. Currently **Output Quality** renders as item 4 (lines 780–802 of `renderExecution`) and **Clear Efficiency** as item 5 (lines 807–818), both at the very bottom of the Execution tab. They are macro "are we winning?" reads — Raid DPS, activity, damage taken, HPS, overheal, wall-clock vs fight time — and a leader must scroll past all the sub-gap detail (What's Killing Us, Spec DPS, Buff Gaps, Interrupts, Cooldowns…) before reaching them.
+**The bug:** `boss_positioning()` (`positioning.py:468-474`) classifies a boss by **whole-fight** boss travel
+(`boss_travel_yd`) and bails entirely when `bclass == "mobile"`. Al'ar's flight between platforms smears to
+~1448yd, so it's tagged mobile and gets **no Positioning tab at all** — even though Al'ar (and other "mobile"
+bosses) repeatedly **plant** on a platform, and during those windows the raid's formation around the planted
+boss is exactly as meaningful as on any stationary boss. Whole-fight travel is the wrong grain: a boss that
+teleports/flies between stable stands is mobile *between* plants but stationary *during* them.
 
-Fix: in `renderExecution` (`report.html:729`), move the Output Quality block (section `/* 4. Output quality */`) and the Clear Efficiency block (section `/* 5. Clear efficiency */`) to render **before** What's Killing Us (currently section `/* 1. */`). The macro view first, then the drill-down — consistent with how the Overview tab leads with the summary cards. No builder changes — pure render-order move in the renderer.
+**The fix — per-window classification, not whole-fight:** the phase-anchored snapshot machinery already
+exists and already solves this — it's just gated out by the early `return None`. `_snapshot_windows()` +
+`_formation_at()` (`positioning.py`) detect settled windows and render a per-moment formation map. The change:
 
-Note: the `dmgMode` toggle inside Output Quality also re-renders the Bosses tab (`renderBossesPanel`). That coupling is unaffected by the move.
+1. **Don't bail on mobile.** Instead of returning None for `bclass == "mobile"`, detect the **stable
+   sub-windows** within the fight — bins where the boss anchor is locally stationary (low travel over a
+   short rolling window), i.e. the plant phases. Phase boundaries (`o_phases`/`t_phases`) are a strong prior
+   for where plants begin.
+2. **Anchor each snapshot's frame to that window's planted boss position**, not a whole-fight frame (which is
+   what makes the mobile smear meaningless). Per-plant frame = relative geometry is honest again.
+3. **Render only the planted windows** as phase-anchored snapshots; skip the flight gaps. If no stable window
+   is found (truly always-moving boss), fall back to the current suppression with the honest one-liner.
 
----
+**Why it matters (soul):** Al'ar is a real shared boss; hiding positioning entirely is a coverage hole, not a
+clean omission. Plant-phase formation surfaces the same lever as any stationary boss (spread/stack vs the
+benchmark when it actually counts). Magnitude gate: only worth it if the plant windows hold enough position
+samples to compute a stable spread radius — verify on the live Al'ar fight before building.
 
-## TODO: Kill Summary &amp; Rosters — remove from Bosses tab
-
-> Kill Summary &amp; Rosters
-
-**Cut reason:** *Redundant / data dump.* The Kill Summary block (`bossSummaryBlock`) appears beneath each boss's execution panel on the Bosses tab and contains: kill time bars, Raid DPS/HPS bars, avg parse bar, deaths bar, wipes before kill, wipe depth, and two full roster tables. Every signal in it is already present elsewhere: kill time and DPS curve are on the Timeline; deaths and killing blows are on the Deaths sub-tab; wipes and wipe depth are on the Wipes tab; composition + rosters are on the Composition tab. The roster tables in particular are a data dump — a list of names with parses that doesn't surface a lever. No decision hangs on the Kill Summary block that isn't already made by the tabs above it.
-
-**Note on data payload:** some per-boss builder fields (`oursRaidDps`, `theirsRaidDps`, `oursRaidHps`) may also be read by the Timeline chart or the Overview scorecard — grep before deleting them from the builder. The `ours.players`/`theirs.players` arrays are very likely exclusive to this block.
-
-**Cleanup checklist:**
-
-- `templates/report.html:78–80` — delete `.rostergrid`, `.rostergrid h4`, `.rostergrid h4.ours`, `.rostergrid h4.theirs` CSS rules
-- `templates/report.html:283–292` — delete `function rosterTable(...)` (only called by `sideRosters`)
-- `templates/report.html:295–301` — delete `function sideRosters(...)` (only called by `bossSummaryBlock`)
-- `templates/report.html:519–540` — delete `function bossSummaryBlock(...)` and its preceding comment
-- `templates/report.html:879` — remove `${bossSummaryBlock(b,d)}` from the bsub div (keep `${panel}` + the wrapper)
-- `scripts/build_deepdive.py` — grep for `"players"` in the per-boss build loop; delete the `players` payload builder that populates `b.ours.players`/`b.theirs.players`. Verify `oursRaidDps`/`theirsRaidDps`/`oursRaidHps`/`theirsRaidHps` per-boss fields before removing — if used only by `bossSummaryBlock`, delete; if used by Timeline, leave.
-- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — remove the `sideRosters`/`rosterTable` references in the Overview "Boss-by-Boss" bullet (the rosters half); update or remove the note that kill-summary content moved to the Bosses tab
-
----
-
-## TODO: Positioning — remove Spread over time and Why we eat more
-
-> bosses tab — positioning Spread over time
-> Also remove "why we eat more…" from positioning subtab
-
-**Cut reason (Spread over time, feature 5):** EXPERIMENTAL, buried three levels deep (Bosses tab → boss → Positioning sub-tab), and the time-series detail — "the gap opens around 60% into the fight" — is precision a leader can't act on beyond what the spread-vs-demand verdict (feature 2, which **stays**) already names. The verdict says *what to do*; the strip just adds a *when* that's too fine-grained for the report's legibility floor.
-
-**Cut reason (Why we eat more + Void-zone heatmap, features 1 and 4):** EXPERIMENTAL scatter/heatmap; the avoidable-damage mechanic is already surfaced and ranked in Execution → Avoidable Damage by Mechanic. The spatial "is it clustered or scattered?" verdict is real but rendered in a sub-tab most leaders won't reach, and it only fires when a qualifying mechanic has ≥5 distinct non-tank targets — i.e. it's usually absent. Cut and let Execution's Avoidable Damage carry the signal.
-
-**What stays:** feature 2 (Raid formation & spread maps + spread-vs-demand verdict) — the formation map and the spread direction call are the primary lever the Positioning sub-tab provides.
-
-**Cleanup checklist — `scripts/positioning.py`:**
-
-- `positioning.py:225–~230` — delete `def spread_series(...)` (feature 5 data builder)
-- `positioning.py:476–~530` — delete `def _strip_svg(...)` (feature 5 SVG renderer)
-- `positioning.py:598–626` — delete the `# ---- feature 5: spread-over-time strip ----` block inside `boss_positioning()` (the `strip_html` assembly)
-- `positioning.py:318–~400` — delete `def ability_cluster(...)` (feature 1 spatial analysis)
-- `positioning.py:428–~441` — delete `def _scatter_panel(...)` (feature 1 scatter SVG)
-- `positioning.py:443–~474` — delete `def _heatmap_panel(...)` (feature 4 heatmap SVG)
-- `positioning.py:692–~714` — delete `def _top_avoidable_with_hits(...)` (features 1+4 ability picker)
-- `positioning.py:628–659` — delete the `# ---- feature 1 + 4: the top avoidable ability ----` block inside `boss_positioning()` (the `ability_html` assembly)
-- `positioning.py:541–543` — update the `boss_positioning()` docstring (currently says "features 1, 2, 4, 5") to "feature 2 only"
-- `positioning.py:1–12` — update the module docstring: remove items 1, 4, 5 from the features list
-- `positioning.py:540` / call site in `build_deepdive.py` — the `avoidable_rows` parameter is only used by feature 1; after removing that block, drop the parameter from `boss_positioning()` and its call site
-
-**Cleanup checklist — `templates/report.html`:**
-
-- `report.html:842–843` — update the Positioning sub-tab comment (currently mentions "spread over time, the avoidable-ability scatter + heatmap") to just "the formation map and spread verdict"
-
-**Cleanup checklist — `references/report-anatomy.md`:**
-
-- Delete the **Spread over time (feature 5, `spread_series`)** bullet under Positioning
-- Delete the **Why we eat more `<ability>` (feature 1, `ability_cluster`) + Void-zone density (feature 4)** bullet under Positioning
+**Verify the data:** confirm the cached `positions-<enc>.json` for Al'ar has enough per-bin boss anchor +
+roster samples *during* the plant windows to compute spread (it should — the suppression happens after fetch,
+on classification, so the data is already there).
 
 ---
 
-## TODO: Positioning formation map — reframe as snapshots at meaningful moments
+## TODO: BUG — Positioning snapshots clip outliers and use whole-fight frame instead of window frame
 
-> we should be showing positioning snapshots between raids for:
-> - once positions roughly stabilized immediately after pulls
-> - when it is clear that a boss mechanic triggered a repositioning of the raid (label the mechanic)
-> - at the beginning of each phase once the boss/adds positions stabilize
-> - make sure adds shown too and the direction each is facing
+> bug — you are clipping the positioning viz, and also reframing them, i need the same perspective for both raids for all positioning viz snapshots with no clamping outliers
 
-**Mandate: view the rendered HTML as a raid leader first.** Open the current report, navigate to the Bosses tab → any boss with a Positioning sub-tab, and read the existing Raid formation & spread maps cold — as a leader who hasn't seen the code. Note what story the current formation maps tell (or fail to tell) before evaluating the reframe below. **Do not open `positioning.py` or `report.html` to form your initial verdict.**
+**Two bugs in `_robust_frame` (`positioning.py:302`) and `_formation_at` / `_formation_panel`:**
 
-**The hunch:** the current formation map is a single whole-fight median-position snapshot per player — everyone's average position across the entire fight squashed into one picture. That collapses the fight's spatial story into a static smear. A leader wants to know *where was the raid when it mattered*: the opening position, the moment a mechanic lands and forces repositioning, the start of each phase. Multiple moment-specific snapshots — each labeled by what triggered them — would let a leader compare "where were we in Phase 2 vs the benchmark's Phase 2?" and "did the Arcane Orbs scatter us or did we hold formation?"
+**Bug 1 — 3rd/97th-percentile clipping:** `_robust_frame` computes the bounding box as the 3rd–97th
+percentile of actor median positions (`pct(xs, 0.03)` / `pct(xs, 0.97)`). Any actor whose median position
+falls outside that range has their dot clamped to the border and shown hollow. A leader sees a fake
+formation: actors who were genuinely far out are pinned to the edge, misrepresenting the spread. **Fix:**
+use the full min–max range (or at most 1st–99th with a large roster — never 3rd/97th). Every actor is shown
+where they actually were; if the frame gets wide, that's the honest read.
 
-**What to decide from the rendered view:**
-- Does the current single-median map actually read as useful? Can a leader understand their raid's shape from it, or does it look like a noise cloud?
-- Is the signal that's latent here (where the raid held vs where the benchmark held at key moments) genuinely decision-changing, or is "spread your raid better" already captured by the spread-vs-demand verdict text beneath the maps?
-- Would a leader read multiple labeled snapshots, or would they check one and move on? (Legibility: each snapshot adds a map; three snapshots = three SVGs to parse.)
+**Bug 2 — frame built from whole-fight medians, not window positions:** `_robust_frame` collects each
+actor's `_actor_median(a)` (median over the ENTIRE fight), then derives the shared bounding box from those
+whole-fight medians. Phase-anchored snapshots (`_formation_at`) then use that same frame even though a
+snapshot represents a specific 5–10s window where the raid may have been positioned very differently from
+their whole-fight average. An actor who camped the far side of the room during Phase 1 but stood on the boss
+median for the rest of the fight will have a whole-fight median near center — and their Phase 1 dot will
+appear outside the frame and get clamped, or the frame will be too tight to show Phase 2's spread. **Fix:**
+for snapshot panels, derive the frame from the WINDOW positions (the actual actor positions in bins [lo, hi)),
+not from whole-fight medians. The frame expands to show where everyone actually stood in that moment.
 
-**If the reframe is worth it — the axis to re-cut along:**
-- **By when** (temporal axis): replace the single median-position map with 2–4 moment-specific snapshots, each labeled with what defined that moment:
-  - *Opening formation* — positions once the raid stabilized after the pull (first ~5s after the initial flurry of movement dies down; detect via median pairwise-position variance dropping below a threshold)
-  - *Post-mechanic repositioning* — when a trackable AoE mechanic fires and the raid noticeably shifts (label the mechanic and the time into the fight; detect via a spike in median pairwise-distance change after an ability hit)
-  - *Phase transitions* — a snapshot ~5s after the phase boundary stabilizes (from `phaseTransitions`; skip if fewer than 2 raiders changed position by >5yd)
-- **Adds & facing:** include non-boss hostile actors (the named adds that appear in `masterData`) as distinct shapes/colors on the same map. Facing direction per actor: WCL's `facing` field (centiradian-encoded; see the positioning skill's `coordinate-system.md`) as a small directional arrow on each dot — both for players AND adds, since add facing is what determines cleave/cone-ability threat arcs.
+**Shared frame across both raids must be preserved:** the shared frame (both sides combined into one box) is
+correct and must stay — the fix is in the DATA used to build the shared frame (window positions, not
+whole-fight medians), not in separating ours vs theirs into independent frames. A raid leader comparing ours
+vs benchmark must see both at the same scale and origin.
 
-**Honesty guards to carry into the build:**
-- Each snapshot caption must name its trigger ("Phase 2 start", "Arcane Orbs at 45s", "pull opener") so the leader isn't guessing why this moment was chosen.
-- The stabilization heuristic (movement variance dropping below threshold) is approximate — label the snapshot time, not just the label, so a leader can cross-reference the Timeline.
-- Facing arrows only when `facing` data is available for that actor at that moment; don't infer or interpolate.
-- If fewer than 2 defined moments can be detected (e.g. a single-phase stationary boss with no qualifying mechanics), fall back to the current single median-position map with no regression in coverage.
-
-**If the rendered view shows the current map is already too hard to read as a static image** — the reframe may be solving the wrong problem. In that case, consider whether the Positioning sub-tab's real failure is legibility of a single map (a rendering fix — bigger SVG, cleaner role colors, boss ring more prominent) rather than needing more maps.
-
----
-
-## TODO: DPS by Spec (Bosses tab) — remove ×N vs ×N count badge
-
-> on dps by spec in bosses tab, remove the "x2 vs x2" type value in the center of the viz
-
-**Cut reason:** *Scoreboard noise / redundant.* The count badge `×${r.oursCount} vs ×${r.theirsCount}` sits inside the already-crowded center label of each spec row alongside the spec name and the per-player gap delta. It exists to justify why avg-DPS is a fair comparison (3 mages vs 2 mages stays per-player), but the section intro prose already makes that point explicitly and the hint text says the same. Displaying the raw roster counts inline on every row adds visual noise to the center column without adding a lever — the composition question ("they run 3 mages, we run 2") is for the Composition tab, not a DPS bar chart.
-
-**Cleanup checklist — one ref, renderer only:**
-
-- `templates/report.html:1360` — in `specDpsView`, delete `<span class="role">×${r.oursCount} vs ×${r.theirsCount}</span>` from the `dmid` div
-
-**Note:** `.role` CSS (line 75) is shared across many other rendering contexts (roster table role column, consumables matrix spec labels, potion-by-spec table) — do **not** delete the CSS rule. The `oursCount`/`theirsCount` fields in the DATA payload also stay — they may be used to compute `oursAvg`/`theirsAvg` in the builder; verify before touching them.
-
-**Note:** `tierSpecGapView` (Execution tab equivalent, line 1067) does **not** have the count badge — no change needed there.
+**Where to fix:**
+- `positioning.py:302` — `_robust_frame`: remove 3rd/97th percentile; use full min/max (or pass the actual
+  window-bin positions rather than whole-fight medians for snapshot contexts)
+- `positioning.py:417` — `_formation_at`: compute the frame inside this function from the window-bin
+  positions `[lo:hi)` across both sides (pass both sides' pos objects, not a pre-baked frame), then pass
+  that window frame into `_projector`
+- `positioning.py:505` — call site in `boss_positioning`: the single-panel fallback (`_formation_panel`) can
+  keep a whole-fight frame since it shows the whole fight, but the phase-snapshot path must compute per-window
+  frames (or one combined window frame across all shown windows)
 
 ---
 
-## TODO: Hint text — trim all to ≤50 words  *(EXECUTE LAST)*
+## TODO: Refactor — extract mirrorGrid() as a single reusable mirror-bar function
 
-> all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting
+> is it possible to make horizontal mirror bar viz a reusable function that can be configured or is this bad idea
 
-**⏳ Sequencing: do this AFTER every other TODO above has settled.** Trimming hints now would be wasted or wrong work — several pending items remove sections outright (Activity by Spec, Drums Uptime, Parse Spread, Kill Summary & Rosters, Positioning strip+scatter), and others rewrite a section's surface entirely (Ghost Run move, the Cooldown and Bloodlust reframes). Their hints will be deleted or rewritten anyway. Trim the hints once the set of sections — and their wording — is final, so this is a single clean pass over the report's *actual* final hints, not a moving target.
+**Yes, it's a good idea.** The horizontal mirror-bar idiom (ours ← label → theirs, with a delta tag and
+optional context column) appears **14 times** across `report.html` as hand-rolled boilerplate — same 5-column
+div sequence, same `.dbarL`/`.dbarR`/`.dval`/`.dmid` CSS, different formatters and delta functions per site.
+Two partial extractions (`topSources`, `uptimeCompare`) already exist but don't share a common core. A recent
+centering bug had to be fixed in 4 simultaneous places; that's the maintenance signal.
 
-Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip is a wall they skip. The soul's rule: a correct signal nobody reads transfers zero value. At last count **23 of ~30 hints** exceeded 50 words (the longest ran 114) — re-count after the section churn settles. Trim each to ≤50 words, preserving the signal: what the section shows, what direction is better, and any honest caveat the leader needs to act on it. No new hedges, no new examples — just cut filler and redundant framing. All changes are in `templates/report.html` hint `<span>` blocks only.
+**Proposed abstraction — one JS function, param-configured:**
+
+```js
+mirrorGrid(rows, {label, grid, rowFn, oTitle, tTitle})
+```
+
+- `rows` — array of data objects
+- `label` — center column header text
+- `grid` — `'ugrid'` (default) | `'dgrid'` | `'ugrid ugridc'` (with context column)
+- `oTitle` / `tTitle` — left/right header labels (default: `DATA.ours.title` / `DATA.theirs.title`)
+- `rowFn(r, w)` — caller-supplied function: takes one row + a `w(v)` bar-width calculator, returns the
+  5 (or 6 with `.dctx`) column divs as a string. Caller controls formatters, delta class, sub-rows.
+
+The `w(v)` calculator is derived inside `mirrorGrid` from `max(all rows' ours + theirs values)`. Sub-rows
+(the CD `byAbility` rows, threat-pull `bySpec` sub-rows) are returned by `rowFn` as additional divs spanning
+all columns — the grid allows that naturally.
+
+**What this unblocks:** the CD mirror-bars TODO (per-cooldown rows per class) and the debuff-per-target zoom
+both need new mirror-bar instances. Building them with `mirrorGrid` instead of copy-pasting the 5-column
+boilerplate keeps the codebase consistent and makes future layout changes (column widths, delta styling, media
+breakpoints) a one-line fix.
+
+**Scope:** `report.html` only — no builder changes. Replace existing boilerplate call-sites incrementally,
+starting with the two that need new sub-row logic (CD Usage, threat pulls) since they benefit most from the
+abstraction. The existing `topSources` and `uptimeCompare` functions can be re-expressed as thin wrappers
+around `mirrorGrid` or left as-is — don't refactor them for its own sake, only when touching them for
+another reason.

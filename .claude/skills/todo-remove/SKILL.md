@@ -34,10 +34,12 @@ diverged and needs a human.
 
 1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root). Note the cut reason in the soul's
    own terms — *helps with nothing* / *silly* (no decision · noise gap · cool-data) /
-   *unfixable confound* / *redundant* / *raw dump* / *blame* / *unreadable*. The user
-   is making the call; you're recording it, not re-litigating it. (If you think the
-   cut is wrong — e.g. it's really a `/todo-zoom`, a `/todo-reframe`, or a legibility fix — add
-   the item but say so in one line.)
+   *unfixable confound* / *redundant* / *raw dump* / *blame* / *unreadable*. **The user
+   is making the call; you're recording it, not re-litigating it.** The removal item gets
+   written regardless. (If you genuinely think the cut might be better served as a
+   `/todo-zoom`, a `/todo-reframe`, or a legibility fix, you may add that as **one neutral
+   line of context** — never as a refusal or a substitute for the removal the user
+   asked for.)
 2. **Enumerate the dangling refs — this is the core of the skill.** Ground the
    section in `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` to
    get its builder→renderer symbols, then **grep** for everything a removal must

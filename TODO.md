@@ -223,3 +223,43 @@ vs benchmark must see both at the same scale and origin.
 - `positioning.py:505` — call site in `boss_positioning`: the single-panel fallback (`_formation_panel`) can
   keep a whole-fight frame since it shows the whole fight, but the phase-snapshot path must compute per-window
   frames (or one combined window frame across all shown windows)
+
+---
+
+## TODO: Refactor — extract mirrorGrid() as a single reusable mirror-bar function
+
+> is it possible to make horizontal mirror bar viz a reusable function that can be configured or is this bad idea
+
+**Yes, it's a good idea.** The horizontal mirror-bar idiom (ours ← label → theirs, with a delta tag and
+optional context column) appears **14 times** across `report.html` as hand-rolled boilerplate — same 5-column
+div sequence, same `.dbarL`/`.dbarR`/`.dval`/`.dmid` CSS, different formatters and delta functions per site.
+Two partial extractions (`topSources`, `uptimeCompare`) already exist but don't share a common core. A recent
+centering bug had to be fixed in 4 simultaneous places; that's the maintenance signal.
+
+**Proposed abstraction — one JS function, param-configured:**
+
+```js
+mirrorGrid(rows, {label, grid, rowFn, oTitle, tTitle})
+```
+
+- `rows` — array of data objects
+- `label` — center column header text
+- `grid` — `'ugrid'` (default) | `'dgrid'` | `'ugrid ugridc'` (with context column)
+- `oTitle` / `tTitle` — left/right header labels (default: `DATA.ours.title` / `DATA.theirs.title`)
+- `rowFn(r, w)` — caller-supplied function: takes one row + a `w(v)` bar-width calculator, returns the
+  5 (or 6 with `.dctx`) column divs as a string. Caller controls formatters, delta class, sub-rows.
+
+The `w(v)` calculator is derived inside `mirrorGrid` from `max(all rows' ours + theirs values)`. Sub-rows
+(the CD `byAbility` rows, threat-pull `bySpec` sub-rows) are returned by `rowFn` as additional divs spanning
+all columns — the grid allows that naturally.
+
+**What this unblocks:** the CD mirror-bars TODO (per-cooldown rows per class) and the debuff-per-target zoom
+both need new mirror-bar instances. Building them with `mirrorGrid` instead of copy-pasting the 5-column
+boilerplate keeps the codebase consistent and makes future layout changes (column widths, delta styling, media
+breakpoints) a one-line fix.
+
+**Scope:** `report.html` only — no builder changes. Replace existing boilerplate call-sites incrementally,
+starting with the two that need new sub-row logic (CD Usage, threat pulls) since they benefit most from the
+abstraction. The existing `topSources` and `uptimeCompare` functions can be re-expressed as thin wrappers
+around `mirrorGrid` or left as-is — don't refactor them for its own sake, only when touching them for
+another reason.

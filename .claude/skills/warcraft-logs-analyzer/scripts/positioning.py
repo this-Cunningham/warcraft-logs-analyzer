@@ -62,6 +62,16 @@ _MOBILE_YD = 160.0
 _RING_YD = 12.0
 _EDGE_YD = 17.0
 
+# Plant / re-plant snapshot detection (a boss is "planted" while it stays within this radius; a NEW plant after
+# it moves away is its own snapshot moment, even mid-phase). Tuned for TBC fights: a stand must last a few
+# seconds to hold a meaningful formation, and snapshots within a few seconds of each other are merged.
+_PLANT_RADIUS_YD = 12.0   # boss stays within this of the stand's anchor = same plant
+_MIN_PLANT_SEC = 6.0      # a stand shorter than this isn't a settled formation
+_PLANT_STAB_SEC = 3.0     # skip the arrival scramble at the start of a stand
+_PLANT_WINDOW_SEC = 10.0  # max length of a snapshot window
+_PLANT_MERGE_SEC = 6.0    # moments closer than this are the same moment (keep the earlier/phase-labelled one)
+_MAX_MOMENTS = 6          # cap snapshots per side so a long fight isn't a wall of maps
+
 
 # ----------------------------------------------------------------------------- data loading + small geom
 
@@ -129,9 +139,9 @@ def _actor_median(actor):
     return (_median([p[0] for p in pts]), _median([p[1] for p in pts]))
 
 
-def _circ_mean(headings):
-    """Circular mean of per-bin headings (radians), ignoring None — averages unit vectors via atan2 so the
-    +/-pi seam is handled (a plain mean of angles would be wrong across it). None when nothing is present."""
+def _circ_mean_n(headings):
+    """(circular-mean heading, sample count) over per-bin headings (radians), ignoring None. atan2 of the
+    summed unit vectors handles the +/-pi seam. (None, 0) when nothing is present."""
     sx = sy = 0.0
     n = 0
     for h in headings:
@@ -140,7 +150,12 @@ def _circ_mean(headings):
         sx += math.cos(h)
         sy += math.sin(h)
         n += 1
-    return math.atan2(sy, sx) if n else None
+    return (math.atan2(sy, sx), n) if n else (None, 0)
+
+
+def _circ_mean(headings):
+    """Circular mean of per-bin headings (radians), ignoring None; None when nothing is present."""
+    return _circ_mean_n(headings)[0]
 
 
 def _heading_all(actor):
@@ -148,29 +163,50 @@ def _heading_all(actor):
     return _circ_mean(actor.get("facing") or [])
 
 
-def _heading_at(actor, lo, hi):
-    """Mean heading (radians) over the window [lo,hi) of a track's per-bin facings, or None when absent."""
+def _heading_at(actor, lo, hi, fill=False, min_n=1):
+    """Mean heading (radians) over the window [lo,hi) of a track's per-bin facings. Needs at least `min_n`
+    real samples in the window (a guard against a single noisy facing reading drawing a misleading arrow). When
+    `fill` is set and the window has too few samples, fall back to the NEAREST captured facing outside it — used
+    for persistent actors (boss, players) whose facing is sampled sparsely, so a short snapshot window that
+    happens to miss a sample still gets the right heading; never used for transient adds (we don't infer a dead
+    add's facing). None when the track has no facing at all."""
     fac = actor.get("facing")
     if not fac:
         return None
-    return _circ_mean(fac[lo:hi])
+    h, n = _circ_mean_n(fac[lo:hi])
+    if n >= min_n and h is not None:
+        return h
+    if not fill:
+        return None
+    mid = (lo + hi) // 2
+    best = None
+    best_d = None
+    for i, v in enumerate(fac):
+        if v is None:
+            continue
+        d = abs(i - mid)
+        if best_d is None or d < best_d:
+            best_d, best = d, v
+    return best
 
 
-def _arrow_svg(px, py, heading, col, ln=12.0):
-    """A short facing arrow (line + barbed head) from a dot at (px,py) along `heading` (radians, WCL x/y
-    frame). The screen y-axis is flipped vs the WCL frame, so the y component is negated. '' when no heading
-    (we never INFER a facing — an actor with no captured facing simply gets no arrow)."""
+def _arrow_svg(px, py, heading, col, ln=12.0, r0=0.0):
+    """A facing arrow (line + barbed head) along `heading` (radians, WCL x/y frame), starting `r0` px out from
+    (px,py) so it clears the actor's marker (a boss diamond / add square) and the whole arrow reads cleanly
+    outside the dot. The screen y-axis is flipped vs the WCL frame, so the y component is negated. '' when no
+    heading (we never INFER a facing — an actor with no captured facing simply gets no arrow)."""
     if heading is None:
         return ""
     dx, dy = math.cos(heading), -math.sin(heading)  # negate y: screen y grows downward
-    tx, ty = px + dx * ln, py + dy * ln
+    bx, by = px + dx * r0, py + dy * r0
+    tx, ty = px + dx * (r0 + ln), py + dy * (r0 + ln)
     sa = math.atan2(dy, dx)  # screen-space angle for the barbs
     bl = 4.0
     lx, ly = tx - bl * math.cos(sa - 0.5), ty - bl * math.sin(sa - 0.5)
     rx, ry = tx - bl * math.cos(sa + 0.5), ty - bl * math.sin(sa + 0.5)
-    return ('<line x1="{:.1f}" y1="{:.1f}" x2="{:.1f}" y2="{:.1f}" stroke="{}" stroke-width="1.5" '
-            'opacity="0.9"/><polygon points="{:.1f},{:.1f} {:.1f},{:.1f} {:.1f},{:.1f}" fill="{}"/>').format(
-        px, py, tx, ty, col, tx, ty, lx, ly, rx, ry, col)
+    return ('<line x1="{:.1f}" y1="{:.1f}" x2="{:.1f}" y2="{:.1f}" stroke="{}" stroke-width="1.6" '
+            'opacity="0.95"/><polygon points="{:.1f},{:.1f} {:.1f},{:.1f} {:.1f},{:.1f}" fill="{}"/>').format(
+        bx, by, tx, ty, col, tx, ty, lx, ly, rx, ry, col)
 
 
 def _fill(track):
@@ -441,23 +477,25 @@ def _boss_marker(parts, bm, sx, sy, scale, W, H, heading=None):
     by = min(max(by, 0), H)
     parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="none" stroke="#94a3b8" '
                  'stroke-width="1.4" stroke-dasharray="5 4" opacity="0.55"/>'.format(bx, by, _RING_YD * SCALE * scale))
-    # Facing arrow (cleave/cone-threat direction) drawn from the boss centre when a heading was captured.
-    parts.append(_arrow_svg(bx, by, heading, BOSS_COLOR, ln=16.0))
+    # Facing arrow (cleave/cone-threat direction): start at the diamond's edge (r0=9) so the whole arrow reads
+    # OUTSIDE the boss glyph, and draw it longer than a player's so the boss's heading is unmistakable.
     parts.append('<polygon points="{0:.1f},{1:.1f} {2:.1f},{3:.1f} {0:.1f},{4:.1f} {5:.1f},{3:.1f}" '
                  'fill="{6}" stroke="#0f1420" stroke-width="1.6"/>'.format(
                      bx, by - 9, bx + 9, by, by + 9, bx - 9, BOSS_COLOR))
+    parts.append(_arrow_svg(bx, by, heading, BOSS_COLOR, ln=20.0, r0=9.0))
 
 
 def _add_marker(parts, c, heading, sx, sy, W, H):
-    """An enemy NPC (add): a small hostile-rose square + its facing arrow (cleave/cone), clamped into frame."""
+    """An enemy NPC (add): a small hostile-rose square + its facing arrow (cleave/cone), clamped into frame.
+    The arrow starts at the square's edge (r0=6) so it reads outside the glyph."""
     if not c:
         return
     ax, ay = sx(c[0]), sy(c[1])
     ax = min(max(ax, 5), W - 5)
     ay = min(max(ay, 5), H - 5)
-    parts.append(_arrow_svg(ax, ay, heading, ADD_COLOR, ln=12.0))
     parts.append('<rect x="{:.1f}" y="{:.1f}" width="9" height="9" fill="{}" stroke="#0f1420" '
                  'stroke-width="1.2"/>'.format(ax - 4.5, ay - 4.5, ADD_COLOR))
+    parts.append(_arrow_svg(ax, ay, heading, ADD_COLOR, ln=13.0, r0=6.0))
 
 
 def _formation_panel(pos, roles, frame, W=300):
@@ -481,7 +519,7 @@ def _formation_panel(pos, roles, frame, W=300):
         inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
         px = min(max(px, 5), W - 5)
         py = min(max(py, 5), H - 5)
-        parts.append(_arrow_svg(px, py, hd, col, ln=11.0))
+        parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
         if inframe:
             parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
         else:
@@ -507,6 +545,16 @@ def _dual(o_svg, t_svg, o_name, t_name, sub=""):
             '</div>').format(esc(o_name), o_svg, esc(t_name), t_svg, cap)
 
 
+def _single(svg, name, side, sub=""):
+    """One side's panel alone — for a snapshot moment only ONE raid has (e.g. a re-plant the other didn't do,
+    or a phase one raid never reached). `side` is 'ours'/'theirs' for the heading colour."""
+    var = "--ours" if side == "ours" else "--theirs"
+    cap = '<div style="color:#64748b;font-size:11px">{}</div>'.format(sub) if sub else ""
+    return ('<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">'
+            '<div style="text-align:center"><div class="poshd" style="color:var({0})">{1}</div>{2}{3}</div>'
+            '</div>').format(var, esc(name), svg, cap)
+
+
 def esc(s):
     return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -530,27 +578,32 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         bpts = [p for p in _fill(bb)[lo:hi] if p]
         if bpts:
             bm = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
-    _boss_marker(parts, bm, sx, sy, scale, W, H, heading=_heading_at(bd, lo, hi) if bd else None)
-    # Enemy NPCs (adds) present in this window, each at its window median + facing arrow.
+    # Boss heading: fill from the nearest captured sample (the boss persists all fight, so a short window that
+    # misses a sparse facing reading still gets the right arrow).
+    _boss_marker(parts, bm, sx, sy, scale, W, H,
+                 heading=_heading_at(bd, lo, hi, fill=True) if bd else None)
+    # Enemy NPCs (adds) present in this window. Use RAW (un-filled) bins: an add that despawned earlier must
+    # NOT carry-forward its last position into later snapshots (that ghosted dead adds into every panel). It's
+    # shown only where it actually has samples in [lo,hi); its facing needs ≥2 real samples (no inference).
     for a in (pos.get("adds") or {}).values():
-        pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+        pts = [p for p in a["bins"][lo:hi] if p]
         if pts:
             ac = (_median([p[0] for p in pts]), _median([p[1] for p in pts]))
-            _add_marker(parts, ac, _heading_at(a, lo, hi), sx, sy, W, H)
+            _add_marker(parts, ac, _heading_at(a, lo, hi, min_n=2), sx, sy, W, H)
     items = []
     for aid, a in pos["actors"].items():
         pts = [p for p in _fill(a["bins"])[lo:hi] if p]
         if pts:
             items.append((roles.get(aid, "ranged"),
                           (_median([p[0] for p in pts]), _median([p[1] for p in pts])),
-                          _heading_at(a, lo, hi)))
+                          _heading_at(a, lo, hi, fill=True)))
     for role, c, hd in sorted(items, key=lambda z: z[0]):
         col = COLORS.get(role, "#9ca3af")
         px, py = sx(c[0]), sy(c[1])
         inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
         px = min(max(px, 5), W - 5)
         py = min(max(py, 5), H - 5)
-        parts.append(_arrow_svg(px, py, hd, col, ln=11.0))
+        parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
         if inframe:
             parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
         else:
@@ -559,27 +612,38 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         W, H, "".join(parts))
 
 
-def _boss_window_travel(pos, lo, hi):
-    """Boss path length (yd) within bins [lo,hi) — used to confirm a 'mobile' boss is actually PLANTED in a
-    snapshot window (low travel) rather than caught mid-flight, so we only snapshot its stable stands."""
-    bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
-    if not bb:
-        return None
-    pts = [p for p in _fill(bb)[lo:hi] if p]
-    if len(pts) < 2:
-        return 0.0
-    return _yd(sum(math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
-                   for i in range(1, len(pts))))
+def _boss_stands(bb, bin_ms):
+    """Maximal STATIONARY segments [start_bin, end_bin) of the boss anchor track `bb` — runs where the boss
+    stays within `_PLANT_RADIUS_YD` of the segment's anchor. A None bin (boss not being hit — typically in
+    flight / untargetable) breaks a segment, so the next run is a fresh stand. The first stand is the pull
+    position; every later stand is a RE-PLANT (the boss moved away and settled somewhere new)."""
+    nb = len(bb)
+    plant_r = _PLANT_RADIUS_YD * SCALE
+    segs = []
+    i = 0
+    while i < nb:
+        if not bb[i]:
+            i += 1
+            continue
+        anchor = bb[i]
+        j = i + 1
+        while j < nb and bb[j] and math.hypot(bb[j][0] - anchor[0], bb[j][1] - anchor[1]) <= plant_r:
+            j += 1
+        segs.append((i, j))
+        i = j
+    return segs
 
 
-def _snapshot_windows(pos, phases, phase_names, max_moments=3, cap_sec=None):
-    """Labeled snapshot windows for one side: the OPENING (once positions settle a few seconds after the pull)
-    plus the start of each named PHASE (`phases` = [{id, tSec}] from the fight's phaseTransitions). Each window
-    runs from a small stabilization offset into the moment up to the next moment's start, so the snapshot is the
-    *settled* formation, not the scramble of the transition. `cap_sec` caps each window length (used for mobile
-    bosses, where a short window after the plant captures the stand, not the flight that follows). Returns up to
-    `max_moments` windows as bin indices; the stabilization offset + approximate bin mapping mean times are
-    labelled, never claimed exact."""
+def _plant_windows(pos, phases, phase_names):
+    """Labelled snapshot windows for one side — the moments worth freezing the formation at:
+      * the OPENING (settled a few seconds after the pull),
+      * the start of each named PHASE (`phases` = [{id, tSec}]), and
+      * every boss RE-PLANT — anytime the boss moves and settles into a NEW stand, even mid-phase (so a boss
+        that hops between platforms or repositions within a phase gets a snapshot per stand, not just one).
+    Candidate moments from those three sources are merged (moments within `_PLANT_MERGE_SEC` collapse to one,
+    keeping the phase-labelled one), each window runs from a short stabilization offset for up to
+    `_PLANT_WINDOW_SEC` (not past the next moment), and the list is capped at `_MAX_MOMENTS`. Returns dicts
+    {label, lo, hi, sec}; times are labelled (approximate), never claimed exact."""
     nb = pos.get("nBins") or 0
     bin_ms = pos.get("binMs") or 1
     dur_sec = (pos.get("durMs") or 0) / 1000.0
@@ -589,26 +653,78 @@ def _snapshot_windows(pos, phases, phase_names, max_moments=3, cap_sec=None):
     def to_bin(s):
         return max(0, min(nb, int(round(s * 1000.0 / bin_ms))))
 
-    moments = [(0.0, "Opening")]
-    for p in sorted(phases or [], key=lambda x: x.get("tSec", 0)):
-        ts = p.get("tSec", 0)
-        if 0 < ts < dur_sec - 3:  # a phase that starts with at least a few seconds left to snapshot
-            nm = (phase_names or {}).get(int(p["id"])) or "Phase {}".format(p.get("id"))
-            moments.append((ts, nm))
-    starts = [s for s, _ in moments]
+    ph = sorted([(p.get("tSec", 0), (phase_names or {}).get(int(p["id"])) or "Phase {}".format(p.get("id")))
+                 for p in (phases or [])], key=lambda x: x[0])
+
+    def phase_at(sec):
+        lab = "Opening"
+        for ts, nm in ph:
+            if ts <= sec + 0.5:
+                lab = nm
+            else:
+                break
+        return lab
+
+    # candidate moments: (sec, label)
+    cands = [(0.0, "Opening")]
+    for ts, nm in ph:
+        if 0 < ts < dur_sec - 3:
+            cands.append((ts, nm))
+    bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
+    if bb:
+        for k, (a, b) in enumerate(_boss_stands(bb, bin_ms)):
+            if k == 0:
+                continue  # first stand == the pull (already the Opening candidate)
+            if (b - a) * bin_ms / 1000.0 < _MIN_PLANT_SEC:
+                continue
+            ssec = a * bin_ms / 1000.0
+            ph_lab = phase_at(ssec)
+            # Plain middot here (the label is run through esc() at render); a no-named-phase boss (Al'ar)
+            # just reads "Re-plant" rather than "Opening · re-plant".
+            cands.append((ssec, "Re-plant" if ph_lab == "Opening" else ph_lab + " · re-plant"))
+
+    cands.sort(key=lambda c: c[0])
+    merged = []
+    for sec, lab in cands:
+        if merged and sec - merged[-1][0] < _PLANT_MERGE_SEC:
+            continue
+        merged.append((sec, lab))
+
+    starts = [m[0] for m in merged]
     wins = []
-    for i, (s, lab) in enumerate(moments):
-        end = starts[i + 1] if i + 1 < len(starts) else dur_sec
-        stab = min(4.0, max(0.0, (end - s) * 0.25))  # let the formation settle into the window
-        win_start = s + stab
-        if cap_sec is not None:
-            end = min(end, win_start + cap_sec)
-        lo, hi = to_bin(win_start), to_bin(end)
-        if hi - lo >= 2:  # need a couple of bins to take an honest median
-            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(s)})
-        if len(wins) >= max_moments:
+    for idx, (sec, lab) in enumerate(merged):
+        nxt = starts[idx + 1] if idx + 1 < len(starts) else dur_sec
+        stab = min(_PLANT_STAB_SEC, max(0.0, (nxt - sec) * 0.25))
+        win_start = sec + stab
+        win_end = min(nxt, win_start + _PLANT_WINDOW_SEC, dur_sec)
+        lo, hi = to_bin(win_start), to_bin(win_end)
+        if hi - lo >= 2:
+            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec)})
+        if len(wins) >= _MAX_MOMENTS:
             break
     return wins
+
+
+def _match_moments(o_wins, t_wins):
+    """Pair ours/theirs snapshot windows into render rows. Windows are grouped by LABEL and paired in
+    chronological order within each label; a window with no counterpart on the other side becomes an UNMATCHED
+    row (shown as a single panel) rather than being dropped — so a re-plant only one raid did is still shown.
+    Returns a list of {label, sec, o, t} sorted by time (o or t may be None)."""
+    o_by, t_by = {}, {}
+    for w in o_wins:
+        o_by.setdefault(w["label"], []).append(w)
+    for w in t_wins:
+        t_by.setdefault(w["label"], []).append(w)
+    rows = []
+    for lab in (list(o_by) + [l for l in t_by if l not in o_by]):
+        ol, tl = o_by.get(lab, []), t_by.get(lab, [])
+        for i in range(max(len(ol), len(tl))):
+            ow = ol[i] if i < len(ol) else None
+            tw = tl[i] if i < len(tl) else None
+            sec = (ow or tw)["sec"]
+            rows.append({"label": lab, "sec": sec, "o": ow, "t": tw})
+    rows.sort(key=lambda r: r["sec"])
+    return rows
 
 
 # --------------------------------------------------------------------- the per-boss Positioning sub-tab
@@ -617,12 +733,14 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                      boss_name, o_name, t_name, o_phases=None, t_phases=None, phase_names=None):
     """Compose one boss's Positioning sub-tab (feature 2 — the formation map + spread-vs-demand verdict) as
     an HTML fragment, and return the scalars the Overview headline (spread gap) and the Execution melee-uptime
-    view consume. When phase data is available the single whole-fight median map is replaced by PHASE-ANCHORED
-    snapshots (the raid's settled formation at the opening + each phase, ours vs benchmark) — where the raid
-    stood *when it mattered*, not a whole-fight smear; it falls back to the single map otherwise (no
-    regression). Enemy adds (rose squares) and per-actor/boss facing arrows are drawn when the fetch captured
-    them (decoded from each resourced event's `facing`); an actor with no captured facing simply gets no arrow.
-    Any sub-view whose data is missing is silently omitted."""
+    view consume. The single whole-fight median map is replaced by SNAPSHOTS of the settled formation at the
+    opening, each phase, and every boss RE-PLANT (the boss moving then settling into a new stand, even
+    mid-phase), ours vs benchmark — where the raid stood *when it mattered*. Moments are paired across raids;
+    one only a single raid reached is still shown, alone. Falls back to the single whole-fight map when there
+    aren't ≥2 moments. Enemy adds (rose squares) and per-actor/boss facing arrows are drawn when the fetch
+    captured them (decoded from each resourced event's `facing`); a transient add is shown only where it has
+    real samples (never carry-forwarded), and an actor with no captured facing simply gets no arrow. Any
+    sub-view whose data is missing is silently omitted."""
     if not o_pos or not t_pos:
         return None
     travel_o = boss_travel_yd(o_pos)
@@ -667,46 +785,45 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         else:
             verdict = ('Ranged + healer spread radius: ~{o}yd vs the benchmark\'s ~{t}yd '
                        '(descriptive — no curated spread/stack call on this boss).').format(o=o_sr, t=t_sr)
-        # Phase-anchored snapshots when both sides have ≥2 detectable moments (opening + phase starts). On a
-        # mobile boss we cap each window short (capture the plant, not the flight) and keep only PLANTED moments
-        # (boss locally stationary in the window on both sides); on a stationary/plant boss we use the full
-        # windows and fall back to the single whole-fight median map when there aren't ≥2 moments.
-        _PLANT_YD = 30.0  # boss travel within a snapshot window below which it counts as a stable stand
-        cap = 8.0 if is_mobile else None
-        o_wins = _snapshot_windows(o_pos, o_phases, phase_names, cap_sec=cap)
-        t_wins = _snapshot_windows(t_pos, t_phases, phase_names, cap_sec=cap)
-        nshow = min(len(o_wins), len(t_wins))
-        moment_idx = list(range(nshow))
-        if is_mobile:
-            # keep only matched moments where the boss is actually planted in BOTH sides' windows
-            moment_idx = [i for i in moment_idx
-                          if (_boss_window_travel(o_pos, o_wins[i]["lo"], o_wins[i]["hi"]) or 0) <= _PLANT_YD
-                          and (_boss_window_travel(t_pos, t_wins[i]["lo"], t_wins[i]["hi"]) or 0) <= _PLANT_YD]
-        if len(moment_idx) >= (1 if is_mobile else 2):
-            specs = ([(o_pos, o_wins[i]["lo"], o_wins[i]["hi"]) for i in moment_idx]
-                     + [(t_pos, t_wins[i]["lo"], t_wins[i]["hi"]) for i in moment_idx])
-            # ONE frame for all snapshots, built from the actual window positions across both raids + every
-            # shown moment — so ours/theirs and each moment share the same perspective with nothing clamped,
-            # instead of reusing the whole-fight median frame (which clipped window-specific positions).
+        # Snapshot moments: the opening, each phase start, AND every boss RE-PLANT (the boss moving and
+        # settling into a new stand, even mid-phase). Each side is detected independently, then paired by
+        # _match_moments — a moment only one raid has (a re-plant the other didn't do) is still shown, as a
+        # single panel.
+        o_wins = _plant_windows(o_pos, o_phases, phase_names)
+        t_wins = _plant_windows(t_pos, t_phases, phase_names)
+        rows_m = _match_moments(o_wins, t_wins)
+        if len(rows_m) >= (1 if is_mobile else 2):
+            # ONE frame for all snapshots, built from every window actually drawn (both raids, all moments) —
+            # so ours/theirs and each moment share one perspective with nothing clamped.
+            specs = ([(o_pos, r["o"]["lo"], r["o"]["hi"]) for r in rows_m if r["o"]]
+                     + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
             win_frame = _window_frame(specs) or frame
             if not win_frame:
                 return None
             rows = []
-            for i in moment_idx:
-                ow, tw = o_wins[i], t_wins[i]
-                o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
-                t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
-                sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
+            for r in rows_m:
+                ow, tw = r["o"], r["t"]
+                if ow and tw:
+                    o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
+                    t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
+                    sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
+                    panel = _dual(o_map, t_map, o_name, t_name, sub)
+                elif ow:
+                    o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
+                    panel = _single(o_map, o_name, "ours",
+                                    "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
+                else:
+                    t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
+                    panel = _single(t_map, t_name, "theirs",
+                                    "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
                 rows.append('<div style="margin:10px 0 4px"><div class="posnote" style="margin:0 0 4px">'
-                            '<b>{}</b></div>{}</div>'.format(esc(ow["label"]),
-                                                             _dual(o_map, t_map, o_name, t_name, sub)))
-            plant_note = ('On this <b>mobile</b> boss only its <b>planted</b> moments are shown (the boss is '
-                          'stationary in these windows); the flight between them is skipped. ' if is_mobile else '')
+                            '<b>{}</b></div>{}</div>'.format(esc(r["label"]), panel))
             maps_html = ("".join(rows)
-                         + '<p class="posnote" style="opacity:.8">{}Snapshots are <b>phase-anchored</b> — each is '
-                           'the settled formation a few seconds after that phase begins (times approximate; '
-                           'cross-check the Timeline). Arrows show each actor\'s (and the boss\'s) facing where '
-                           'captured; rose squares are enemy adds.</p>'.format(plant_note))
+                         + '<p class="posnote" style="opacity:.8">Snapshots freeze the settled formation at the '
+                           'opening, each phase, and <b>every time the boss re-plants</b> (moves then settles) — '
+                           'times approximate, cross-check the Timeline. A moment only one raid reached is shown '
+                           'alone. Arrows are each actor\'s (and the boss\'s) facing where captured; rose squares '
+                           'are enemy adds.</p>')
         elif is_mobile:
             # mobile boss with no detectable plant window → no honest map; keep the (frame-independent) verdict
             maps_html = ('<p class="posnote" style="opacity:.8">This is a <b>mobile</b> boss with no settled '

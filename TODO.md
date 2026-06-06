@@ -316,3 +316,16 @@ in both raids") so a leader can read it without suspecting the math is wrong.
 
 **Soul floor:** this is an **accuracy** violation — the product's non-negotiable first floor. A discrepancy a
 leader can't reconcile makes the whole section untrustworthy. Fix before shipping further CD improvements.
+
+---
+
+## TODO: Mobile — truncate benchmark guild name to 10 chars
+
+> plz truncate benchmark guild name to 10 chars on mobile
+
+**What to change:** wherever the benchmark (theirs) guild name is rendered in the report header or section
+titles, truncate it to 10 characters on mobile viewports (add `…` suffix when truncated). On desktop the full
+name can stay.
+
+**Scope:** renderer-only CSS/JS change — likely a `max-width` + `text-overflow: ellipsis` on the guild name
+element, or a JS truncation on the `DATA.theirs.title` string at the mobile breakpoint. No builder changes.

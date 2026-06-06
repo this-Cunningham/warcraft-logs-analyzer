@@ -1803,10 +1803,10 @@ def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights
                 continue
             cls = class_map.get(nm) or "Unknown"
             b = pool.setdefault("{}|{}".format(cls, spec),
-                                {"class": cls, "spec": spec, "rates": [], "abilUses": {}, "minsTotal": 0.0})
-            b["rates"].append(sum(abil_counts.values()) / mins)
-            # Per-cooldown pooled totals (uses + the player-minutes they were on the boss) so the breakdown
-            # can show WHICH cooldown is the gap: a spec's pooled per-minute rate, cooldown by cooldown.
+                                {"class": cls, "spec": spec, "abilUses": {}, "minsTotal": 0.0})
+            # Per-cooldown pooled totals (uses + the player-minutes they were on the boss) so both the spec
+            # total and the breakdown share one minutes-weighted denominator and reconcile: a spec's pooled
+            # per-minute rate, cooldown by cooldown.
             b["minsTotal"] += mins
             for an, c in abil_counts.items():
                 b["abilUses"][an] = b["abilUses"].get(an, 0) + c
@@ -1814,24 +1814,32 @@ def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights
 
 
 def tier_cd_usage(o_pool, t_pool):
-    """Tier-wide cooldown-usage rollup: average each spec's per-minute CD activations across all shared
-    bosses, ours vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our
-    cooldowns). Only specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap. Each row
-    also carries a per-cooldown breakdown (`byAbility`) — the spec's pooled rate cooldown by cooldown vs the
-    benchmark's same spec — so the leader sees the actual lever (which CD to push), not just the spec total."""
+    """Tier-wide cooldown-usage rollup: each spec's per-minute CD activations across all shared bosses, ours
+    vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our cooldowns). Only
+    specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap. Each row also carries a
+    per-cooldown breakdown (`byAbility`) — the spec's pooled rate cooldown by cooldown vs the benchmark's same
+    spec — so the leader sees the actual lever (which CD to push), not just the spec total.
+
+    The spec total is the SAME minutes-weighted pooled rate as the breakdown (total activations / total
+    player-minutes on the boss), so the per-cooldown rows sum to the spec total — they reconcile by
+    construction (modulo ±0.01 display rounding), rather than the total being an unweighted mean-of-rates that
+    silently disagreed with the minutes-weighted breakdown beneath it."""
     def pooled_rate(pool_ent, ability):
         m = pool_ent.get("minsTotal", 0) if pool_ent else 0
         return round(pool_ent["abilUses"].get(ability, 0) / m, 2) if m else 0
+
+    def pooled_total(pool_ent):
+        m = pool_ent.get("minsTotal", 0) if pool_ent else 0
+        return round(sum((pool_ent.get("abilUses") or {}).values()) / m, 2) if m else 0
     rows = []
     for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o, t = o_pool.get(key), t_pool.get(key)
         ref = o or t
-        o_r = o["rates"] if o else []
-        t_r = t["rates"] if t else []
-        o_avg = round(sum(o_r) / len(o_r), 2) if o_r else 0
-        t_avg = round(sum(t_r) / len(t_r), 2) if t_r else 0
+        o_avg = pooled_total(o)
+        t_avg = pooled_total(t)
         # Per-cooldown breakdown: every cooldown/trinket either side's same spec used, pooled to a per-minute
-        # rate, ranked by the biggest deficit (where this spec most sits on a specific cooldown).
+        # rate, ranked by the biggest deficit (where this spec most sits on a specific cooldown). Same
+        # denominator (minsTotal) as the spec total above, so the rows sum back to it.
         abilities = set((o or {}).get("abilUses", {})) | set((t or {}).get("abilUses", {}))
         by_ability = []
         for an in abilities:
@@ -1840,8 +1848,9 @@ def tier_cd_usage(o_pool, t_pool):
                 continue
             by_ability.append({"name": an, "ours": o_ar, "theirs": t_ar, "deficit": round(t_ar - o_ar, 2)})
         by_ability.sort(key=lambda a: -a["deficit"])
+        both = bool(o and o.get("minsTotal")) and bool(t and t.get("minsTotal"))
         rows.append({"class": ref["class"], "spec": ref["spec"], "ours": o_avg, "theirs": t_avg,
-                     "deficit": round(t_avg - o_avg, 2), "both": bool(o_r) and bool(t_r),
+                     "deficit": round(t_avg - o_avg, 2), "both": both,
                      "byAbility": by_ability})
     rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
     return rows

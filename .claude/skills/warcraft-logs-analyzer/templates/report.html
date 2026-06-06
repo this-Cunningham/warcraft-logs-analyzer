@@ -254,11 +254,16 @@
   @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}.barrow,.twocol,.gaps{grid-template-columns:1fr}.dgrid{grid-template-columns:46px 1fr 100px 1fr 46px;column-gap:5px}.ugrid{grid-template-columns:38px 1fr 90px 1fr 38px;column-gap:5px}.ugridc{grid-template-columns:38px 1fr 90px 1fr 38px minmax(48px,auto);column-gap:5px}}
   /* Phone layout: tighten outer padding and let the primary tab bar scroll sideways instead of
      overflowing off-screen (so the last tabs — Bosses/Trash — stay reachable). */
+  /* Benchmark guild name: show full on desktop, the 10-char truncation on mobile (a long benchmark name —
+     e.g. a joke guild tag — otherwise blows out the hero on a phone). Toggled by the media query below. */
+  .bench .bmob{display:none}
   @media(max-width:640px){
     body{padding:24px 14px 64px}
     h1{font-size:24px}
     .matchup{gap:8px}
     .team{font-size:16px;padding:6px 12px}
+    .bench .bfull{display:none}
+    .bench .bmob{display:inline}
     .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:2px;margin:18px 0 22px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
     .tabs::-webkit-scrollbar{display:none}
     .tab{flex:0 0 auto;padding:10px 14px;white-space:nowrap}
@@ -291,6 +296,10 @@ const fmtR=n=>n>=1e6?(n/1e6).toFixed(2)+"M":(n>=1e3?(n/1e3).toFixed(1)+"k":""+Ma
 // Signed delta for big rate numbers (used by Raid DPS/HPS cards). Higher is better.
 const deltaRate=(o,t)=>{const df=o-t;return{cls:df===0?"flat":(df>0?"good":"bad"),txt:df===0?"even":((df>0?"+":"−")+fmtR(Math.abs(df)))};};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// Benchmark guild name with a desktop-full / mobile-10-char swap (CSS `.bench` toggles which span shows).
+// On mobile, names over 10 chars are cut to 10 + ellipsis so a long benchmark tag doesn't overflow the hero.
+const benchName=s=>{const f=String(s||"");const short=f.length>10?f.slice(0,10)+"…":f;
+  return `<span class="bench"><span class="bfull">${esc(f)}</span><span class="bmob">${esc(short)}</span></span>`;};
 const deltaLow =(o,t)=>{if(o===t)return{cls:"flat",txt:"even"};const b=o<t;return{cls:b?"good":"bad",txt:(b?"−":"+")+(Math.round(Math.abs(o-t)*10)/10)};};
 const deltaHigh=(o,t)=>{const d=Math.round((o-t)*10)/10;if(d===0)return{cls:"flat",txt:"even"};return{cls:d>0?"good":"bad",txt:(d>0?"+":"")+d};};
 // Unit-aware signed-difference delta for the mirror-bar centre cell (now that the raw side values are gone):
@@ -1925,8 +1934,8 @@ function render(){
   let h=`<header class="hero">
     <div class="kicker">${esc(d.zone||"Raid")} · Performance Comparison</div>
     <h1>Raid Benchmark Report</h1>
-    <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${esc(d.theirs.title)}</span></div>
-    <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${esc(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
+    <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${benchName(d.theirs.title)}</span></div>
+    <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${benchName(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
   <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="composition">Composition</div><div class="tab" data-t="enchants">Prep</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="wipes">Wipes</div><div class="tab" data-t="optimize">Optimize</div><div class="tab" data-t="trash">Trash</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>

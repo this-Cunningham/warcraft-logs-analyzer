@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#0b0e14; --panel:#141925; --panel2:#1b2230; --line:#262f40;
-    --txt:#e6ebf2; --muted:#8a96aa; --ours:#4ea1ff; --theirs:#ff7a59;
+    --txt:#e6ebf2; --muted:#8a96aa; --ours:#4ea1ff; --theirs:#e268a8;
     --good:#36d399; --bad:#f87272; --warn:#fbbd23;
   }
   *{box-sizing:border-box}
@@ -69,7 +69,7 @@
   .bar{position:relative;height:22px;border-radius:7px;background:var(--panel2);overflow:hidden}
   .bar .fill{position:absolute;top:0;bottom:0;left:0;border-radius:7px}
   .bar .fill.ours{background:linear-gradient(90deg,#2b6fc2,var(--ours))}
-  .bar .fill.theirs{background:linear-gradient(90deg,#c25237,var(--theirs))}
+  .bar .fill.theirs{background:linear-gradient(90deg,#8e3d6e,var(--theirs))}
   .bar .tag{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
   .barrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
@@ -1239,7 +1239,7 @@ function specDpsView(b){
 // both "where in the fight does the gap open?" and "how much sooner did the benchmark finish?". Curves
 // are exact (event-binned upstream), not WCL's smoothed graph, so they agree with Raid DPS elsewhere.
 function tlChart(o,t,m1,m2,ghost){
-  const OUR="#4ea1ff",THEIR="#ff7a59",GRID="#262f40",MUT="#8a96aa",GHOST="#36d399";
+  const OUR="#4ea1ff",THEIR="#e268a8",GRID="#262f40",MUT="#8a96aa",GHOST="#36d399";
   const W=1000,padL=48,padR=14,padT=16, plotW=W-padL-padR, plotH=184, axisY=padT+plotH; // plot fixed; axisY=200
   o=asArr(o).map(Number); t=asArr(t).map(Number);
   const gd=ghost&&ghost.dps?asArr(ghost.dps).map(Number):null;
@@ -1371,7 +1371,7 @@ function ghostInner(b){
 // lines up with where DPS dipped. Null buckets (too few actors sampled) break the line into segments rather
 // than drawing through a gap. Frame-independent metric (within-raid spacing), so it's valid on every boss.
 function spreadChart(o,t,m1,m2){
-  const OUR="#4ea1ff",THEIR="#ff7a59",GRID="#262f40",MUT="#8a96aa";
+  const OUR="#4ea1ff",THEIR="#e268a8",GRID="#262f40",MUT="#8a96aa";
   const W=1000,padL=48,padR=14,padT=16,plotW=W-padL-padR,plotH=140,axisY=padT+plotH;
   o=asArr(o); t=asArr(t);
   const nums=[...o,...t].filter(v=>v!=null).map(Number);

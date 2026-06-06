@@ -97,16 +97,21 @@ Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip i
 > turn GHOST RUN — WHAT DYING COSTS YOU into a visualization instead of text, can also show up to top 5 players deaths stats per boss in this section
 >
 > Make it like a mini timeline and draw the dmg lost over time from where they died — ooo maybe do we move this section/stats/projection onto the bosses timeline tab, and theres a toggle that when clicked, rerenders our dps line based on if they never died, and would also update the kill time, yeah lets do this timeline thing on bosses tab thats cool
+>
+> And you can toggle each person that died, and it would incrementally update the kill time / DPS trendline when toggling each player death on/off
 
 **Mandate: view the rendered HTML as a raid leader first.** Open the current report (`reports/` or the published link), navigate to the Ghost Run section as it exists today, and read it cold — as a leader who hasn’t seen the code. Only after forming that impression, consider the reframe below.
 
-**The idea:** retire the standalone text block and fold the signal into the per-boss **Timeline** sub-tab as an interactive overlay. A toggle button ("Show ghost run") re-renders our raid-DPS curve as if the DPS deaths never happened — the ghost line sits above the actual line, the area between them is the output the deaths consumed, and a projected kill time updates alongside it. Up to 5 costliest DPS deaths per boss annotated on the timeline (death tick already exists; this adds the DPS-cost label). The benchmark line stays untouched — the ghost is ours-only.
+**The idea:** retire the standalone text block and fold the signal into the per-boss **Timeline** sub-tab as an interactive overlay. A toggle re-renders our raid-DPS curve as if the DPS deaths never happened — the ghost line sits above the actual line, the area between them is the output the deaths consumed, and a projected kill time updates alongside it. Up to 5 costliest DPS deaths per boss annotated on the timeline (death tick already exists; this adds the DPS-cost label). The benchmark line stays untouched — the ghost is ours-only.
 
-**Why this might be the right home:** the Timeline is already where a leader reads the fight shape; the gap between actual and ghost DPS lands in exactly the right context (you can see *when* in the fight the deaths hurt most). The current text block answers "how much?" but not "when?" or "relative to what?" — the timeline answers all three.
+**Per-death toggles (the interactive core):** each dead player is its own toggle, not one all-or-nothing switch. Flipping a single raider's death on/off **incrementally** recomputes the ghost DPS curve and the projected kill time — so a leader can isolate "what did *just* the warrior dying at 40% cost us?" vs. the full set. The toggles compose: the ghost line and kill-time projection reflect whichever subset of deaths is currently switched off. This is the lever — it lets a leader weigh individual deaths against each other and see which one actually decided the kill.
+
+**Why this might be the right home:** the Timeline is already where a leader reads the fight shape; the gap between actual and ghost DPS lands in exactly the right context (you can see *when* in the fight the deaths hurt most). The current text block answers "how much?" but not "when?", "relative to what?", or "which death?" — the interactive timeline answers all four.
 
 **Before building, validate from the rendered view:**
 - Does the current Ghost Run text block read as useful or as a curiosity? Does the player-minutes framing land?
-- Is the timeline already dense enough that an overlay would clutter it, or is there room?
-- Would a leader actually toggle this, or would they read the headline number and move on?
+- Is the timeline already dense enough that an overlay + per-death toggles would clutter it, or is there room?
+- Would a leader actually toggle individual deaths, or would they read the headline number and move on?
+- Honesty check: the incremental recompute is a *projection* (assumes the dead raider keeps dealing their pre-death rate, no battle-res, no compounding effects) — make sure the surface labels it as an upper-bound estimate, not a counterfactual fact.
 
 If the rendered section already reads clearly and the timeline feels like overengineering, a `/todo-remove` may be the right verdict instead.

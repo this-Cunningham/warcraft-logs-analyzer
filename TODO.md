@@ -37,7 +37,7 @@ Accuracy floor violation. The Composition tab's Provider Count & Coverage sectio
 
 > DRUMS UPTIME remove from consumables coverage
 
-**Cut reason:** *Silly / redundant.* No prep decision hangs on it — a leader can’t "fix" drums uptime the way they fix missing flasks; Drums coverage depends on group composition and fight length, not an individual raider showing up ready. It’s already visible in the per-boss **Buff Uptime** sub-tab via `KEY_BUFFS` ("Drums of Battle"), so it’s also *redundant* in Consumables. The hint text on the Coverage section already hedges it as an uptime %, not a prep signal — which is the tell that it doesn’t belong here.
+**Cut reason:** *Silly / redundant.* No prep decision hangs on it — a leader can't "fix" drums uptime the way they fix missing flasks; Drums coverage depends on group composition and fight length, not an individual raider showing up ready. It's already visible in the per-boss **Buff Uptime** sub-tab via `KEY_BUFFS` ("Drums of Battle"), so it's also *redundant* in Consumables. The hint text on the Coverage section already hedges it as an uptime %, not a prep signal — which is the tell that it doesn't belong here.
 
 **Cleanup checklist:**
 
@@ -66,7 +66,7 @@ Accuracy floor check. The Hit & Expertise view is the one per-player gear fix in
 
 > ACTIVITY BY SPEC in execution tab
 
-**Cut reason:** *Silly* — no decision hangs on it. The section names which spec is trailing on active-GCD uptime but explicitly disclaims it can't say *why* (movement, range, target swaps — the hint itself tells the leader to go diagnose elsewhere). That’s a raw dimension, not a lever. The cause — the thing a leader can actually act on — is already surfaced in Add Control, Damage Taken, and per-boss Positioning. Mined because `activeTime` was available; the activity aggregate (raid-wide) already lives in Output Quality and feeds the Overview scorecard — the spec breakdown adds noise, not resolution.
+**Cut reason:** *Silly* — no decision hangs on it. The section names which spec is trailing on active-GCD uptime but explicitly disclaims it can't say *why* (movement, range, target swaps — the hint itself tells the leader to go diagnose elsewhere). That's a raw dimension, not a lever. The cause — the thing a leader can actually act on — is already surfaced in Add Control, Damage Taken, and per-boss Positioning. Mined because `activeTime` was available; the activity aggregate (raid-wide) already lives in Output Quality and feeds the Overview scorecard — the spec breakdown adds noise, not resolution.
 
 **Important:** `activity_pct` (raid-wide aggregate, line 1366) and the per-boss `oursActivity`/`theirsActivity` fields (line 3857) are **not** touched — they feed Output Quality and the Overview scorecard independently. Only the *spec-level* rollup is removed.
 
@@ -94,7 +94,7 @@ Accuracy floor check. The Hit & Expertise view is the one per-player gear fix in
 >
 > Make sure this section is moved/integrated into bosses per-boss timeline tab. Should just project the raider-that-died's average DPS across all bosses for the ghost DPS projection.
 
-**Mandate: view the rendered HTML as a raid leader first.** Open the current report (`reports/` or the published link), navigate to the Ghost Run section as it exists today, and read it cold — as a leader who hasn’t seen the code. Only after forming that impression, build the reframe below.
+**Mandate: view the rendered HTML as a raid leader first.** Open the current report (`reports/` or the published link), navigate to the Ghost Run section as it exists today, and read it cold — as a leader who hasn't seen the code. Only after forming that impression, build the reframe below.
 
 **This is a MOVE, not a copy.** The standalone Ghost Run text block is removed from wherever it lives today and lives **only** inside the per-boss **Timeline** sub-tab (Bosses tab) as an interactive overlay. No duplicate section remains behind.
 
@@ -118,11 +118,11 @@ If the rendered section already reads clearly and the timeline feels like overen
 
 ## TODO: Buff & Debuff Coverage Gaps — verify debuff target scoping
 
-> check that BUFF & DEBUFF COVERAGE GAPS aren’t only checking the main boss, maybe the paladin tank can’t apply his debuff to the main boss because he is tanking an add
+> check that BUFF & DEBUFF COVERAGE GAPS aren't only checking the main boss, maybe the paladin tank can't apply his debuff to the main boss because he is tanking an add
 
-Accuracy floor concern. Debuff uptime is read from the WCL aggregate Buffs table via `_auras(report, "debuffs")` and `uptime_pct(..., totalUptime)`. The open question: does WCL scope that table to the **main boss only**, or does it aggregate debuff uptime across **all hostile targets** in the encounter? If it’s main-boss-only, a Prot Paladin tanking adds who applies Judgement/Sunder to the add — not the main boss — reads as a false debuff gap on the main target, misleading the leader into a coverage problem that isn’t one (or masking a real one if the debuff should be on the main boss).
+Accuracy floor concern. Debuff uptime is read from the WCL aggregate Buffs table via `_auras(report, "debuffs")` and `uptime_pct(..., totalUptime)`. The open question: does WCL scope that table to the **main boss only**, or does it aggregate debuff uptime across **all hostile targets** in the encounter? If it's main-boss-only, a Prot Paladin tanking adds who applies Judgement/Sunder to the add — not the main boss — reads as a false debuff gap on the main target, misleading the leader into a coverage problem that isn't one (or masking a real one if the debuff should be on the main boss).
 
-**How to verify:** pull the raw WCL API response for a known multi-add fight (e.g. Al’ar, Kael) and inspect whether the `debuffs` auras table contains uptime contributions from the off-tank’s add, or only from the main boss. If main-boss-only, the section needs an inline caveat for multi-target fights — or, if the key debuffs (`KEY_DEBUFFS`: Sunder, Expose, CoE, Faerie Fire, Misery, Judgements) are all expected on the main boss regardless, confirm the off-tank scenario actually produces a false flag before treating it as a bug.
+**How to verify:** pull the raw WCL API response for a known multi-add fight (e.g. Al'ar, Kael) and inspect whether the `debuffs` auras table contains uptime contributions from the off-tank's add, or only from the main boss. If main-boss-only, the section needs an inline caveat for multi-target fights — or, if the key debuffs (`KEY_DEBUFFS`: Sunder, Expose, CoE, Faerie Fire, Misery, Judgements) are all expected on the main boss regardless, confirm the off-tank scenario actually produces a false flag before treating it as a bug.
 
 ---
 
@@ -141,18 +141,37 @@ Accuracy floor concern. Debuff uptime is read from the WCL aggregate Buffs table
 
 ---
 
-## TODO: Bloodlust — reframe “are you stacking burst into it?”
+## TODO: Bloodlust — reframe "are you stacking burst into it?"
 
 > reframe BLOODLUST — ARE YOU STACKING BURST INTO IT?
 
 **Mandate: view the rendered HTML as a raid leader first.** Open the current report, go to Execution → **Bloodlust — Timing & Payoff** (`lust_window_mult` + per-boss `lust_sec` → `bloodlustView`), and read it cold. Today it shows three things per boss: **when** lust popped (descriptive), the **window payoff** (raid DPS in the 40s lust window ÷ fight-average DPS, >1× = burst stacked), and **CDs in window** (share of major-cooldown TYPES whose buff overlapped the window). Form the consumer impression *before* opening the code.
 
-**The hunch:** the section's whole question is “are you stacking burst into Bloodlust?” — but it may not *answer* that legibly. Three columns (timing / payoff multiplier / CDs-in-window) ask the leader to synthesize the verdict themselves. From the rendered view, decide:
+**The hunch:** the section's whole question is "are you stacking burst into Bloodlust?" — but it may not *answer* that legibly. Three columns (timing / payoff multiplier / CDs-in-window) ask the leader to synthesize the verdict themselves. From the rendered view, decide:
 - **Reframe (clearer presentation of the same data)** — if the three columns are individually true but collectively unreadable, collapse them into the one read the heading promises: a single "did burst land in the window?" signal (payoff × alignment), with timing as context, not a co-equal column.
 - **Reframe (different slice)** — if the raid-aggregate payoff hides *who* failed to align, re-cut **by spec**: which spec's cooldowns missed the window (the actionable assignment — "tell the mages to hold Icy Veins for lust"), instead of a raid-wide multiplier that names no one.
 - **Honesty guard:** timing is explicitly descriptive (on-pull vs saved-for-a-phase is strategy, not a target) — any reframe must keep timing neutral and not imply a "correct" lust time.
 
-**Verdict path:** if the rendered view already answers “are you stacking burst into it?” at a glance, leave it. If the signal is real but buried across three columns or hidden at raid-aggregate grain — reframe per above. If no decision hangs on it, it's a `/todo-remove`.
+**Verdict path:** if the rendered view already answers "are you stacking burst into it?" at a glance, leave it. If the signal is real but buried across three columns or hidden at raid-aggregate grain — reframe per above. If no decision hangs on it, it's a `/todo-remove`.
+
+---
+
+## TODO: Early Aggro — Threat Pulls — zoom in by spec
+
+> /todo-zoom EARLY AGGRO — THREAT PULLS
+
+**Current grain:** per-boss count of times a non-tank held the named boss's aggro, plus an opener count (first 30s). Clean better/worse (fewer = better). Under-counts by design (only brief holds ≤15s tagged). Opener count feeds the Overview scorecard.
+
+**Proposed deeper grain:** break the pull count by **spec** — which spec's players are responsible for the threat events per boss? The total-count row already tells the leader *that* there's an aggro problem; the spec split tells them *who to address*: "your Fire Mages are pulling on the opener" → Misdirection assignment or hold-for-tanks cue; "your Combat Rogues" → Vanish/Feint discipline. Same data, one cut down from a boss-level tally to a spec-level attribution — from scoreboard to lever.
+
+**Builder / renderer:** `threat_pulls` (builder, `scripts/build_deepdive.py`) → `threatPullsView` (renderer, `templates/report.html`). The DATA payload today is a per-boss object `{ count, openerCount, better }`. To add the spec cut, accumulate a `bySpec: { [specKey]: count }` map inside the per-boss object, sourced from the raw threat-event records already iterated in `threat_pulls`. The renderer then renders a compact spec breakdown row beneath each boss's count.
+
+**Before building, judge it as a consumer first.** Open the rendered report, navigate to Execution → **Early Aggro — Threat Pulls**, and read it cold:
+- Does the current per-boss count read as a lever or as a bare scoreboard? (If it already feels actionable — maybe pull counts are so low they name the single offender — the spec breakdown may be overkill.)
+- Is the opener count the real signal, and the per-boss total just context? If so, the zoom may belong *there* (which specs fire the opener?), not on the general pull count.
+- Honesty check: the under-count caveat (brief holds only) means the spec attribution is also an under-count — label it as a floor, not a full accounting.
+
+If the rendered view shows low pull counts that don't warrant a breakdown, or if the opener count is already the only number that matters, this may resolve as a cosmetic polish rather than a structural zoom.
 
 ---
 

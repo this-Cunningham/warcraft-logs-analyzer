@@ -176,6 +176,21 @@
      earliest pull, add count) — additive context, never part of the comparison. */
   .ugridc{grid-template-columns:46px 1fr 150px 1fr 46px minmax(58px,auto)}
   .ugridc .dctx{font-size:11px;color:var(--muted);text-align:right;line-height:1.2;font-variant-numeric:tabular-nums}
+  /* Mirrored-bar grid v2 (mirrorGrid()): NO side value columns — bar← | NAME · Δ(with units) | →bar |
+     (optional ctx). The raw ours/theirs values are dropped; the centre cell carries the signed difference
+     WITH units, so the gap reads at a glance and the bars get the freed width. */
+  .mg{display:grid;grid-template-columns:1fr minmax(140px,220px) 1fr;align-items:center;row-gap:7px;column-gap:10px}
+  .mgc{grid-template-columns:1fr minmax(140px,220px) 1fr minmax(58px,auto)}
+  .mg .dmid{text-align:center;font-weight:600;font-size:12px;color:var(--txt);line-height:1.2}
+  .mg .dmid .delta{display:block;font-size:11px;font-weight:600;margin-top:1px;line-height:1.15}
+  .mg .dctx{font-size:11px;color:var(--muted);text-align:right;line-height:1.2;font-variant-numeric:tabular-nums}
+  .mg .mgsub{grid-column:1/-1;margin:-2px 0 4px;padding-left:18px}
+  .mg .mgsub .mg{row-gap:4px;column-gap:8px}
+  .mg .mgsub .dbarL,.mg .mgsub .dbarR{height:10px}
+  .mg .mgsub .dmid{font-size:11px;font-weight:500;color:var(--muted)}
+  /* Centred class/group separator above a group of mirror rows. */
+  .mg .mggroup{grid-column:1/-1;text-align:center;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:9px 0 1px;border-top:1px solid var(--line);padding-top:6px}
+  @media(max-width:820px){.mg{grid-template-columns:1fr 92px 1fr;column-gap:6px}.mgc{grid-template-columns:1fr 92px 1fr minmax(48px,auto);column-gap:6px}}
   .dbarL,.dbarR{position:relative;height:14px;background:var(--panel2);border-radius:5px;overflow:hidden}
   .dbarL .f,.dbarR .f{position:absolute;top:0;bottom:0}
   .dbarL .f.ours{right:0;background:var(--ours);border-radius:5px 0 0 5px}
@@ -278,6 +293,11 @@ const deltaRate=(o,t)=>{const df=o-t;return{cls:df===0?"flat":(df>0?"good":"bad"
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const deltaLow =(o,t)=>{if(o===t)return{cls:"flat",txt:"even"};const b=o<t;return{cls:b?"good":"bad",txt:(b?"−":"+")+(Math.round(Math.abs(o-t)*10)/10)};};
 const deltaHigh=(o,t)=>{const d=Math.round((o-t)*10)/10;if(d===0)return{cls:"flat",txt:"even"};return{cls:d>0?"good":"bad",txt:(d>0?"+":"")+d};};
+// Unit-aware signed-difference delta for the mirror-bar centre cell (now that the raw side values are gone):
+// formats |ours−theirs| with `fmt`, signs it, and adds `unit`. lower=true when a smaller value is better.
+const dDelta=(o,t,fmt,unit,lower)=>{if(o==null||t==null)return{cls:"flat",txt:""};
+  const diff=o-t; if(Math.round(diff*100)/100===0)return{cls:"flat",txt:"even"};
+  const better=lower?diff<0:diff>0; return{cls:better?"good":"bad",txt:(diff>0?"+":"−")+fmt(Math.abs(diff))+(unit||"")};};
 let dmgMode="persec"; // "persec" | "total" — toggled in the Output Quality section, drives all damage-taken displays
 const bossTab={};      // per-boss sub-tab state, keyed by encounterID -> "buffs" | "dmg" (survives re-render)
 let bossSel=null;      // Bosses-tab selected boss (encounterID as string); null -> first boss
@@ -948,40 +968,21 @@ function avoidableDamageView(d){
   if(!rows.length) return "";
   const worse=rows.filter(r=>r.deficit>0);
   if(!worse.length) return ""; // nothing where we take MORE than the benchmark — no gap to surface
-  const max=Math.max(1,...worse.map(r=>Math.max(r.ours,r.theirs)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">Avoidable Damage by Mechanic<span class="xp">Experimental</span><span class="hint">The <i>leading</i> indicator before anyone dies: non-tank damage taken per ability as a <b>per-second rate</b> (fight-length-normalized), listed where you take <b>most more</b> than the benchmark. This is the <i>chip damage</i> before the killing blows — dodge it and deaths plus healer strain both fall. Tanks excluded. <b>Experimental.</b> Lower is better.</span></h2>
-    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Damage taken / sec, by mechanic (ex-tanks)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
-  for(const r of worse){
-    const dl=deltaLow(r.ours,r.theirs); // lower damage taken better
-    h+=`<div class="dval lo">${fmtR(r.ours)}</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
-      <div class="dmid">${esc(r.name)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
-      <div class="dval ro">${fmtR(r.theirs)}</div>`;
-  }
-  return h+`</div></div>`;
+  let h=`<h2 class="section">Avoidable Damage by Mechanic<span class="xp">Experimental</span><span class="hint">The <i>leading</i> indicator before anyone dies: non-tank damage taken per ability as a <b>per-second rate</b> (fight-length-normalized), listed where you take <b>most more</b> than the benchmark. This is the <i>chip damage</i> before the killing blows — dodge it and deaths plus healer strain both fall. Tanks excluded. <b>Experimental.</b> Lower is better.</span></h2>`;
+  return h+mirrorGrid(worse,{label:"Damage taken / sec, by mechanic (ex-tanks)",
+    ours:r=>r.ours, theirs:r=>r.theirs, name:r=>esc(r.name),
+    delta:r=>dDelta(r.ours,r.theirs,fmtR,"/s",true)});
 }
 // DPS gaps by spec: per-spec avg DPS pooled across all bosses, biggest deficit first.
 function tierSpecGapView(d){
   const all=rowsOf(d.deep&&d.deep.tierSpecGap);
   const both=all.filter(r=>r.both), oneSide=all.filter(r=>!r.both);
   if(!both.length) return "";
-  const max=Math.max(1,...both.map(r=>Math.max(r.oursAvg,r.theirsAvg)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">DPS Gaps — By Spec<span class="hint">Each DPS spec's average per-player DPS pooled across shared bosses, ours vs the benchmark's same spec. Specs you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Averaged <b>per player-boss sample</b>, so roster size doesn't inflate it.</span></h2>
-    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg DPS / player, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
-  for(const r of both){
-    const diff=r.deficit; // theirs − ours; >0 = we trail (bad)
-    const dcls=diff>0?"bad":(diff<0?"good":"flat");
-    const dtxt=(diff>0?"−":diff<0?"+":"")+fmtR(Math.abs(diff));
-    h+=`<div class="dval lo">${fmtR(r.oursAvg)}</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.oursAvg)}%"></div></div>
-      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}<span class="delta ${dcls}">${dtxt}</span></div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirsAvg)}%"></div></div>
-      <div class="dval ro">${fmtR(r.theirsAvg)}</div>`;
-  }
-  h+=`</div></div>`;
+  let h=`<h2 class="section">DPS Gaps — By Spec<span class="hint">Each DPS spec's average per-player DPS pooled across shared bosses, ours vs the benchmark's same spec. Specs you trail most (red) are the highest-leverage coaching targets — gear, rotation, consumables. Averaged <b>per player-boss sample</b>, so roster size doesn't inflate it.</span></h2>`;
+  h+=mirrorGrid(both,{label:"Avg DPS / player, by spec (all bosses)",
+    ours:r=>r.oursAvg, theirs:r=>r.theirsAvg,
+    name:r=>`<span style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</span>`,
+    delta:r=>dDelta(r.oursAvg,r.theirsAvg,fmtR," DPS",false)});
   if(oneSide.length){
     const theirs=oneSide.filter(r=>r.theirsSamples>0).map(r=>`${esc(r.spec)} ${esc(r.class)}`);
     const ours=oneSide.filter(r=>r.oursSamples>0).map(r=>`${esc(r.spec)} ${esc(r.class)}`);
@@ -999,20 +1000,12 @@ function healEfficiencyView(d){
   const both=all.filter(r=>r.both);
   const oneSide=all.filter(r=>!r.both&&r.ours!=null); // our healer specs with no benchmark same-spec
   if(!both.length&&!oneSide.length) return "";
-  const max=Math.max(1,...both.map(r=>Math.max(r.ours,r.theirs)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
   let h=`<h2 class="section">Healing Efficiency by Spec<span class="xp">Experimental</span><span class="hint">Each healer spec's <b>overheal %</b> — the share of its healing landing on already-full bars, vs the benchmark's same spec. Overheal is wasted; a spec wasting more than its counterpart (red) is coachable on spell choice. <b>Same-spec</b>, so a HoT class's higher baseline doesn't skew it. <b>Experimental.</b> Lower is better.</span></h2>`;
   if(both.length){
-    h+=`<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Overheal %, by spec (all bosses)</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
-    for(const r of both){
-      const dl=deltaLow(r.ours,r.theirs);
-      h+=`<div class="dval lo">${r.ours}%</div>
-        <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
-        <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
-        <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
-        <div class="dval ro">${r.theirs}%</div>`;
-    }
-    h+=`</div></div>`;
+    h+=mirrorGrid(both,{label:"Overheal %, by spec (all bosses)", max:Math.max(1,...both.map(r=>Math.max(r.ours,r.theirs))),
+      ours:r=>r.ours, theirs:r=>r.theirs,
+      name:r=>`<span style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</span>`,
+      delta:r=>dDelta(r.ours,r.theirs,v=>Math.round(v*10)/10,"%",true)});
   }
   if(oneSide.length){
     // First-party absolute read where the benchmark fielded no same-spec healer (overheal% is a valid
@@ -1091,18 +1084,10 @@ function tierUptimeGapView(d){
   let h=`<h2 class="section">Buff &amp; Debuff Coverage Gaps<span class="hint">Average uptime of <b>persistent</b> raid buffs and <b>boss debuffs</b>, worst-maintained first — sustained uptime is free throughput. Short cooldowns (Bloodlust, Drums) excluded. <b>Multi-add fights:</b> debuff uptime aggregates across <i>all</i> enemies, so a single-target debuff (Sunder, Expose, Judgement) an off-tank keeps on an add still counts — approximate where adds are tanked.</span></h2>`;
   if(!behind.length) return h+`<p class="num" style="padding:6px 2px">You match or beat the benchmark on every tracked buff/debuff uptime — no coverage gap.</p>`;
   // Uptime is already a 0-100 percentage, so the bar length is the literal uptime % (honest absolute scale).
-  const w=v=>Math.max(2,Math.round(v));
-  h+=`<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Avg uptime %, by buff/debuff</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
-  for(const r of behind){
-    const dl=deltaHigh(r.ours,r.theirs); // higher uptime better
-    h+=`<div class="dval lo">${r.ours}%</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
-      <div class="dmid">${esc(r.name)}<span class="delta ${dl.cls}">${dl.txt}</span></div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
-      <div class="dval ro">${r.theirs}%</div>
-      <div class="dctx">${esc(r.kind)}</div>`;
-  }
-  return h+`</div></div>`;
+  return h+mirrorGrid(behind,{label:"Avg uptime %, by buff/debuff", max:100,
+    ours:r=>r.ours, theirs:r=>r.theirs, name:r=>esc(r.name),
+    delta:r=>dDelta(r.ours,r.theirs,v=>Math.round(v),"%",false),
+    ctx:r=>esc(r.kind)});
 }
 // Leaked interrupts across all bosses: interruptible casts (proven by >=1 kick) that went off un-interrupted.
 function leakedInterruptsView(d){
@@ -1124,34 +1109,21 @@ function leakedInterruptsView(d){
 // Cooldown usage by spec: tracked DPS cooldown/trinket activations per minute, pooled across bosses,
 // ours vs the benchmark's same spec. Clean better/worse — pressing them more is throughput.
 function cdUsageView(d){
-  const both=rowsOf(d.deep&&d.deep.tierCdUsage).filter(r=>r.both&&(r.ours>0||r.theirs>0));
+  let both=rowsOf(d.deep&&d.deep.tierCdUsage).filter(r=>r.both&&(r.ours>0||r.theirs>0));
   if(!both.length) return "";
   const max=Math.max(0.1,...both.map(r=>Math.max(r.ours,r.theirs)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
   const fmtC=v=>(Math.round(v*100)/100).toFixed(2);
-  let h=`<h2 class="section">Cooldown &amp; Trinket Usage — By Spec<span class="hint">Major DPS cooldowns and on-use trinkets per minute, each spec vs the benchmark's same spec. Pressing on cooldown is free throughput; red = you sit on them. The <b>breakdown line</b> under a trailing spec names <i>which</i> cooldown is the gap — the lever, not just the spec total. Higher is better.</span></h2>
-    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Cooldown activations / min, by spec</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid">`;
-  for(const r of both){
-    const diff=r.deficit; // theirs − ours; >0 = we fire fewer (bad)
-    const dcls=diff>0?"bad":(diff<0?"good":"flat");
-    const dtxt=(diff>0?"−":diff<0?"+":"")+fmtC(Math.abs(diff));
-    h+=`<div class="dval lo">${fmtC(r.ours)}</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.ours)}%"></div></div>
-      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}<span class="delta ${dcls}">${dtxt}</span></div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirs)}%"></div></div>
-      <div class="dval ro">${fmtC(r.theirs)}</div>`;
-    // Per-cooldown breakdown (the zoom): which specific CD/trinket is the gap for this spec. Only shown on a
-    // trailing spec (we fire fewer overall), where naming the cooldown to push is the lever.
-    if(diff>0){
-      const chips=rowsOf(r.byAbility).map(a=>{
-        const adcls=a.deficit>0?"bad":(a.deficit<0?"good":"flat");
-        const adtxt=(a.deficit>0?"−":a.deficit<0?"+":"")+fmtC(Math.abs(a.deficit));
-        return `${esc(a.name)} <span style="color:var(--ours)">${fmtC(a.ours)}</span> <span style="opacity:.5">vs ${fmtC(a.theirs)}</span> <span class="delta ${adcls}">${adtxt}</span>`;
-      }).join(' &nbsp;·&nbsp; ');
-      if(chips) h+=`<div style="grid-column:1/-1;font-size:11px;color:var(--muted);padding:0 0 5px 2px;margin-top:-2px">/min: ${chips}</div>`;
-    }
-  }
-  return h+`</div></div>`;
+  // Group by class (centred class separator above each group); biggest deficit first within a class.
+  both=both.slice().sort((a,b)=> a.class===b.class ? (b.deficit-a.deficit) : (a.class<b.class?-1:1));
+  let h=`<h2 class="section">Cooldown &amp; Trinket Usage — By Spec<span class="hint">Major DPS cooldowns and on-use trinkets per minute, each spec vs the benchmark's same spec, grouped by class. Pressing on cooldown is free throughput; red = you sit on them. The <b>per-cooldown bars</b> nested under each spec name <i>which</i> cooldown is the gap — the lever, not just the spec total. Higher is better.</span></h2>`;
+  return h+mirrorGrid(both,{label:"Cooldown activations / min — by spec, then by cooldown", max,
+    group:r=>r.class, groupLabel:r=>`<span style="color:${cc(r.class)}">${esc(r.class)}</span>`,
+    ours:r=>r.ours, theirs:r=>r.theirs,
+    name:r=>`<span style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</span>`,
+    delta:r=>dDelta(r.ours,r.theirs,fmtC,"/min",false),
+    sub:r=>mirrorGrid(r.byAbility,{bare:true, max,
+      ours:a=>a.ours, theirs:a=>a.theirs, name:a=>esc(a.name),
+      delta:a=>dDelta(a.ours,a.theirs,fmtC,"/min",false)})});
 }
 // Bloodlust timing + window payoff (EXPERIMENTAL): per boss, WHEN each raid popped lust and the DPS
 // multiplier in the 40s window after — did the burst actually align with the haste window?
@@ -1190,28 +1162,15 @@ function bloodlustView(d){
 function threatPullsView(d){
   const rows=rowsOf(d.deep&&d.deep.threatPulls&&d.deep.threatPulls.rows);
   if(!rows.length) return ""; // no pulls on either side → nothing to coach
-  const max=Math.max(1,...rows.map(r=>Math.max(r.oursTotal,r.theirsTotal)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a <b>non-tank</b> held the <b>boss's</b> aggro — a threat pull (Misdirect or hold for the tank). <b>Tanks excluded.</b> Brief boss-target snaps (≤15s) only, so it <b>under-counts, never over-counts</b>. The <b>per-spec breakdown</b> names who to address; opener snaps (first 30s) are most fixable. Lower is better.</span></h2>
-    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Threat pulls, by boss</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
-  for(const r of rows){
-    const dl=deltaLow(r.oursTotal,r.theirsTotal);
-    const op=r.oursOpener?`<span class="role">${r.oursOpener} in opener</span>`:"";
-    const earl=r.oursEarliest!=null?`first @ ${fmtTime(r.oursEarliest*1000)}`:"—";
-    h+=`<div class="dval lo">${r.oursTotal}</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.oursTotal)}%"></div></div>
-      <div class="dmid">${esc(r.boss)}<span class="delta ${dl.cls}">${dl.txt}</span>${op}</div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirsTotal)}%"></div></div>
-      <div class="dval ro">${r.theirsTotal}</div>
-      <div class="dctx">${earl}</div>`;
-    // Per-spec attribution of OUR pulls (the actionable side): names which spec to coach, not just the count.
-    const bs=rowsOf(r.oursBySpec);
-    if(bs.length){
+  let h=`<h2 class="section">Early Aggro — Threat Pulls<span class="hint">Times a <b>non-tank</b> held the <b>boss's</b> aggro — a threat pull (Misdirect or hold for the tank). <b>Tanks excluded.</b> Brief boss-target snaps (≤15s) only, so it <b>under-counts, never over-counts</b>. The <b>per-spec breakdown</b> names who to address; opener snaps (first 30s) are most fixable. Lower is better.</span></h2>`;
+  return h+mirrorGrid(rows,{label:"Threat pulls, by boss",
+    ours:r=>r.oursTotal, theirs:r=>r.theirsTotal,
+    name:r=>`${esc(r.boss)}${r.oursOpener?`<span class="role">${r.oursOpener} in opener</span>`:""}`,
+    delta:r=>dDelta(r.oursTotal,r.theirsTotal,v=>Math.round(v),"",true),
+    ctx:r=>r.oursEarliest!=null?`first @ ${fmtTime(r.oursEarliest*1000)}`:"—",
+    sub:r=>{const bs=rowsOf(r.oursBySpec); if(!bs.length) return "";
       const chips=bs.map(s=>`<span style="color:${cc(s.class)};font-weight:600">${esc(s.spec)} ${esc(s.class)}</span> ×${s.count}${s.openerCount?` <span style="color:var(--bad)">(${s.openerCount} opener)</span>`:""}`).join(' &nbsp;·&nbsp; ');
-      h+=`<div style="grid-column:1/-1;font-size:11px;color:var(--muted);padding:0 0 4px 2px;margin-top:-3px">${esc(d.ours.title)} pulls: ${chips}</div>`;
-    }
-  }
-  return h+`</div></div>`;
+      return `<div style="font-size:11px;color:var(--muted);padding:0 0 0 2px">${esc(d.ours.title)} pulls: ${chips}</div>`;}});
 }
 // Focus-fire — on multi-target fights, avg share of raid damage on the most-focused enemy, ours vs benchmark.
 function focusFireView(d){
@@ -1238,27 +1197,18 @@ function targetEngagementView(d){
   const bosses=rowsOf(d.deep&&d.deep.targetEngagement).filter(b=>rowsOf(b.targets).length);
   if(!bosses.length) return "";
   let h=`<h2 class="section">Add Control — Kill Speed<span class="hint">How long each <b>add</b> stayed alive (median) vs the benchmark, slowest first. One the benchmark kills faster is a focus/CC target. If they <b>skipped an add entirely</b> (×0), that's the biggest gap — faster boss DPS lets you skip it too. Some adds are held on purpose. Lower is better.</span></h2>`;
+  const addDelta=a=>a.theirsSkipped?{cls:"bad",txt:"they skipped"}
+    :a.oursSkipped?{cls:"good",txt:"you skipped"}
+    :dDelta(a.oursLife,a.theirsLife,v=>Math.round(v*10)/10,"s",true);
   for(const b of bosses){
     const targets=rowsOf(b.targets);
-    const max=Math.max(1,...targets.map(a=>Math.max(a.oursLife||0,a.theirsLife||0)));
-    const w=v=>Math.max(2,Math.round((v||0)/max*100));
-    h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>
-      <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(d.ours.title)}</span><span>Add lifespan (median) — lower = killed faster</span><span class="cthe">${esc(d.theirs.title)}</span></div><div class="ugrid ugridc">`;
-    for(const a of targets){
-      // a skipped side never engaged the add — show an em-dash + badge, not a fake 0s
-      const oTxt=a.oursSkipped?'<span class="cna">—</span>':a.oursLife+"s";
-      const tTxt=a.theirsSkipped?'<span class="cna">—</span>':a.theirsLife+"s";
-      const dtag=a.theirsSkipped?'<span class="delta bad">they skipped</span>'
-               :a.oursSkipped?'<span class="delta good">you skipped</span>'
-               :(dd=>`<span class="delta ${dd.cls}">${dd.txt}s</span>`)(deltaLow(a.oursLife,a.theirsLife));
-      h+=`<div class="dval lo">${oTxt}</div>
-        <div class="dbarL"><div class="f ours" style="width:${w(a.oursLife)}%"></div></div>
-        <div class="dmid">${esc(a.name)}${dtag}</div>
-        <div class="dbarR"><div class="f theirs" style="width:${w(a.theirsLife)}%"></div></div>
-        <div class="dval ro">${tTxt}</div>
-        <div class="dctx">×${a.oursCount} vs ×${a.theirsCount}</div>`;
-    }
-    h+=`</div></div></div>`;
+    h+=`<div style="margin:0 0 16px"><h4 style="margin:0 0 6px">${esc(b.boss)}</h4>`
+      +mirrorGrid(targets,{label:"Add lifespan (median) — lower = killed faster",
+        max:Math.max(1,...targets.map(a=>Math.max(a.oursLife||0,a.theirsLife||0))),
+        ours:a=>a.oursSkipped?0:a.oursLife, theirs:a=>a.theirsSkipped?0:a.theirsLife,
+        name:a=>esc(a.name), delta:addDelta,
+        ctx:a=>`×${a.oursCount} vs ×${a.theirsCount}`})
+      +`</div>`;
   }
   return h;
 }
@@ -1269,21 +1219,11 @@ function targetEngagementView(d){
 function specDpsView(b){
   const rows=rowsOf(b.specGap).filter(r=>r.both);
   if(!rows.length) return `<p class="num" style="padding:8px 2px">No DPS spec was fielded by both raids on this fight — nothing comparable to rank. (Roster differences are on the Composition tab.)</p>`;
-  const max=Math.max(1,...rows.map(r=>Math.max(r.oursAvg,r.theirsAvg)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<p class="srcs">DPS specs both raids fielded, ranked by per-player gap to the benchmark's same spec — biggest deficit first. Compares <b>average DPS per player</b> (a 3-mage vs 2-mage roster stays fair). Specs only one raid brought are a roster question — see the <b>Composition</b> tab.</p>
-    <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(DATA.ours.title)}</span><span>Avg DPS / player, by spec</span><span class="cthe">${esc(DATA.theirs.title)}</span></div><div class="ugrid">`;
-  for(const r of rows){
-    const diff=r.deficit; // theirs − ours, per player; positive = we trail (bad)
-    const dcls=diff>0?"bad":(diff<0?"good":"flat");
-    const dtxt=(diff>0?"−":diff<0?"+":"")+fmtR(Math.abs(diff));
-    h+=`<div class="dval lo">${fmtR(r.oursAvg)}</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.oursAvg)}%"></div></div>
-      <div class="dmid" style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}<span class="delta ${dcls}" title="per-player gap">${dtxt}</span></div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.theirsAvg)}%"></div></div>
-      <div class="dval ro">${fmtR(r.theirsAvg)}</div>`;
-  }
-  return h+`</div></div>`;
+  let h=`<p class="srcs">DPS specs both raids fielded, ranked by per-player gap to the benchmark's same spec — biggest deficit first. Compares <b>average DPS per player</b> (a 3-mage vs 2-mage roster stays fair). Specs only one raid brought are a roster question — see the <b>Composition</b> tab.</p>`;
+  return h+mirrorGrid(rows,{label:"Avg DPS / player, by spec",
+    ours:r=>r.oursAvg, theirs:r=>r.theirsAvg,
+    name:r=>`<span style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</span>`,
+    delta:r=>dDelta(r.oursAvg,r.theirsAvg,fmtR," DPS",false)});
 }
 // Per-boss DPS/HPS over time, ours vs benchmark, on a shared ABSOLUTE-seconds x-axis. Two kills of
 // different length line up in real time, so the shorter kill's line simply ends earlier — the read is
@@ -1501,6 +1441,39 @@ function timelineChart(b){
     ${tabBar}
     ${panes}`;
 }
+// One reusable mirrored-bar grid (the report's horizontal ours←|→theirs idiom), so the layout lives in
+// ONE place instead of 11 hand-rolled copies. No side value columns: the signed difference WITH units sits
+// under the name in the centre, and the bars take the freed width. opts:
+//   label, oTitle, tTitle  — header (titles default to the loaded raids)
+//   ours(r), theirs(r)     — numeric values driving bar widths (and the default max)
+//   name(r)                — centre label html (the row's name + any inline bits)
+//   delta(r) -> {cls,txt}  — signed diff with units, shown under the name (optional)
+//   ctx(r)   -> html       — right-hand context cell; presence adds the ctx column (optional)
+//   sub(r)   -> html       — full-width sub-rows appended beneath the row (optional)
+//   group(r) -> key, groupLabel(r) -> html — a centred full-width separator when the key changes (optional)
+//   max                    — explicit bar max (optional; else max over all ours/theirs)
+//   bare                   — skip the dmgcmp wrapper + header (for nesting one grid inside another)
+//   empty                  — message when rows is empty
+function mirrorGrid(rows, o){
+  rows=rowsOf(rows);
+  if(!rows.length) return o.bare?"":`<p class="num">${o.empty||"No data."}</p>`;
+  const max=o.max||Math.max(1,...rows.map(r=>Math.max(o.ours(r)||0,o.theirs(r)||0)));
+  const w=v=>Math.max(2,Math.round((v||0)/max*100));
+  const hasCtx=!!o.ctx;
+  let g=`<div class="mg${hasCtx?" mgc":""}">`, lastG;
+  for(const r of rows){
+    if(o.group){const gk=o.group(r); if(gk!==lastG){g+=`<div class="mggroup">${o.groupLabel?o.groupLabel(r):esc(gk)}</div>`; lastG=gk;}}
+    const d=o.delta?o.delta(r):null;
+    g+=`<div class="dbarL"><div class="f ours" style="width:${w(o.ours(r))}%"></div></div>
+      <div class="dmid">${o.name(r)}${d?`<span class="delta ${d.cls}">${d.txt}</span>`:""}</div>
+      <div class="dbarR"><div class="f theirs" style="width:${w(o.theirs(r))}%"></div></div>`
+      +(hasCtx?`<div class="dctx">${o.ctx(r)??""}</div>`:"");
+    if(o.sub){const s=o.sub(r); if(s) g+=`<div class="mgsub">${s}</div>`;}
+  }
+  g+=`</div>`;
+  if(o.bare) return g;
+  return `<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(o.oTitle||DATA.ours.title)}</span><span>${esc(o.label||"")}</span><span class="cthe">${esc(o.tTitle||DATA.theirs.title)}</span></div>${g}</div>`;
+}
 function statStrip(b){
   const cell=(label,o,t,fmt,lower)=>{const f=fmt||(x=>x);
     let cls="flat",dtxt="";
@@ -1519,21 +1492,11 @@ function topSources(b){
   if(!rows.length) return "";
   const persec=dmgMode==="persec";
   const val=(raw,durMs)=>persec?(durMs>0?Math.round(raw*1000/durMs):0):raw;
-  const fmtv=v=>persec?v.toLocaleString()+"/s":fmtM(v);
+  const fmtd=v=>persec?v.toLocaleString():fmtM(v);
   const disp=rows.map(r=>({name:r.name,o:val(r.ours,b.oursDurMs),t:val(r.theirs,b.theirsDurMs)}));
-  const max=Math.max(1,...disp.map(d=>Math.max(d.o,d.t)));
-  const w=v=>Math.max(2,Math.round(v/max*100));
-  let h=`<div class="dmgcmp">
-    <div class="dmgcmphdr2"><span class="cours">${esc(DATA.ours.title)}</span><span>Damage taken by source${persec?" (per second)":""}</span><span class="cthe">${esc(DATA.theirs.title)}</span></div>
-    <div class="dgrid">`;
-  for(const d of disp){
-    h+=`<div class="dval lo">${fmtv(d.o)}</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(d.o)}%"></div></div>
-      <div class="dmid">${esc(d.name)}</div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(d.t)}%"></div></div>
-      <div class="dval ro">${fmtv(d.t)}</div>`;
-  }
-  return h+`</div></div>`;
+  return mirrorGrid(disp,{label:`Damage taken by source${persec?" (per second)":""}`,
+    ours:d=>d.o, theirs:d=>d.t, name:d=>esc(d.name),
+    delta:d=>dDelta(d.o,d.t,fmtd,persec?"/s":"",true)});
 }
 // Buff/debuff uptime, laid out like the damage-taken comparison (ours ← name → theirs)
 // and sorted by delta so the most improvable aura (biggest deficit vs the benchmark) is first.
@@ -1541,19 +1504,9 @@ function uptimeCompare(rows,label){
   rows=rowsOf(rows).map(r=>({name:r.name,o:r.ours==null?0:r.ours,t:r.theirs==null?0:r.theirs}));
   if(!rows.length) return '<p class="num">No tracked auras detected.</p>';
   rows.sort((a,b)=>(a.o-a.t)-(b.o-b.t)); // most negative delta (we trail most) first
-  const w=v=>Math.max(2,Math.round(v));
-  let h=`<div class="dmgcmp">
-    <div class="dmgcmphdr2"><span class="cours">${esc(DATA.ours.title)}</span><span>${esc(label||"Uptime %")}</span><span class="cthe">${esc(DATA.theirs.title)}</span></div>
-    <div class="ugrid">`;
-  for(const r of rows){
-    const d=deltaHigh(r.o,r.t);
-    h+=`<div class="dval lo">${r.o}%</div>
-      <div class="dbarL"><div class="f ours" style="width:${w(r.o)}%"></div></div>
-      <div class="dmid">${esc(r.name)}<span class="delta ${d.cls}">${d.txt}</span></div>
-      <div class="dbarR"><div class="f theirs" style="width:${w(r.t)}%"></div></div>
-      <div class="dval ro">${r.t}%</div>`;
-  }
-  return h+`</div></div>`;
+  return mirrorGrid(rows,{label:label||"Uptime %", max:100,
+    ours:r=>r.o, theirs:r=>r.t, name:r=>esc(r.name),
+    delta:r=>dDelta(r.o,r.t,v=>Math.round(v),"%",false)});
 }
 
 // The damage-taken toggle lives on Execution (Output Quality) but also drives the per-boss damage
@@ -1637,22 +1590,15 @@ function optBossBody(d,cls,s,b){
     // Mirrored bars: our raider's cast share ← bar — ability (±Δ, centred) — bar → world best's share.
     // Δ is neutral — rotation is descriptive, not strictly better/worse (same rule as the Dispels view).
     const abil=rowsOf(p.abilities);
-    const max=Math.max(1,...abil.map(a=>Math.max(a.ours,a.theirs)));
-    const w=v=>Math.max(2,Math.round(v/max*100));
     // Prep cross-link (EXPERIMENTAL): when this raider is under their effective-hit cap, note that part of
     // the rotation divergence may be a GEAR fix (missed casts), not sequencing. Coach-not-blame; absolute.
     const hitNote=p.hit?`<div class="srcs" style="margin:-2px 0 8px;color:#e8c34a"><span class="xp" style="background:#3a2f12;color:#e8c34a;border-color:#5a4a1a">Prep flag</span> Effective hit ${p.hit.effPct}% vs the ${p.hit.cap}% ${esc(p.hit.hitType)} cap (−${p.hit.gap}pp) — missed casts can distort this mix; closing it is a gem/enchant fix, not a rotation change.</div>`:"";
     h+=`<div style="margin:0 0 18px"><div class="optpname"><span style="color:${col}">${esc(p.name)}</span>${parseTag(p)}</div>
-      ${hitNote}
-      <div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">${esc(p.name)}</span><span>Cast share by ability</span><span class="cthe">${esc(bm.name)}</span></div><div class="ugrid">`;
-    for(const a of abil){
-      h+=`<div class="dval lo">${a.ours}%</div>
-        <div class="dbarL"><div class="f ours" style="width:${w(a.ours)}%"></div></div>
-        <div class="dmid">${esc(a.name)}<span class="delta flat">${a.diff>0?"+":""}${a.diff} pts</span></div>
-        <div class="dbarR"><div class="f theirs" style="width:${w(a.theirs)}%"></div></div>
-        <div class="dval ro">${a.theirs}%</div>`;
-    }
-    h+=`</div></div></div>`;
+      ${hitNote}`
+      +mirrorGrid(abil,{label:"Cast share by ability", oTitle:p.name, tTitle:bm.name,
+        ours:a=>a.ours, theirs:a=>a.theirs, name:a=>esc(a.name),
+        delta:a=>({cls:"flat",txt:(a.diff>0?"+":"")+a.diff+" pts"})})  // neutral — rotation is descriptive
+      +`</div>`;
   }
   return h;
 }

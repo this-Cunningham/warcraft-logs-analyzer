@@ -671,21 +671,18 @@ def melee_uptime_view(rows, o_name, t_name):
     if not elig:
         return ""
     body = ""
-    o_all, t_all = [], []
     for r in sorted(elig, key=lambda z: (z["theirs"] - z["ours"]), reverse=True):
-        o_all.append(r["ours"])
-        t_all.append(r["theirs"])
-        dl_cls = "neg" if r["ours"] < r["theirs"] - 2 else ("pos" if r["ours"] > r["theirs"] + 2 else "flat")
-        dl = r["ours"] - r["theirs"]
-        body += ('<div class="dval lo">{o}%</div>'
-                 '<div class="dbarL"><div class="f ours" style="width:{ow}%"></div></div>'
+        dl = r["ours"] - r["theirs"]  # higher melee uptime is better
+        dl_cls = "good" if dl > 2 else ("bad" if dl < -2 else "flat")
+        # New mirror layout (matches mirrorGrid): no side value columns — the signed gap (in percentage
+        # points) sits under the boss name; the bars take the freed width.
+        body += ('<div class="dbarL"><div class="f ours" style="width:{ow}%"></div></div>'
                  '<div class="dmid">{boss} <span class="poscl">{cls}</span>'
-                 '<span class="delta {dc}">{ds}{dl}</span></div>'
-                 '<div class="dbarR"><div class="f theirs" style="width:{tw}%"></div></div>'
-                 '<div class="dval ro">{t}%</div>').format(
-            o=r["ours"], t=r["theirs"], ow=max(2, r["ours"]), tw=max(2, r["theirs"]),
+                 '<span class="delta {dc}">{ds}{dl}pp</span></div>'
+                 '<div class="dbarR"><div class="f theirs" style="width:{tw}%"></div></div>').format(
+            ow=max(2, r["ours"]), tw=max(2, r["theirs"]),
             boss=esc(r["boss"]), cls=esc((r.get("class") or "").replace("-", " ")),
-            dc=dl_cls, ds="+" if dl > 0 else "", dl=dl)
+            dc=dl_cls, ds="+" if dl > 0 else ("−" if dl < 0 else ""), dl=abs(dl))
     return ('<h2 class="section">Melee Uptime on the Boss<span class="xp">Experimental</span>'
             '<span class="hint">The geometric cause beneath a DPS gap: the share of melee '
             'samples within ~8&nbsp;yd of the boss, time-weighted, ours vs the benchmark. '
@@ -693,7 +690,7 @@ def melee_uptime_view(rows, o_name, t_name):
             'discipline. Distances are relative, not absolute yards. Higher is better. <b>Experimental.</b></span></h2>'
             '<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">{o}</span>'
             '<span>Melee in-range %, by boss</span><span class="cthe">{t}</span></div>'
-            '<div class="ugrid">{body}</div></div>').format(o=esc(o_name), t=esc(t_name), body=body)
+            '<div class="mg">{body}</div></div>').format(o=esc(o_name), t=esc(t_name), body=body)
 
 
 # ------------------------------------------------------------------------ Overview: the one spread call

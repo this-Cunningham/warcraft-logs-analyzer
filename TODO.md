@@ -62,14 +62,6 @@ Accuracy floor check. The Hit & Expertise view is the one per-player gear fix in
 
 ---
 
-## TODO: Hint text — trim all to ≤50 words
-
-> all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting
-
-Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip is a wall they skip. The soul's rule: a correct signal nobody reads transfers zero value. **23 of ~30 hints** currently exceed 50 words (the longest runs 114). Trim each to ≤50 words, preserving the signal: what the section shows, what direction is better, and any honest caveat the leader needs to act on it. No new hedges, no new examples — just cut filler and redundant framing. All changes are in `templates/report.html` hint `<span>` blocks only.
-
----
-
 ## TODO: Activity by Spec — remove from Execution tab
 
 > ACTIVITY BY SPEC in execution tab
@@ -131,3 +123,43 @@ If the rendered section already reads clearly and the timeline feels like overen
 Accuracy floor concern. Debuff uptime is read from the WCL aggregate Buffs table via `_auras(report, "debuffs")` and `uptime_pct(..., totalUptime)`. The open question: does WCL scope that table to the **main boss only**, or does it aggregate debuff uptime across **all hostile targets** in the encounter? If it’s main-boss-only, a Prot Paladin tanking adds who applies Judgement/Sunder to the add — not the main boss — reads as a false debuff gap on the main target, misleading the leader into a coverage problem that isn’t one (or masking a real one if the debuff should be on the main boss).
 
 **How to verify:** pull the raw WCL API response for a known multi-add fight (e.g. Al’ar, Kael) and inspect whether the `debuffs` auras table contains uptime contributions from the off-tank’s add, or only from the main boss. If main-boss-only, the section needs an inline caveat for multi-target fights — or, if the key debuffs (`KEY_DEBUFFS`: Sunder, Expose, CoE, Faerie Fire, Misery, Judgements) are all expected on the main boss regardless, confirm the off-tank scenario actually produces a false flag before treating it as a bug.
+
+---
+
+## TODO: Cooldown & Trinket Usage — reframe (or zoom?) the by-spec cut
+
+> Reframe or todo-zoom for COOLDOWN & TRINKET USAGE — BY SPEC — im not sure
+
+**Mandate: view the rendered HTML as a raid leader first.** Open the current report, go to Execution → **Cooldown & Trinket Usage** (`cd_usage_pool`/`tier_cd_usage` → `cdUsageView`), and read it cold — major DPS cooldowns + on-use trinkets fired per minute, pooled by (class, spec), ours vs benchmark. Form the consumer impression *before* opening the builder/renderer.
+
+**The hunch (user unsure: reframe vs zoom):** the by-spec cut may be the wrong axis, or the right axis at the wrong grain. Decide which from the rendered view:
+- **Reframe (different axis, same data)** — if the per-spec rows read as a scoreboard a leader can't act on, re-cut: **by cooldown/trinket** (which specific CD is the raid under-firing, across everyone?), **by phase/window** (are CDs landing where they matter?), or fold the better/worse delta into a single "who's leaving a cooldown on cooldown" lever.
+- **Zoom (one cut deeper, finer grain)** — if the axis is right but the row is too coarse, go deeper: the per-minute *number* per spec hides *which* cooldown is missed (a Fury warrior at 0.8 Death Wish/min vs the benchmark's 1.1 is the lever; "cooldowns: 3.2/min" is not). Break the spec's pooled rate into its individual cooldowns/trinkets.
+- **Note the overlap with Bloodlust:** the "CDs in window" column already lives in the Bloodlust section. Whatever reframe lands here must not duplicate that — decide whether cooldown *alignment* belongs there and cooldown *frequency* belongs here, or whether they should merge.
+
+**Verdict path:** if the rendered view already names a clear lever, leave it. If it's a true better/worse signal buried by the axis/grain — reframe or zoom per above. If no decision hangs on it at any cut, it's a `/todo-remove`.
+
+---
+
+## TODO: Bloodlust — reframe “are you stacking burst into it?”
+
+> reframe BLOODLUST — ARE YOU STACKING BURST INTO IT?
+
+**Mandate: view the rendered HTML as a raid leader first.** Open the current report, go to Execution → **Bloodlust — Timing & Payoff** (`lust_window_mult` + per-boss `lust_sec` → `bloodlustView`), and read it cold. Today it shows three things per boss: **when** lust popped (descriptive), the **window payoff** (raid DPS in the 40s lust window ÷ fight-average DPS, >1× = burst stacked), and **CDs in window** (share of major-cooldown TYPES whose buff overlapped the window). Form the consumer impression *before* opening the code.
+
+**The hunch:** the section's whole question is “are you stacking burst into Bloodlust?” — but it may not *answer* that legibly. Three columns (timing / payoff multiplier / CDs-in-window) ask the leader to synthesize the verdict themselves. From the rendered view, decide:
+- **Reframe (clearer presentation of the same data)** — if the three columns are individually true but collectively unreadable, collapse them into the one read the heading promises: a single "did burst land in the window?" signal (payoff × alignment), with timing as context, not a co-equal column.
+- **Reframe (different slice)** — if the raid-aggregate payoff hides *who* failed to align, re-cut **by spec**: which spec's cooldowns missed the window (the actionable assignment — "tell the mages to hold Icy Veins for lust"), instead of a raid-wide multiplier that names no one.
+- **Honesty guard:** timing is explicitly descriptive (on-pull vs saved-for-a-phase is strategy, not a target) — any reframe must keep timing neutral and not imply a "correct" lust time.
+
+**Verdict path:** if the rendered view already answers “are you stacking burst into it?” at a glance, leave it. If the signal is real but buried across three columns or hidden at raid-aggregate grain — reframe per above. If no decision hangs on it, it's a `/todo-remove`.
+
+---
+
+## TODO: Hint text — trim all to ≤50 words  *(EXECUTE LAST)*
+
+> all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting
+
+**⏳ Sequencing: do this AFTER every other TODO above has settled.** Trimming hints now would be wasted or wrong work — several pending items remove sections outright (Activity by Spec, Drums Uptime, Parse Spread), and others rewrite a section's surface entirely (Ghost Run move, the Cooldown and Bloodlust reframes). Their hints will be deleted or rewritten anyway. Trim the hints once the set of sections — and their wording — is final, so this is a single clean pass over the report's *actual* final hints, not a moving target.
+
+Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip is a wall they skip. The soul's rule: a correct signal nobody reads transfers zero value. At last count **23 of ~30 hints** exceeded 50 words (the longest ran 114) — re-count after the section churn settles. Trim each to ≤50 words, preserving the signal: what the section shows, what direction is better, and any honest caveat the leader needs to act on it. No new hedges, no new examples — just cut filler and redundant framing. All changes are in `templates/report.html` hint `<span>` blocks only.

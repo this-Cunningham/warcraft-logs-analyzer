@@ -291,3 +291,28 @@ starting with the two that need new sub-row logic (CD Usage, threat pulls) since
 abstraction. The existing `topSources` and `uptimeCompare` functions can be re-expressed as thin wrappers
 around `mirrorGrid` or left as-is — don't refactor them for its own sake, only when touching them for
 another reason.
+
+---
+
+## TODO: BUG — CD & Trinket Usage breakdown numbers don't add up to the spec total
+
+> bug COOLDOWN & TRINKET USAGE — BY SPEC, it seems the breakdown numbers dont add up to the overall number?
+
+**The bug:** in the CD & Trinket Usage section, the per-cooldown sub-rows (`byAbility` entries — each ability's
+ours/min and theirs/min) do not sum to the spec-level activation rate shown in the anchor row above them. A
+leader comparing "Paladin total" to "Holy Light + Divine Shield + ..." can see the numbers don't reconcile,
+which breaks trust in both.
+
+**Likely cause:** `cd_usage_pool()` in `build_deepdive.py` builds the spec total (`r.ours`, `r.theirs`) and
+the `byAbility` list in separate passes — or the spec total counts all tracked CD activations for that spec
+combined (including CDs that only appear in one of the two raids), while `byAbility` is filtered to a subset
+(e.g. only CDs present in both raids, or only trailing ones). If the total includes abilities not in
+`byAbility`, or the two use different fight-length normalizations, the numbers will never reconcile.
+
+**Fix:** verify whether `r.ours`/`r.theirs` at the spec level is derived as the sum of `byAbility` values or
+computed independently in the builder. If independently, either (a) make the spec total *exactly* the sum of
+the listed sub-rows, or (b) clearly label what each level represents (e.g. "all tracked CDs" vs "CDs active
+in both raids") so a leader can read it without suspecting the math is wrong.
+
+**Soul floor:** this is an **accuracy** violation — the product's non-negotiable first floor. A discrepancy a
+leader can't reconcile makes the whole section untrustworthy. Fix before shipping further CD improvements.

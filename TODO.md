@@ -107,6 +107,34 @@ the section; extend with a `.cdclass-label` separator row if needed.
 
 ---
 
+## TODO: Mirror bars — drop side value columns, show Δ with units in center
+
+> for our horizontal mirror bars, we currently have: val1 - bar1 - label and other info - bar2 - val2 — (sometimes optional context on rightmost column (keep))
+>
+> Lets get rid of the val1 and val2 on the sides and just put the difference in val with proper units in center under label
+
+**Current layout:** `val1 | bar← | LABEL (Δ) | →bar | val2 | (optional ctx)`
+The outer `dval.lo` / `dval.ro` columns (46px each) hold the raw ours/theirs values.
+
+**New layout:** `bar← | LABEL · Δval+units | →bar | (optional ctx)`
+Drop the two side value divs and their grid columns entirely. The center `.dmid` block
+already renders a `.delta` child — extend it to also show the signed difference with
+proper units (e.g. `−2.3k DPS`, `+12%`, `−8s`) directly under the label, formatted the
+same way as the bar scale. The `Δ` carries the sign; units make it self-explanatory
+without the raw values.
+
+**CSS change:** `.ugrid` columns shrink from 5 to 3: `1fr · <label-width> · 1fr` (plus
+optional `.dctx` for `ugridc`). `.dgrid` same treatment. Bars get the full space the
+outer columns freed up → signal reads more clearly at smaller widths. Remove `.dval`
+CSS rules; the `.delta` inside `.dmid` already handles colour (good/bad/flat/warn).
+
+**Scope:** renderer + CSS only. Pairs naturally with the `mirrorGrid()` refactor TODO
+already in this file — best done together so the column-drop is implemented once in the
+extracted function rather than at 14 call-sites independently. Do **not** remove the
+optional `.dctx` context column (rightmost, `ugridc` variant).
+
+---
+
 ## TODO: Early Aggro — verify Feral Druid bear-tank false positive in Threat Pulls
 
 > possible bug — EARLY AGGRO — THREAT PULLS — make sure you arent counting tanks in this calculation, i see feral druid and i immediately think you are counting tanks accidentally

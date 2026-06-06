@@ -7,10 +7,13 @@ top-level tab — each view embeds next to the boss/mechanic it explains:
 
   2. Spread-vs-demand index           -> per-boss Positioning sub-tab + an Overview headline
   3. Melee uptime gap                 -> Execution, under Lowest-hanging DPS (tier aggregate)
+  5. Spread-over-time curve            -> per-boss Timeline sub-tab (spread_series; aligned to the DPS axis)
 
-(Features 1 "Why we eat more <ability>" + 4 "Void-zone density heatmap" + 5 "Spread over time" were cut
-in the /audit pass: experimental, buried in a sub-tab, and redundant with Execution → Avoidable Damage by
-Mechanic — see TODO.md. Only the formation map + spread-vs-demand verdict and the melee-uptime gap remain.)
+(Features 1 "Why we eat more <ability>" + 4 "Void-zone density heatmap" were cut in the /audit pass:
+experimental, buried in a sub-tab, and redundant with Execution → Avoidable Damage by Mechanic — see
+TODO.md. Feature 5 "Spread over time" was removed from the Positioning sub-tab and RE-HOMED into the per-boss
+Timeline tab, where it sits on the same seconds axis as the DPS curves. The formation map + spread-vs-demand
+verdict and the melee-uptime gap remain in their own homes.)
 
 Honesty rules baked in (see references/coordinate-system.md + the brainstorm's KEEP/SHARPEN filter):
   * WCL x/y are a LINEAR transform of yards (isotropic), so relative geometry — distance, spread, in/out

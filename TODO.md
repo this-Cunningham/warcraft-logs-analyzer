@@ -355,14 +355,15 @@ element, or a JS truncation on the `DATA.theirs.title` string at the mobile brea
 
 ---
 
-## TODO: Benchmark color — use purple parse color instead of red
+## TODO: Benchmark color — use pink (99-parse) color instead of red
 
-> benchmark comparison should be a purple parse color instead of red
+> benchmark comparison should be the pink parse color — the one you get for 99 parses
 
-**What to change:** the benchmark (theirs) side of the report currently renders in red. Replace it with purple —
-the WoW parse-tier color for very high performance (75–94th percentile, `#a335ee`). Red reads as "bad" or
-"danger," which misframes a benchmark the leader chose as aspirational. Purple signals "this is the high-parse
-standard we're measuring against" — matching the color language every WoW player already reads fluently.
+**What to change:** the benchmark (theirs) side of the report currently renders in red. Replace it with pink —
+the WoW parse-tier color for 99th-percentile performance (`#e268a8`). Red reads as "bad" or "danger," which
+misframes a benchmark the leader chose as aspirational. Pink signals "this is the 99-parse ceiling we're
+measuring against" — the strongest possible aspirational read in the color language every WoW player already
+knows.
 
 **Scope:** renderer-only — update the CSS variable or color constant used for the benchmark/theirs side
-(bars, labels, column headers) from red to purple. No builder changes.
+(bars, labels, column headers) from red to pink. No builder changes.

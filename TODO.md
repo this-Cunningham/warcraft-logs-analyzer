@@ -175,10 +175,89 @@ If the rendered view shows low pull counts that don't warrant a breakdown, or if
 
 ---
 
+## TODO: Add Control — Kill Speed — center rightmost column values
+
+> Move the rightmost column values to be centered under the add name
+
+Legibility fix. In `targetEngagementView` (`templates/report.html:1315–1342`), each add row uses the `ugridc` grid: `[ours value] [ours bar→] [add name + delta] [←theirs bar] [theirs value] [counts]`. The theirs-lifespan value (`<div class="dval ro">`) currently sits flush to the right edge of the container rather than visually centering under the add name column. A leader scanning the row has to hunt for the benchmark number.
+
+Fix: adjust CSS alignment so the rightmost lifespan value centers under (or directly adjacent to) the add name. The `ugridc` grid is defined at `report.html:236` (`grid-template-columns:38px 1fr 90px 1fr 38px minmax(48px,auto)`); `.dval.ro` may need `text-align:center` or a grid placement tweak. Match whatever the fix is to `.dval.lo` (the ours side) so both sides read symmetrically.
+
+---
+
+## TODO: Execution tab — move Output Quality and Clear Efficiency to top
+
+> OUTPUT QUALITY move to top of tab section
+> Same for CLEAR EFFICIENCY
+
+Legibility improvement. Currently **Output Quality** renders as item 4 (lines 780–802 of `renderExecution`) and **Clear Efficiency** as item 5 (lines 807–818), both at the very bottom of the Execution tab. They are macro "are we winning?" reads — Raid DPS, activity, damage taken, HPS, overheal, wall-clock vs fight time — and a leader must scroll past all the sub-gap detail (What's Killing Us, Spec DPS, Buff Gaps, Interrupts, Cooldowns…) before reaching them.
+
+Fix: in `renderExecution` (`report.html:729`), move the Output Quality block (section `/* 4. Output quality */`) and the Clear Efficiency block (section `/* 5. Clear efficiency */`) to render **before** What's Killing Us (currently section `/* 1. */`). The macro view first, then the drill-down — consistent with how the Overview tab leads with the summary cards. No builder changes — pure render-order move in the renderer.
+
+Note: the `dmgMode` toggle inside Output Quality also re-renders the Bosses tab (`renderBossesPanel`). That coupling is unaffected by the move.
+
+---
+
+## TODO: Kill Summary &amp; Rosters — remove from Bosses tab
+
+> Kill Summary &amp; Rosters
+
+**Cut reason:** *Redundant / data dump.* The Kill Summary block (`bossSummaryBlock`) appears beneath each boss's execution panel on the Bosses tab and contains: kill time bars, Raid DPS/HPS bars, avg parse bar, deaths bar, wipes before kill, wipe depth, and two full roster tables. Every signal in it is already present elsewhere: kill time and DPS curve are on the Timeline; deaths and killing blows are on the Deaths sub-tab; wipes and wipe depth are on the Wipes tab; composition + rosters are on the Composition tab. The roster tables in particular are a data dump — a list of names with parses that doesn't surface a lever. No decision hangs on the Kill Summary block that isn't already made by the tabs above it.
+
+**Note on data payload:** some per-boss builder fields (`oursRaidDps`, `theirsRaidDps`, `oursRaidHps`) may also be read by the Timeline chart or the Overview scorecard — grep before deleting them from the builder. The `ours.players`/`theirs.players` arrays are very likely exclusive to this block.
+
+**Cleanup checklist:**
+
+- `templates/report.html:78–80` — delete `.rostergrid`, `.rostergrid h4`, `.rostergrid h4.ours`, `.rostergrid h4.theirs` CSS rules
+- `templates/report.html:283–292` — delete `function rosterTable(...)` (only called by `sideRosters`)
+- `templates/report.html:295–301` — delete `function sideRosters(...)` (only called by `bossSummaryBlock`)
+- `templates/report.html:519–540` — delete `function bossSummaryBlock(...)` and its preceding comment
+- `templates/report.html:879` — remove `${bossSummaryBlock(b,d)}` from the bsub div (keep `${panel}` + the wrapper)
+- `scripts/build_deepdive.py` — grep for `"players"` in the per-boss build loop; delete the `players` payload builder that populates `b.ours.players`/`b.theirs.players`. Verify `oursRaidDps`/`theirsRaidDps`/`oursRaidHps`/`theirsRaidHps` per-boss fields before removing — if used only by `bossSummaryBlock`, delete; if used by Timeline, leave.
+- `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — remove the `sideRosters`/`rosterTable` references in the Overview "Boss-by-Boss" bullet (the rosters half); update or remove the note that kill-summary content moved to the Bosses tab
+
+---
+
+## TODO: Positioning — remove Spread over time and Why we eat more
+
+> bosses tab — positioning Spread over time
+> Also remove "why we eat more…" from positioning subtab
+
+**Cut reason (Spread over time, feature 5):** EXPERIMENTAL, buried three levels deep (Bosses tab → boss → Positioning sub-tab), and the time-series detail — "the gap opens around 60% into the fight" — is precision a leader can't act on beyond what the spread-vs-demand verdict (feature 2, which **stays**) already names. The verdict says *what to do*; the strip just adds a *when* that's too fine-grained for the report's legibility floor.
+
+**Cut reason (Why we eat more + Void-zone heatmap, features 1 and 4):** EXPERIMENTAL scatter/heatmap; the avoidable-damage mechanic is already surfaced and ranked in Execution → Avoidable Damage by Mechanic. The spatial "is it clustered or scattered?" verdict is real but rendered in a sub-tab most leaders won't reach, and it only fires when a qualifying mechanic has ≥5 distinct non-tank targets — i.e. it's usually absent. Cut and let Execution's Avoidable Damage carry the signal.
+
+**What stays:** feature 2 (Raid formation & spread maps + spread-vs-demand verdict) — the formation map and the spread direction call are the primary lever the Positioning sub-tab provides.
+
+**Cleanup checklist — `scripts/positioning.py`:**
+
+- `positioning.py:225–~230` — delete `def spread_series(...)` (feature 5 data builder)
+- `positioning.py:476–~530` — delete `def _strip_svg(...)` (feature 5 SVG renderer)
+- `positioning.py:598–626` — delete the `# ---- feature 5: spread-over-time strip ----` block inside `boss_positioning()` (the `strip_html` assembly)
+- `positioning.py:318–~400` — delete `def ability_cluster(...)` (feature 1 spatial analysis)
+- `positioning.py:428–~441` — delete `def _scatter_panel(...)` (feature 1 scatter SVG)
+- `positioning.py:443–~474` — delete `def _heatmap_panel(...)` (feature 4 heatmap SVG)
+- `positioning.py:692–~714` — delete `def _top_avoidable_with_hits(...)` (features 1+4 ability picker)
+- `positioning.py:628–659` — delete the `# ---- feature 1 + 4: the top avoidable ability ----` block inside `boss_positioning()` (the `ability_html` assembly)
+- `positioning.py:541–543` — update the `boss_positioning()` docstring (currently says "features 1, 2, 4, 5") to "feature 2 only"
+- `positioning.py:1–12` — update the module docstring: remove items 1, 4, 5 from the features list
+- `positioning.py:540` / call site in `build_deepdive.py` — the `avoidable_rows` parameter is only used by feature 1; after removing that block, drop the parameter from `boss_positioning()` and its call site
+
+**Cleanup checklist — `templates/report.html`:**
+
+- `report.html:842–843` — update the Positioning sub-tab comment (currently mentions "spread over time, the avoidable-ability scatter + heatmap") to just "the formation map and spread verdict"
+
+**Cleanup checklist — `references/report-anatomy.md`:**
+
+- Delete the **Spread over time (feature 5, `spread_series`)** bullet under Positioning
+- Delete the **Why we eat more `<ability>` (feature 1, `ability_cluster`) + Void-zone density (feature 4)** bullet under Positioning
+
+---
+
 ## TODO: Hint text — trim all to ≤50 words  *(EXECUTE LAST)*
 
 > all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting
 
-**⏳ Sequencing: do this AFTER every other TODO above has settled.** Trimming hints now would be wasted or wrong work — several pending items remove sections outright (Activity by Spec, Drums Uptime, Parse Spread), and others rewrite a section's surface entirely (Ghost Run move, the Cooldown and Bloodlust reframes). Their hints will be deleted or rewritten anyway. Trim the hints once the set of sections — and their wording — is final, so this is a single clean pass over the report's *actual* final hints, not a moving target.
+**⏳ Sequencing: do this AFTER every other TODO above has settled.** Trimming hints now would be wasted or wrong work — several pending items remove sections outright (Activity by Spec, Drums Uptime, Parse Spread, Kill Summary & Rosters, Positioning strip+scatter), and others rewrite a section's surface entirely (Ghost Run move, the Cooldown and Bloodlust reframes). Their hints will be deleted or rewritten anyway. Trim the hints once the set of sections — and their wording — is final, so this is a single clean pass over the report's *actual* final hints, not a moving target.
 
 Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip is a wall they skip. The soul's rule: a correct signal nobody reads transfers zero value. At last count **23 of ~30 hints** exceeded 50 words (the longest ran 114) — re-count after the section churn settles. Trim each to ≤50 words, preserving the signal: what the section shows, what direction is better, and any honest caveat the leader needs to act on it. No new hedges, no new examples — just cut filler and redundant framing. All changes are in `templates/report.html` hint `<span>` blocks only.

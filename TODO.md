@@ -254,6 +254,40 @@ Note: the `dmgMode` toggle inside Output Quality also re-renders the Bosses tab 
 
 ---
 
+## TODO: Positioning formation map — reframe as snapshots at meaningful moments
+
+> we should be showing positioning snapshots between raids for:
+> - once positions roughly stabilized immediately after pulls
+> - when it is clear that a boss mechanic triggered a repositioning of the raid (label the mechanic)
+> - at the beginning of each phase once the boss/adds positions stabilize
+> - make sure adds shown too and the direction each is facing
+
+**Mandate: view the rendered HTML as a raid leader first.** Open the current report, navigate to the Bosses tab → any boss with a Positioning sub-tab, and read the existing Raid formation & spread maps cold — as a leader who hasn't seen the code. Note what story the current formation maps tell (or fail to tell) before evaluating the reframe below. **Do not open `positioning.py` or `report.html` to form your initial verdict.**
+
+**The hunch:** the current formation map is a single whole-fight median-position snapshot per player — everyone's average position across the entire fight squashed into one picture. That collapses the fight's spatial story into a static smear. A leader wants to know *where was the raid when it mattered*: the opening position, the moment a mechanic lands and forces repositioning, the start of each phase. Multiple moment-specific snapshots — each labeled by what triggered them — would let a leader compare "where were we in Phase 2 vs the benchmark's Phase 2?" and "did the Arcane Orbs scatter us or did we hold formation?"
+
+**What to decide from the rendered view:**
+- Does the current single-median map actually read as useful? Can a leader understand their raid's shape from it, or does it look like a noise cloud?
+- Is the signal that's latent here (where the raid held vs where the benchmark held at key moments) genuinely decision-changing, or is "spread your raid better" already captured by the spread-vs-demand verdict text beneath the maps?
+- Would a leader read multiple labeled snapshots, or would they check one and move on? (Legibility: each snapshot adds a map; three snapshots = three SVGs to parse.)
+
+**If the reframe is worth it — the axis to re-cut along:**
+- **By when** (temporal axis): replace the single median-position map with 2–4 moment-specific snapshots, each labeled with what defined that moment:
+  - *Opening formation* — positions once the raid stabilized after the pull (first ~5s after the initial flurry of movement dies down; detect via median pairwise-position variance dropping below a threshold)
+  - *Post-mechanic repositioning* — when a trackable AoE mechanic fires and the raid noticeably shifts (label the mechanic and the time into the fight; detect via a spike in median pairwise-distance change after an ability hit)
+  - *Phase transitions* — a snapshot ~5s after the phase boundary stabilizes (from `phaseTransitions`; skip if fewer than 2 raiders changed position by >5yd)
+- **Adds & facing:** include non-boss hostile actors (the named adds that appear in `masterData`) as distinct shapes/colors on the same map. Facing direction per actor: WCL's `facing` field (centiradian-encoded; see the positioning skill's `coordinate-system.md`) as a small directional arrow on each dot — both for players AND adds, since add facing is what determines cleave/cone-ability threat arcs.
+
+**Honesty guards to carry into the build:**
+- Each snapshot caption must name its trigger ("Phase 2 start", "Arcane Orbs at 45s", "pull opener") so the leader isn't guessing why this moment was chosen.
+- The stabilization heuristic (movement variance dropping below threshold) is approximate — label the snapshot time, not just the label, so a leader can cross-reference the Timeline.
+- Facing arrows only when `facing` data is available for that actor at that moment; don't infer or interpolate.
+- If fewer than 2 defined moments can be detected (e.g. a single-phase stationary boss with no qualifying mechanics), fall back to the current single median-position map with no regression in coverage.
+
+**If the rendered view shows the current map is already too hard to read as a static image** — the reframe may be solving the wrong problem. In that case, consider whether the Positioning sub-tab's real failure is legibility of a single map (a rendering fix — bigger SVG, cleaner role colors, boss ring more prominent) rather than needing more maps.
+
+---
+
 ## TODO: Hint text — trim all to ≤50 words  *(EXECUTE LAST)*
 
 > all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting

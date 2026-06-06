@@ -1,11 +1,11 @@
 ---
-name: zoom
-description: Add a TODO item to zoom in on / break a report section down more granularly (the soul's "go one cut deeper"), framed by the product soul. Invoked by the user as `/zoom <report section>`.
+name: todo-zoom
+description: Add a TODO item to zoom in on / break a report section down more granularly (the soul's "go one cut deeper"), framed by the product soul. Invoked by the user as `/todo-zoom <report section>`.
 model: sonnet
 allowed-tools: Read, Grep, Edit, Bash
 ---
 
-# zoom
+# todo-zoom
 
 The user wants the report to **go one level deeper** on a section — to take a
 raid-level number and decompose it into the grain that names a lever. Capture that
@@ -20,10 +20,10 @@ and *what's the one cut deeper?* principle.
 
 A raw aggregate ("23 interrupts", "Raid DPS 18k") answers *how many* — which is
 rarely a lever. The actionable cut is almost always one decomposition down: **who**
-(spec), **what** (mechanic / mob / ability), or **when** (phase). `/zoom` records the
+(spec), **what** (mechanic / mob / ability), or **when** (phase). `/todo-zoom` records the
 intent to take this section from a tally to that deeper, lever-naming cut. The total
 can ride along as context; the deeper cut becomes the headline. (Going *deeper* is
-distinct from `/reframe`, which re-cuts the same data along a *different* axis.)
+distinct from `/todo-reframe`, which re-cuts the same data along a *different* axis.)
 
 ## Always write to `main`
 
@@ -51,7 +51,7 @@ diverged and needs a human.
      matter, and can the leader still read it in seconds?
    - **Honesty check:** if there's *no* honest dimension to decompose by, say so —
      the soul treats that as a sign the metric may be a scoreboard, not an insight
-     (and maybe a `/remove` candidate instead).
+     (and maybe a `/todo-remove` candidate instead).
 2. **Judge it as a consumer first.** Before reasoning from code, view the named
    section in the **rendered HTML** as a raid leader would — start the preview server
    (`report-preview` in `.claude/launch.json`) against a report under `reports/`

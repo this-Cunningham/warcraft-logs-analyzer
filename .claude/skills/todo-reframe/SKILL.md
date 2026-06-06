@@ -1,11 +1,11 @@
 ---
-name: reframe
-description: Add a TODO item flagging a report section that might hold real latent value but doesn't look valuable on its current surface — with a mandate to evaluate it from the RENDERED HTML as a consumer first, not from the code. Invoked by the user as `/reframe <report section>`.
+name: todo-reframe
+description: Add a TODO item flagging a report section that might hold real latent value but doesn't look valuable on its current surface — with a mandate to evaluate it from the RENDERED HTML as a consumer first, not from the code. Invoked by the user as `/todo-reframe <report section>`.
 model: sonnet
 allowed-tools: Read, Edit, Bash
 ---
 
-# reframe
+# todo-reframe
 
 The user suspects a section **might be hiding something genuinely valuable**, but on
 its current surface it doesn't read that way. Capture that as a `TODO.md` item whose
@@ -26,7 +26,7 @@ the consumer's seat. This is the soul's **legibility floor** + *latent value beh
 bad surface → fix the surface (sharpen), don't cut* — but you can't tell latent-value
 from truly-inert until you've looked at the rendered thing as a leader would.
 
-Note this is **not** `/zoom`. `/zoom` goes one cut *deeper* (a finer grain). `/reframe`
+Note this is **not** `/todo-zoom`. `/todo-zoom` goes one cut *deeper* (a finer grain). `/todo-reframe`
 re-cuts the *same* data along a **different axis** — what/when/where/who/why — or
 presents it differently. The data may already be at the right grain; it's just framed
 in a way that buries the signal.
@@ -71,7 +71,7 @@ diverged and needs a human.
      burying? If **yes** → name the reframe, which may be **(a)** a clearer
      presentation of the same cut (legibility), or **(b)** a *different slice of the
      same data* along a new axis — by mechanic instead of by spec, by phase instead of
-     by fight-total, by target instead of by source. If **no** → it may be a `/remove`
+     by fight-total, by target instead of by source. If **no** → it may be a `/todo-remove`
      candidate; say so.
    - **Do not** start by reading `build_deepdive.py` / `templates/report.html` — that's
      the trap this item is guarding against.

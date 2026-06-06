@@ -1,21 +1,19 @@
 ---
-name: backlog
-description: Add a longer-term idea to BACKLOG.md, in the voice of the product. Invoked by the user as `/backlog <the idea>`.
+name: todo-add
+description: Add a near-term item to TODO.md, in the voice of the product. Invoked by the user as `/todo-add <the idea>`.
 model: sonnet
 allowed-tools: Read, Edit, Bash
 ---
 
-# backlog
+# todo-add
 
-Add this idea to `BACKLOG.md`, framed against the product's guiding principles.
-Backlog items are bigger or longer-term than `TODO.md` items — things that need more
-research, design, or are lower priority right now.
+Add this idea to `TODO.md`, framed against the product's guiding principles.
 
 > $ARGUMENTS
 
 ## Always write to `main`
 
-This skill only ever touches `BACKLOG.md` in the **canonical main checkout** (the repo
+This skill only ever touches `TODO.md` in the **canonical main checkout** (the repo
 root in *Paths* below) — always on the `main` branch, never the current worktree or
 feature branch. **Before editing**, sync it so you append to the latest list and the
 final push fast-forwards cleanly:
@@ -36,28 +34,29 @@ diverged and needs a human.
    *why* the item matters — the **leader decision** it serves and the **lever** it
    surfaces (not a prescribed action) — and to phrase it in the product's voice
    (neutral analyst; lever-focused, never a verdict; never a data dump).
-2. **Sync, then read `BACKLOG.md`.** Run the sync in *Always write to `main`* above,
-   then read `BACKLOG.md` at the path below — understand its current sections and style.
+2. **Sync, then read `TODO.md`.** Run the sync in *Always write to `main`* above, then
+   read `TODO.md` at the path below — understand its current sections and style
+   (markdown `## TODO:` headers, a `>` blockquote restating the ask, then notes).
 3. **Place the item.** Decide whether it belongs under an existing section or
-   warrants a new `## BACKLOG:` header. Match the existing format exactly:
-   - A `## BACKLOG: <short title>` header (only if it's a new section).
+   warrants a new `## TODO:` section. Match the existing format exactly:
+   - A `## TODO: <short title>` header (only if it's a new section).
    - A `>` blockquote capturing the user's ask in their framing.
    - A short note tying it to the product soul — the leader decision it serves and
      the lever it surfaces, plus the magnitude that would make it matter — and any
      obvious data source or open question.
-4. **Edit `BACKLOG.md`** to insert it. Keep it lightweight; do not rewrite or
+4. **Edit `TODO.md`** to insert it. Keep it lightweight; do not rewrite or
    reorder existing items. Newest ideas go at the bottom of their section.
 5. **Commit + push to `main`:**
    ```
-   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" add BACKLOG.md
-   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" commit -m "BACKLOG: <short title>"
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" add TODO.md
+   git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" commit -m "TODO: <short title>"
    git -C "C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer" push origin main
    ```
 
 ## Paths (always use these absolute paths)
 
 - Soul: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\PRODUCT_MANAGER_SOUL.md`
-- File: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\BACKLOG.md`
+- File: `C:\Users\cdstu\Documents\dev\warcraft-logs-analyzer\TODO.md`
 
 ## Notes
 

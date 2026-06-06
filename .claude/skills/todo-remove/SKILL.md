@@ -1,11 +1,11 @@
 ---
-name: remove
-description: Add a TODO item to remove a report section and clean up every dangling reference, framed by the product soul. Invoked by the user as `/remove <report section>`.
+name: todo-remove
+description: Add a TODO item to remove a report section and clean up every dangling reference, framed by the product soul. Invoked by the user as `/todo-remove <report section>`.
 model: sonnet
 allowed-tools: Read, Grep, Edit, Bash
 ---
 
-# remove
+# todo-remove
 
 The user has decided a section should be **cut** from the report. Capture that as a
 `TODO.md` item that names the section, the soul-based reason, and a concrete checklist
@@ -36,7 +36,7 @@ diverged and needs a human.
    own terms — *helps with nothing* / *silly* (no decision · noise gap · cool-data) /
    *unfixable confound* / *redundant* / *raw dump* / *blame* / *unreadable*. The user
    is making the call; you're recording it, not re-litigating it. (If you think the
-   cut is wrong — e.g. it's really a `/zoom`, a `/reframe`, or a legibility fix — add
+   cut is wrong — e.g. it's really a `/todo-zoom`, a `/todo-reframe`, or a legibility fix — add
    the item but say so in one line.)
 2. **Enumerate the dangling refs — this is the core of the skill.** Ground the
    section in `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` to

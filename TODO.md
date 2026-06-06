@@ -129,3 +129,22 @@ would catch the "dps-classified bear" case: if their cast mix on that fight is b
 **Verify first:** check a real report where Feral Druid appears in Threat Pulls — confirm whether the named
 player is cat-DPS (correct inclusion) or a bear-tanking Feral classified as dps by role_map (false positive).
 If the former, no bug. If the latter, wire `_druid_form()` into the non-tank check inside `threat_pulls()`.
+
+---
+
+## TODO: Ghost Run — clip dashed projection line at the ghost kill marker
+
+> for ghost run — what dying cost you — make the green dashed line stop where the vertical green ghost line is (and it should update when it changes from selecting/deselecting dead players)
+
+**What to fix:** in `tlChart()` (`report.html:1326`), the dashed ghost DPS line is drawn for the full
+`gDur` duration — it runs past the vertical "ghost kill" marker at `ghost.killSec`. The line should end
+exactly at `killSec`: a projection beyond the projected kill is meaningless and clutters the read.
+
+**Fix:** when building the dashed path, filter out points where `i/(n-1)*gDur > ghost.killSec` — i.e. only
+draw points up to and including the bucket that crosses `killSec`. The filled gap polygon (lines 1323-1325)
+should be clipped the same way so the green shaded area also stops at the kill line.
+
+**Already updates on toggle:** `ghostInner()` re-renders the whole chart block on every death toggle, so
+clipping by the recomputed `killSec` will update automatically — no additional wiring needed.
+
+**Scope:** renderer-only, one-line path filter in `tlChart()`. No builder changes.

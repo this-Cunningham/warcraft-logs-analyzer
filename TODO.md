@@ -352,3 +352,18 @@ name can stay.
 
 **Scope:** renderer-only CSS/JS change — likely a `max-width` + `text-overflow: ellipsis` on the guild name
 element, or a JS truncation on the `DATA.theirs.title` string at the mobile breakpoint. No builder changes.
+
+---
+
+## TODO: Benchmark color — use pink (99-parse) color instead of red
+
+> benchmark comparison should be the pink parse color — the one you get for 99 parses
+
+**What to change:** the benchmark (theirs) side of the report currently renders in red. Replace it with pink —
+the WoW parse-tier color for 99th-percentile performance (`#e268a8`). Red reads as "bad" or "danger," which
+misframes a benchmark the leader chose as aspirational. Pink signals "this is the 99-parse ceiling we're
+measuring against" — the strongest possible aspirational read in the color language every WoW player already
+knows.
+
+**Scope:** renderer-only — update the CSS variable or color constant used for the benchmark/theirs side
+(bars, labels, column headers) from red to pink. No builder changes.

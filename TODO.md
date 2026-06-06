@@ -148,3 +148,25 @@ should be clipped the same way so the green shaded area also stops at the kill l
 clipping by the recomputed `killSec` will update automatically — no additional wiring needed.
 
 **Scope:** renderer-only, one-line path filter in `tlChart()`. No builder changes.
+
+---
+
+## TODO: Al'ar Positioning tab — absent by design, verify it reads as intentional not broken
+
+> potential bug — no positioning tab rendering for Al'ar in bosses
+
+**Not a bug — intentional suppression:** `boss_positioning()` (`positioning.py:473`) returns early for mobile
+bosses (`bclass == "mobile"`), and the renderer (`report.html:776`) only adds the Positioning sub-tab when
+`b.positioning` is present. Al'ar is classified mobile by validated travel distance (~1448yd vs the 160yd
+threshold), so a formation map would track the boss's flight path — not raid spread — which is meaningless.
+
+**What to verify:** does the absent tab read as broken to a leader who sees Positioning tabs on other shared
+bosses but nothing on Al'ar? If yes, add a stub Positioning tab for mobile bosses with a one-liner:
+*"Al'ar is a mobile boss — formation tracking measures the boss's path, not raid positioning."* That
+surfaces the lever (melee positioning is still meaningful — just tracked via Melee Uptime, already in
+Execution) without showing a misleading map.
+
+**Check the current report:** open Al'ar's boss panel, confirm no Positioning sub-tab appears, and judge
+whether the absence creates confusion in context. If the other sub-tabs (Timeline, Execution) make the
+omission obvious and harmless, leave it as-is. If a reader would reasonably wonder why it's missing,
+add the stub.

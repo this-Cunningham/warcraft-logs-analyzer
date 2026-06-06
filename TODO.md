@@ -151,22 +151,35 @@ clipping by the recomputed `killSec` will update automatically — no additional
 
 ---
 
-## TODO: Al'ar Positioning tab — absent by design, verify it reads as intentional not broken
+## TODO: BUG — mobile bosses hide ALL positioning; should snapshot their plant windows
 
-> potential bug — no positioning tab rendering for Al'ar in bosses
+> No why are we hiding positioning if labelled mobile, "BUG", it is still possible for mobile bosses to plant and for us to find relatively stable positioning states
 
-**Not a bug — intentional suppression:** `boss_positioning()` (`positioning.py:473`) returns early for mobile
-bosses (`bclass == "mobile"`), and the renderer (`report.html:776`) only adds the Positioning sub-tab when
-`b.positioning` is present. Al'ar is classified mobile by validated travel distance (~1448yd vs the 160yd
-threshold), so a formation map would track the boss's flight path — not raid spread — which is meaningless.
+**The bug:** `boss_positioning()` (`positioning.py:468-474`) classifies a boss by **whole-fight** boss travel
+(`boss_travel_yd`) and bails entirely when `bclass == "mobile"`. Al'ar's flight between platforms smears to
+~1448yd, so it's tagged mobile and gets **no Positioning tab at all** — even though Al'ar (and other "mobile"
+bosses) repeatedly **plant** on a platform, and during those windows the raid's formation around the planted
+boss is exactly as meaningful as on any stationary boss. Whole-fight travel is the wrong grain: a boss that
+teleports/flies between stable stands is mobile *between* plants but stationary *during* them.
 
-**What to verify:** does the absent tab read as broken to a leader who sees Positioning tabs on other shared
-bosses but nothing on Al'ar? If yes, add a stub Positioning tab for mobile bosses with a one-liner:
-*"Al'ar is a mobile boss — formation tracking measures the boss's path, not raid positioning."* That
-surfaces the lever (melee positioning is still meaningful — just tracked via Melee Uptime, already in
-Execution) without showing a misleading map.
+**The fix — per-window classification, not whole-fight:** the phase-anchored snapshot machinery already
+exists and already solves this — it's just gated out by the early `return None`. `_snapshot_windows()` +
+`_formation_at()` (`positioning.py`) detect settled windows and render a per-moment formation map. The change:
 
-**Check the current report:** open Al'ar's boss panel, confirm no Positioning sub-tab appears, and judge
-whether the absence creates confusion in context. If the other sub-tabs (Timeline, Execution) make the
-omission obvious and harmless, leave it as-is. If a reader would reasonably wonder why it's missing,
-add the stub.
+1. **Don't bail on mobile.** Instead of returning None for `bclass == "mobile"`, detect the **stable
+   sub-windows** within the fight — bins where the boss anchor is locally stationary (low travel over a
+   short rolling window), i.e. the plant phases. Phase boundaries (`o_phases`/`t_phases`) are a strong prior
+   for where plants begin.
+2. **Anchor each snapshot's frame to that window's planted boss position**, not a whole-fight frame (which is
+   what makes the mobile smear meaningless). Per-plant frame = relative geometry is honest again.
+3. **Render only the planted windows** as phase-anchored snapshots; skip the flight gaps. If no stable window
+   is found (truly always-moving boss), fall back to the current suppression with the honest one-liner.
+
+**Why it matters (soul):** Al'ar is a real shared boss; hiding positioning entirely is a coverage hole, not a
+clean omission. Plant-phase formation surfaces the same lever as any stationary boss (spread/stack vs the
+benchmark when it actually counts). Magnitude gate: only worth it if the plant windows hold enough position
+samples to compute a stable spread radius — verify on the live Al'ar fight before building.
+
+**Verify the data:** confirm the cached `positions-<enc>.json` for Al'ar has enough per-bin boss anchor +
+roster samples *during* the plant windows to compute spread (it should — the suppression happens after fetch,
+on classification, so the data is already there).

@@ -16,6 +16,16 @@ and *what's the one cut deeper?* principle.
 
 (the report section / metric to zoom in on)
 
+## Capture the decision — don't overrule it
+
+**The user has decided this section should go deeper.** Record that intent faithfully
+and frame the deeper cut; do not re-litigate whether the zoom is worth doing. The
+consumer-first view and magnitude notes below are **guidance for whoever implements the
+zoom later** — not a worth-it gate you must clear before writing the item. Capture the
+user's classification and wording as given; add factual constraints (no honest
+dimension to cut by, data not available at that grain) as **one neutral line**, never as
+a reason to decline the ask.
+
 ## What "zoom" means here
 
 A raw aggregate ("23 interrupts", "Raid DPS 18k") answers *how many* — which is
@@ -42,26 +52,25 @@ diverged and needs a human.
 
 ## Steps
 
-1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root). Frame the zoom against it:
+1. **Read `PRODUCT_MANAGER_SOUL.md`** (repo root). Use it to **frame** the zoom (not to
+   gate it):
    - **What decision** would the deeper cut serve? Name it in a raid leader's voice.
    - **Which grain** names the lever — spec, mechanic, mob, or phase? ("Deeper" means
      a finer *grain*, never a finer *person* — stay raid/spec/mechanic-level, not a
      per-player callout.)
-   - **Magnitude + legibility:** is the gap big enough that the deeper cut would
-     matter, and can the leader still read it in seconds?
-   - **Honesty check:** if there's *no* honest dimension to decompose by, say so —
-     the soul treats that as a sign the metric may be a scoreboard, not an insight
-     (and maybe a `/todo-remove` candidate instead).
-2. **Judge it as a consumer first.** Before reasoning from code, view the named
-   section in the **rendered HTML** as a raid leader would — start the preview server
-   (`report-preview` in `.claude/launch.json`) against a report under `reports/`
-   (regenerate via the analyzer pipeline if none exists), navigate to the section, and
-   screenshot/snapshot it. Seeing how the *current* grain actually reads is what tells
-   you which deeper cut would genuinely help — and whether the gap even looks worth it.
-   *Only then* ground it: skim
+   - **Legibility:** keep the deeper cut readable in seconds — a framing goal for the
+     implementer, not a bar the user's request must pass.
+   - **Honest-dimension note:** if there's genuinely *no* honest dimension to decompose
+     by, record that as one neutral line of context — still write the item the user
+     asked for.
+2. **Ground the item so it's concrete.** Skim
    `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` (and grep the
-   builder `scripts/build_deepdive.py` / renderer `templates/report.html` if useful)
-   to name the section's builder→renderer symbols, so the item is concrete.
+   builder `scripts/build_deepdive.py` / renderer `templates/report.html` if useful) to
+   name the section's builder→renderer symbols. Then add, **as a note in the item for
+   the future implementer**, the reminder to view the rendered section in a real report
+   first (preview server `report-preview` in `.claude/launch.json`) so they pick the cut
+   that reads best — this is implementation guidance, not a check you perform before
+   capturing the ask.
 3. **Sync, then read `TODO.md`.** Run the sync in *Always write to `main`* above, then
    read `TODO.md` (repo-root path) to match its style (`## TODO:` headers, a `>`
    blockquote restating the ask, then notes).

@@ -121,3 +121,13 @@ Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip i
 - Honesty check: the all-boss-average projection is an *estimate* (assumes the dead raider would have sustained their average rate, no battle-res, no compounding) — the surface must label it an upper-bound projection, not a counterfactual fact.
 
 If the rendered section already reads clearly and the timeline feels like overengineering, a `/todo-remove` may be the right verdict instead.
+
+---
+
+## TODO: Buff & Debuff Coverage Gaps — verify debuff target scoping
+
+> check that BUFF & DEBUFF COVERAGE GAPS aren’t only checking the main boss, maybe the paladin tank can’t apply his debuff to the main boss because he is tanking an add
+
+Accuracy floor concern. Debuff uptime is read from the WCL aggregate Buffs table via `_auras(report, "debuffs")` and `uptime_pct(..., totalUptime)`. The open question: does WCL scope that table to the **main boss only**, or does it aggregate debuff uptime across **all hostile targets** in the encounter? If it’s main-boss-only, a Prot Paladin tanking adds who applies Judgement/Sunder to the add — not the main boss — reads as a false debuff gap on the main target, misleading the leader into a coverage problem that isn’t one (or masking a real one if the debuff should be on the main boss).
+
+**How to verify:** pull the raw WCL API response for a known multi-add fight (e.g. Al’ar, Kael) and inspect whether the `debuffs` auras table contains uptime contributions from the off-tank’s add, or only from the main boss. If main-boss-only, the section needs an inline caveat for multi-target fights — or, if the key debuffs (`KEY_DEBUFFS`: Sunder, Expose, CoE, Faerie Fire, Misery, Judgements) are all expected on the main boss regardless, confirm the off-tank scenario actually produces a false flag before treating it as a bug.

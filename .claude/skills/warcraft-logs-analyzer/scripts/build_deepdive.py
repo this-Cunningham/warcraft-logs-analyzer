@@ -3739,6 +3739,14 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             # Phase boundaries (id + sec into fight) per side → phase-anchored formation snapshots.
             o_ph = (tl_payload.get("ours") or {}).get("phases") if tl_payload else None
             t_ph = (tl_payload.get("theirs") or {}).get("phases") if tl_payload else None
+            # Spread-over-time: the squishy-cohort spread radius (yd) bucketed across the fight, ours vs
+            # benchmark, on the SAME time axis as the DPS curves so a leader can read WHEN spread blew out
+            # (e.g. spiking at a mechanic while the benchmark held). Frame-independent, so it's valid on
+            # every boss class (mobile included). Lives in the per-boss Timeline sub-tab.
+            o_spread = positioning.spread_series(o_pos, o_pos_roles)
+            t_spread = positioning.spread_series(t_pos, t_pos_roles)
+            if tl_payload and (o_spread or t_spread):
+                tl_payload["spread"] = {"ours": o_spread, "theirs": t_spread}
             pos_res = positioning.boss_positioning(
                 o_pos, t_pos, o_pos_roles, t_pos_roles, o_tank_ids, t_tank_ids,
                 b["name"], ours_name, theirs_name, o_phases=o_ph, t_phases=t_ph, phase_names=pn)

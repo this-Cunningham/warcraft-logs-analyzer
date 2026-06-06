@@ -223,6 +223,33 @@ def spread_radius_yd(pos, roles, cohort="squishies"):
     return round(_yd(_median(per_bin)), 1)
 
 
+def spread_series(pos, roles, cohort="squishies", buckets=20):
+    """Raid spread radius (yd) over fight-fraction buckets — the spread-over-time curve. Bins are grouped
+    into `buckets` equal fractions of the fight; each bucket is the median per-bin spread radius in that
+    window. Same robust metric as the headline number (`spread_radius_yd`), so the curve and the scalar
+    agree. The radius is a within-bin pairwise spread (distance from the cohort's median centroid), so it is
+    FRAME-INDEPENDENT — valid even on a mobile boss, where it measures the squishies' internal spacing, not
+    anything relative to the moving boss. Returns a list of `buckets` values (None where a bucket lacks
+    enough actors), comparable across fights via the fraction. None when the cohort is too small."""
+    ids = _cohort_ids(roles, cohort)
+    tracks = [_fill(pos["actors"][a]["bins"]) for a in ids if a in pos["actors"]]
+    tracks = [t for t in tracks if any(p for p in t)]
+    if len(tracks) < 3:
+        return None
+    nb = pos["nBins"]
+    out = []
+    for k in range(buckets):
+        lo = int(round(k * nb / buckets))
+        hi = max(lo + 1, int(round((k + 1) * nb / buckets)))
+        vals = []
+        for bi in range(lo, hi):
+            r = _bin_spread_radius([t[bi] for t in tracks if t[bi]])
+            if r is not None:
+                vals.append(r)
+        out.append(round(_yd(_median(vals)), 1) if vals else None)
+    return out if any(v is not None for v in out) else None
+
+
 def melee_uptime(pos, roles):
     """Melee in-range share vs the boss, time-anchored (feature 3). For each bin we fill every melee actor's
     position + the boss's, and score the distance with a SOFT band: <=8yd counts 1.0, 8-12yd 0.5, else 0.0

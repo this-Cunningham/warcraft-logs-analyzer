@@ -59,3 +59,11 @@ Accuracy floor violation. The Composition tab's Provider Count & Coverage sectio
 Accuracy floor check. The Hit & Expertise view is the one per-player gear fix in Prep — a false flag or a silent miss on a tank directly misleads the leader about what to gem/enchant. The code path for bears looks correct on a read: `_hit_kind("Druid", "Guardian"/"Feral", "tank")` returns "melee" — right, since bears use melee attacks; `SPEC_TALENT_HIT` deliberately omits Feral/Guardian (0 talent hit — correct, bears gear to the 9% cap through gear alone, no standard hit talent); `HIT_CAP["melee"]` = 9% — correct vs a +3 raid boss; and `stat_audit` iterates the "tanks" bucket in `playerdetails.json` so Beartreebear is included.
 
 **The one thing to verify in the live report:** whether `spec_map` resolves Beartreebear to "Guardian" or "Feral" (both miss `SPEC_TALENT_HIT`, giving 0 talent hit — the correct answer either way), and whether their effective hit reads plausibly against the 9% cap. Open the rendered Hit & Expertise table in the Imminent report and spot-check Beartreebear's gear/talent/effective columns.
+
+---
+
+## TODO: Hint text — trim all to ≤50 words
+
+> all class="hint" should be less than 50 words across the entire report, do not lose meaning when cutting
+
+Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip is a wall they skip. The soul's rule: a correct signal nobody reads transfers zero value. **23 of ~30 hints** currently exceed 50 words (the longest runs 114). Trim each to ≤50 words, preserving the signal: what the section shows, what direction is better, and any honest caveat the leader needs to act on it. No new hedges, no new examples — just cut filler and redundant framing. All changes are in `templates/report.html` hint `<span>` blocks only.

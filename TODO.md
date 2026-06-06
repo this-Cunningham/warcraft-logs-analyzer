@@ -74,7 +74,7 @@ Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip i
 
 > ACTIVITY BY SPEC in execution tab
 
-**Cut reason:** *Silly* — no decision hangs on it. The section names which spec is trailing on active-GCD uptime but explicitly disclaims it can’t say *why* (movement, range, target swaps — the hint itself tells the leader to go diagnose elsewhere). That’s a raw dimension, not a lever. The cause — the thing a leader can actually act on — is already surfaced in Add Control, Damage Taken, and per-boss Positioning. Mined because `activeTime` was available; the activity aggregate (raid-wide) already lives in Output Quality and feeds the Overview scorecard — the spec breakdown adds noise, not resolution.
+**Cut reason:** *Silly* — no decision hangs on it. The section names which spec is trailing on active-GCD uptime but explicitly disclaims it can't say *why* (movement, range, target swaps — the hint itself tells the leader to go diagnose elsewhere). That’s a raw dimension, not a lever. The cause — the thing a leader can actually act on — is already surfaced in Add Control, Damage Taken, and per-boss Positioning. Mined because `activeTime` was available; the activity aggregate (raid-wide) already lives in Output Quality and feeds the Overview scorecard — the spec breakdown adds noise, not resolution.
 
 **Important:** `activity_pct` (raid-wide aggregate, line 1366) and the per-boss `oursActivity`/`theirsActivity` fields (line 3857) are **not** touched — they feed Output Quality and the Overview scorecard independently. Only the *spec-level* rollup is removed.
 
@@ -89,3 +89,24 @@ Legibility floor. A leader reads hints cold, in seconds — a 100-word tooltip i
 - `templates/report.html:749` — remove `h+=activityGapView(d)` call from the Execution renderer
 - `templates/report.html:1084–~end` — delete the full `function activityGapView(d){...}` block
 - `.claude/skills/warcraft-logs-analyzer/references/report-anatomy.md` — delete the **Activity by Spec** bullet under Execution
+
+---
+
+## TODO: Ghost Run — reframe as interactive Timeline overlay on Bosses tab
+
+> turn GHOST RUN — WHAT DYING COSTS YOU into a visualization instead of text, can also show up to top 5 players deaths stats per boss in this section
+>
+> Make it like a mini timeline and draw the dmg lost over time from where they died — ooo maybe do we move this section/stats/projection onto the bosses timeline tab, and theres a toggle that when clicked, rerenders our dps line based on if they never died, and would also update the kill time, yeah lets do this timeline thing on bosses tab thats cool
+
+**Mandate: view the rendered HTML as a raid leader first.** Open the current report (`reports/` or the published link), navigate to the Ghost Run section as it exists today, and read it cold — as a leader who hasn’t seen the code. Only after forming that impression, consider the reframe below.
+
+**The idea:** retire the standalone text block and fold the signal into the per-boss **Timeline** sub-tab as an interactive overlay. A toggle button ("Show ghost run") re-renders our raid-DPS curve as if the DPS deaths never happened — the ghost line sits above the actual line, the area between them is the output the deaths consumed, and a projected kill time updates alongside it. Up to 5 costliest DPS deaths per boss annotated on the timeline (death tick already exists; this adds the DPS-cost label). The benchmark line stays untouched — the ghost is ours-only.
+
+**Why this might be the right home:** the Timeline is already where a leader reads the fight shape; the gap between actual and ghost DPS lands in exactly the right context (you can see *when* in the fight the deaths hurt most). The current text block answers "how much?" but not "when?" or "relative to what?" — the timeline answers all three.
+
+**Before building, validate from the rendered view:**
+- Does the current Ghost Run text block read as useful or as a curiosity? Does the player-minutes framing land?
+- Is the timeline already dense enough that an overlay would clutter it, or is there room?
+- Would a leader actually toggle this, or would they read the headline number and move on?
+
+If the rendered section already reads clearly and the timeline feels like overengineering, a `/todo-remove` may be the right verdict instead.

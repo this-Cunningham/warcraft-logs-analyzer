@@ -154,16 +154,18 @@ def count_providers(pairs, cls, spec):
 #   • "raid"  — a boss debuff / raid-wide effect ONE provider delivers in full; extra copies are
 #               INSURANCE (count==1 = a single-point-of-failure), so a count delta is NOT better/worse
 #               — only the SPOF flag is.
-#   • "group" — a party-scoped buff (in TBC, Bloodlust / Windfury / Battle Shout / Trueshot / Ferocious
+#   • "group" — a party-scoped buff (in TBC, Windfury / Battle Shout / Trueshot / Ferocious
 #               Inspiration / Leader of the Pack land on the provider's own 5-man party), so more
 #               providers genuinely = more groups covered → a count delta IS a clean coverage signal.
+#   NOTE: Bloodlust / Heroism is RAID-WIDE in TBC Anniversary (not party-wide as in original TBC), so
+#   it is scoped "raid": one Shaman covers the whole raid and a second is insurance, not more coverage.
 PROVIDER_CHECKS = [
     {"buff": "Misery", "class": "Priest", "spec": "Shadow", "scope": "raid", "impact": "+5% spell damage taken by boss, plus a mana battery for casters"},
     {"buff": "Improved Faerie Fire", "class": "Druid", "spec": "Balance", "scope": "raid", "impact": "+3% spell hit for the whole raid (huge for casters)"},
     {"buff": "Ferocious Inspiration", "class": "Hunter", "spec": "Beast", "scope": "group", "impact": "+3% damage to the hunter's party"},
     {"buff": "Trueshot Aura", "class": "Hunter", "spec": "Marksmanship", "scope": "group", "impact": "Attack power for the hunter's party"},
     {"buff": "Expose Weakness", "class": "Hunter", "spec": "Survival", "scope": "raid", "impact": "Raid-wide attack power from crits"},
-    {"buff": "Bloodlust / Heroism", "class": "Shaman", "spec": "", "scope": "group", "impact": "+30% haste burst — lands on the shaman's party, so more shaman cover more groups"},
+    {"buff": "Bloodlust / Heroism", "class": "Shaman", "spec": "", "scope": "raid", "impact": "+30% haste burst — raid-wide in TBC Anniversary, so one Shaman covers everyone; a second is insurance, not more coverage"},
     {"buff": "Windfury Totem", "class": "Shaman", "spec": "Enhancement", "scope": "group", "impact": "Big melee boost — party-scoped, needs one per melee group"},
     {"buff": "Improved Scorch (fire)", "class": "Mage", "spec": "Fire", "scope": "raid", "impact": "+15% fire damage taken by boss"},
     {"buff": "Curse of the Elements", "class": "Warlock", "spec": "", "scope": "raid", "impact": "+10% spell damage taken by boss"},
@@ -480,7 +482,6 @@ def stat_audit_compare(ours, theirs):
 # count. For flask/food that's ~one application per player, so totalUses ≈ how many raiders showed
 # up consumed. It's raid-AGGREGATE (no per-player breakdown), and it can't tell flask-vs-elixir for
 # the same player apart — flask is the headline proxy; elixirs/potions are supplementary.
-DRUM_NAMES = {"Drums of Battle", "Drums of War", "Drums of Restoration", "Drums of Speed"}
 # WCL names most consumable BUFFS by their effect, not the item — so the name often lacks the words
 # "Flask"/"Elixir"/"Potion" (e.g. Flask of Supreme Power → buff "Supreme Power"; Ironshield Potion →
 # buff "Ironshield"). We therefore detect by **spell id**, mined from the report data (the benchmark
@@ -552,8 +553,6 @@ def _consumable_cat(name, guid=None):
         return "flask"
     if name == "Well Fed":
         return "food"
-    if name in DRUM_NAMES:
-        return "drums"
     if _is_elixir(name, guid):
         return "elixir"
     if g in POTION_IDS:
@@ -572,14 +571,12 @@ def consumable_report(directory, idx, enc_ids, roster_size):
     (This replaces an average-PER-BOSS count, which was the bug the TODO flagged: an avg like "18/25"
     didn't map to anything a leader could see in the per-player matrix, so the two views looked at odds.)
 
-    Food is the same per-raider count for Well Fed. Drums stays a fight uptime % from the aggregate Buffs
-    table (a short re-applied buff, not a per-player pre-pull consumable). Falls back to the old aggregate
+    Food is the same per-raider count for Well Fed. Falls back to the old aggregate
     Buffs flask/food average only when NO shared boss has a consumes file (older data folders), so it
     never regresses to empty. Elixirs/potions aren't surfaced here — the matrix carries that detail."""
     fm = fight_map(directory)
     name_to_id = name_id_map(directory)
     role_map = primary_role_map(idx, enc_ids)  # majority role, so a DPS's battle-only prep counts (matrix-consistent)
-    drum_upt = []
     # Per-raider tallies across the shared bosses (same _cell_for pass as the matrix).
     present_cnt, prepared_cnt, fed_cnt = {}, {}, {}
     have_consumes = False
@@ -590,15 +587,6 @@ def consumable_report(directory, idx, enc_ids, roster_size):
         if not rep:
             continue
         auras = _auras(rep, "buffs")
-        info = fm.get(str(enc), {})
-        dur = info.get("end", 0) - info.get("start", 0)
-        # Drums uptime (aggregate Buffs table — a short re-applied raid buff, not per-player prep).
-        best_drum = 0
-        for a in auras:
-            if _consumable_cat(a.get("name", ""), a.get("guid")) == "drums" and dur > 0:
-                best_drum = max(best_drum, min(100, round(float(a.get("totalUptime", 0)) / dur * 100)))
-        drum_upt.append(best_drum)
-
         # Prepared/fed PER-PLAYER (flask OR battle+guardian pair) — needs the consumes file.
         cons_path = os.path.join(directory, "consumes-{}.json".format(enc))
         present = (idx.get(enc) or {}).get("players") or []
@@ -644,7 +632,6 @@ def consumable_report(directory, idx, enc_ids, roster_size):
         "rosterSize": roster_size,
         "flask": flask,
         "food": food,
-        "drumsUptime": iavg(drum_upt),
     }
 
 
@@ -1333,7 +1320,8 @@ def target_engagement(o_tl, t_tl, o_npc, t_npc, boss_name):
     return rows
 
 
-def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_band_sec=15):
+def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_band_sec=15,
+                 spec_map=None, class_map=None):
     """Early-aggro / threat pulls: a NON-TANK roster player who held the NAMED BOSS's aggro (`table(Threat)`
     bands). Scoped two ways to stay clean (both verified against real fights): (1) to the boss target by
     name — counting all enemies over-counts badly on multi-add fights (Al'ar reads 131% tank-uptime, Kael
@@ -1341,10 +1329,12 @@ def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_ban
     Tanks are excluded (holding aggro is their job); pets and non-roster actors are excluded (only roster
     players count). This UNDER-counts rather than over-counts — a long pull, or a parse-mis-roled feral
     off-tank, is dropped, never falsely flagged. Returns total pulls + opener (first `opener_sec`) +
-    earliest pull time."""
+    earliest pull time + a per-(class,spec) breakdown (`bySpec`/`openerBySpec`) so the count names WHO to
+    address (Misdirection/Vanish/hold-for-tanks assignment), not just THAT there's an aggro problem."""
     start = int(fight_info["start"])
     threat = ((report.get("threat") or {}).get("data") or {}).get("threat") or []
     pulls = []
+    by_spec, opener_by_spec = {}, {}
     for t in threat:
         nm = t.get("name")
         if nm not in role_map or role_map.get(nm) == "tank":
@@ -1357,9 +1347,17 @@ def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_ban
                 rel = (int(b["startTime"]) - start) / 1000.0
                 if 0 <= dur <= max_band_sec and rel >= 0:
                     pulls.append(round(rel))
+                    # Spec attribution (same under-count as the total — only brief boss-target holds).
+                    sp = (spec_map or {}).get(nm)
+                    if sp:
+                        key = "{}|{}".format((class_map or {}).get(nm) or "Unknown", sp)
+                        by_spec[key] = by_spec.get(key, 0) + 1
+                        if rel <= opener_sec:
+                            opener_by_spec[key] = opener_by_spec.get(key, 0) + 1
     pulls.sort()
     return {"total": len(pulls), "opener": sum(1 for r in pulls if r <= opener_sec),
-            "earliestSec": pulls[0] if pulls else None}
+            "earliestSec": pulls[0] if pulls else None,
+            "bySpec": by_spec, "openerBySpec": opener_by_spec}
 
 
 # --- Dive Deeper output-quality extractors (heavy tables) ---
@@ -1432,29 +1430,6 @@ def spec_dps_buckets(report, spec_map, role_map, class_map, dur_ms):
 
 
 # ---------- ACTIVITY BY SPEC (per-player active-GCD uptime, from dd activeTime) — EXPERIMENTAL ----------
-def activity_buckets(report, spec_map, role_map, class_map, dur_ms):
-    """Per-player DPS activity % (active-GCD time / fight duration) bucketed by (class, primary-spec).
-    Reads the DamageDone table's activeTime — the share of the fight a DPS spent actively dealing damage;
-    idle GCDs (movement, target swaps, out of range) are recoverable throughput. DPS only: healer "active"
-    time isn't a clean better/worse signal (less healing can just mean the raid took less damage), and
-    tank activeTime conflates tanking with incidental DPS. Mirrors spec_dps_buckets so the buckets line
-    up with the DPS-by-spec view."""
-    buckets = {}
-    if dur_ms <= 0:
-        return buckets
-    for e in _entries(report, "dd"):
-        nm = e.get("name")
-        spec = spec_map.get(nm)
-        if not spec or role_map.get(nm) != "dps":
-            continue
-        cls = class_map.get(nm) or e.get("type") or "Unknown"
-        act = min(100.0, float(e.get("activeTime", 0)) / dur_ms * 100)
-        key = "{}|{}".format(cls, spec)
-        b = buckets.setdefault(key, {"class": cls, "spec": spec, "role": "dps", "players": []})
-        b["players"].append({"name": nm, "act": act})
-    return buckets
-
-
 def spec_gap(o_report, t_report, o_spec, o_role, o_cls, t_spec, t_role, t_cls, o_dur, t_dur):
     """Per-spec DPS comparison for one boss, ranked by the per-player deficit to the
     benchmark's same spec (biggest gap first → lowest-hanging fruit floats to the top).
@@ -1527,7 +1502,8 @@ def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
             continue
         f = rate_ * (dur_sec - t)                  # their NIGHT-AVERAGE DPS, projected over the time down
         forfeited += f
-        rec = per.setdefault(nm, {"name": nm, "class": d.get("class"), "dmg": 0.0, "sec": t})
+        rec = per.setdefault(nm, {"name": nm, "class": d.get("class"), "dmg": 0.0, "sec": t,
+                                  "rate": round(rate_)})
         rec["dmg"] += f
         rec["sec"] = min(rec["sec"], t)
     if forfeited <= 0:
@@ -1543,8 +1519,9 @@ def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
             "forfeitedDmg": round(forfeited),
             "pctOfRaid": round(100 * forfeited / raid_dmg, 1) if raid_dmg > 0 else 0,
             "deaths": sum(1 for d in deaths if avg_dps.get(d.get("name")) and (d.get("tSec") or 0) > 0),
+            "durSec": round(dur_sec), "raidDps": round(raid_dps),
             "raiders": [{"name": r["name"], "class": r["class"], "dmg": round(r["dmg"]),
-                         "sec": round(r["sec"])} for r in raiders[:5]]}
+                         "sec": round(r["sec"]), "rate": r["rate"]} for r in raiders[:5]]}
 
 
 def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
@@ -1564,22 +1541,6 @@ def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
         rows.append({"name": nm, "ours": o_ps, "theirs": t_ps, "deficit": o_ps - t_ps})
     rows.sort(key=lambda r: -r["deficit"])  # where we take the most MORE than the benchmark, first
     return rows[:n]
-
-
-def boss_avoidable_rows(o_report, t_report, o_tank, t_tank, o_dur_ms, t_dur_ms):
-    """Per-boss avoidable damage by ability (ex-tanks), as a per-second rate ranked by where WE take the most
-    MORE than the benchmark — the SAME shape avoidable_damage_gap produces tier-wide, but for ONE boss. Drives
-    the Positioning section's choice of which ability to plot (the top mechanic we over-eat with a spatial
-    signal). Returns [{name, ours, theirs, deficit}]."""
-    oa = ability_agg(o_report, o_tank)
-    ta = ability_agg(t_report, t_tank)
-    rows = []
-    for nm in sorted(set(oa) | set(ta), key=repr):
-        o_ps = round(oa.get(nm, 0) * 1000 / o_dur_ms) if o_dur_ms > 0 else 0
-        t_ps = round(ta.get(nm, 0) * 1000 / t_dur_ms) if t_dur_ms > 0 else 0
-        rows.append({"name": nm, "ours": o_ps, "theirs": t_ps, "deficit": o_ps - t_ps})
-    rows.sort(key=lambda r: -r["deficit"])
-    return rows
 
 
 def death_cause_compare(per_boss):
@@ -1729,28 +1690,6 @@ def tier_spec_gap(o_pool, t_pool):
     return rows
 
 
-def tier_activity_gap(o_pool, t_pool):
-    """Pool every DPS/healer's per-boss activity % by spec across ALL shared bosses, then rank specs by
-    the per-player deficit to the benchmark's same spec. The per-spec decomposition of the raid-wide
-    Activity figure — it names which spec is actually losing the uptime. EXPERIMENTAL."""
-    rows = []
-    for key in sorted(set(o_pool) | set(t_pool), key=repr):
-        o, t = o_pool.get(key), t_pool.get(key)
-        ref = o or t
-        o_v = o["vals"] if o else []
-        t_v = t["vals"] if t else []
-        o_avg = round(sum(o_v) / len(o_v), 1) if o_v else 0
-        t_avg = round(sum(t_v) / len(t_v), 1) if t_v else 0
-        rows.append({
-            "class": ref["class"], "spec": ref["spec"], "role": ref["role"],
-            "ours": o_avg, "theirs": t_avg, "deficit": round(t_avg - o_avg, 1),
-            "oursSamples": len(o_v), "theirsSamples": len(t_v),
-            "both": bool(o_v) and bool(t_v),
-        })
-    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
-    return rows
-
-
 def tier_uptime_gap(acc):
     """Comprehensive buff/debuff coverage: average each aura's uptime % across the shared bosses,
     ours vs theirs, ranked by the biggest deficit (where we most consistently trail on maintaining
@@ -1828,13 +1767,15 @@ def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights
         if not fi or not os.path.isfile(cons_path):
             continue
         mins = max(int(fi["end"]) - int(fi["start"]), 1) / 60000.0
-        count_by_name = {}  # player name -> activations this boss
+        count_by_name = {}  # player name -> {cooldown/trinket name -> activations this boss}
         # 1) Cooldowns from per-player BUFF uses.
         for pid, auras in (read_json(cons_path).get("perPlayer") or {}).items():
             nm = id_to_name.get(int(pid)) if str(pid).isdigit() else None
             if nm:
-                count_by_name[nm] = sum(int(a.get("uses", 0)) for a in (auras or [])
-                                        if a.get("name") in COOLDOWN_NAMES)
+                d = count_by_name.setdefault(nm, {})
+                for a in (auras or []):
+                    if a.get("name") in COOLDOWN_NAMES:
+                        d[a["name"]] = d.get(a["name"], 0) + int(a.get("uses", 0))
         # 2) On-use trinkets from CASTS (the resulting buff is renamed, so casts is the only match).
         boss_path = os.path.join(directory, "boss-{}.json".format(enc))
         if os.path.isfile(boss_path):
@@ -1842,23 +1783,35 @@ def cd_usage_pool(directory, idx, enc_ids, spec_map, role_map, class_map, fights
             for e in _entries(rep, "casts"):
                 nm = e.get("name")
                 if nm:
-                    count_by_name[nm] = count_by_name.get(nm, 0) + sum(
-                        int(a.get("total", 0)) for a in (e.get("abilities") or [])
-                        if a.get("name") in TRINKET_NAMES)
-        for nm, count in count_by_name.items():
+                    d = count_by_name.setdefault(nm, {})
+                    for a in (e.get("abilities") or []):
+                        if a.get("name") in TRINKET_NAMES:
+                            d[a["name"]] = d.get(a["name"], 0) + int(a.get("total", 0))
+        for nm, abil_counts in count_by_name.items():
             spec = spec_map.get(nm)
             if not spec or role_map.get(nm) != "dps":
                 continue
             cls = class_map.get(nm) or "Unknown"
-            b = pool.setdefault("{}|{}".format(cls, spec), {"class": cls, "spec": spec, "rates": []})
-            b["rates"].append(count / mins)
+            b = pool.setdefault("{}|{}".format(cls, spec),
+                                {"class": cls, "spec": spec, "rates": [], "abilUses": {}, "minsTotal": 0.0})
+            b["rates"].append(sum(abil_counts.values()) / mins)
+            # Per-cooldown pooled totals (uses + the player-minutes they were on the boss) so the breakdown
+            # can show WHICH cooldown is the gap: a spec's pooled per-minute rate, cooldown by cooldown.
+            b["minsTotal"] += mins
+            for an, c in abil_counts.items():
+                b["abilUses"][an] = b["abilUses"].get(an, 0) + c
     return pool
 
 
 def tier_cd_usage(o_pool, t_pool):
     """Tier-wide cooldown-usage rollup: average each spec's per-minute CD activations across all shared
     bosses, ours vs the benchmark's same spec, ranked by the biggest deficit (where we most sit on our
-    cooldowns). Only specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap."""
+    cooldowns). Only specs BOTH raids fielded are scored; same shape/ordering as tier_spec_gap. Each row
+    also carries a per-cooldown breakdown (`byAbility`) — the spec's pooled rate cooldown by cooldown vs the
+    benchmark's same spec — so the leader sees the actual lever (which CD to push), not just the spec total."""
+    def pooled_rate(pool_ent, ability):
+        m = pool_ent.get("minsTotal", 0) if pool_ent else 0
+        return round(pool_ent["abilUses"].get(ability, 0) / m, 2) if m else 0
     rows = []
     for key in sorted(set(o_pool) | set(t_pool), key=repr):
         o, t = o_pool.get(key), t_pool.get(key)
@@ -1867,8 +1820,19 @@ def tier_cd_usage(o_pool, t_pool):
         t_r = t["rates"] if t else []
         o_avg = round(sum(o_r) / len(o_r), 2) if o_r else 0
         t_avg = round(sum(t_r) / len(t_r), 2) if t_r else 0
+        # Per-cooldown breakdown: every cooldown/trinket either side's same spec used, pooled to a per-minute
+        # rate, ranked by the biggest deficit (where this spec most sits on a specific cooldown).
+        abilities = set((o or {}).get("abilUses", {})) | set((t or {}).get("abilUses", {}))
+        by_ability = []
+        for an in abilities:
+            o_ar, t_ar = pooled_rate(o, an), pooled_rate(t, an)
+            if o_ar == 0 and t_ar == 0:
+                continue
+            by_ability.append({"name": an, "ours": o_ar, "theirs": t_ar, "deficit": round(t_ar - o_ar, 2)})
+        by_ability.sort(key=lambda a: -a["deficit"])
         rows.append({"class": ref["class"], "spec": ref["spec"], "ours": o_avg, "theirs": t_avg,
-                     "deficit": round(t_avg - o_avg, 2), "both": bool(o_r) and bool(t_r)})
+                     "deficit": round(t_avg - o_avg, 2), "both": bool(o_r) and bool(t_r),
+                     "byAbility": by_ability})
     rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
     return rows
 
@@ -3212,47 +3176,6 @@ def build_trash(ours_dir, theirs_dir):
 # fetched — no extra API calls. They ship behind an "Experimental" chip.
 
 # --- Overview: the Avg Raid Parse mean, decomposed into its distribution + the specs at the floor ---
-def parse_spread(o_idx, t_idx, enc_ids):
-    """One level deeper than the headline **Avg Raid Parse** (a bare mean): its DISTRIBUTION — the median,
-    how many parses sit in the FLOOR (<25), and WHICH specs are at that floor — ours vs benchmark. A mean
-    can't tell a leader whether the gap is the whole raid or a handful of anchors; the median + sub-25 count
-    can ("17 sub-25 vs 5; median 54 vs 90" = the floor is the gap, coach it, don't re-gear everyone). Spec
-    grain on the floor list (never per-player). Parses are per-player-per-shared-boss rankPercent (≥0).
-    EXPERIMENTAL."""
-    def samples(idx):
-        out = []
-        for enc in enc_ids:
-            for p in ((idx.get(enc) or {}).get("players") or []):
-                if p.get("parse") is not None and p["parse"] >= 0:
-                    out.append(p)
-        return out
-
-    def by_spec(rows):
-        b = {}
-        for p in rows:
-            sp = p.get("spec")
-            if sp:
-                b.setdefault((p["class"], sp), []).append(p["parse"])
-        return b
-
-    o, t = samples(o_idx), samples(t_idx)
-    o_p, t_p = [p["parse"] for p in o], [p["parse"] for p in t]
-    ob, tb = by_spec(o), by_spec(t)
-    floor = []
-    for (cls, sp), vals in ob.items():
-        tv = tb.get((cls, sp))
-        floor.append({"class": cls, "spec": sp, "oursAvg": round(sum(vals) / len(vals), 1),
-                      "theirsAvg": round(sum(tv) / len(tv), 1) if tv else None, "samples": len(vals)})
-    floor.sort(key=lambda r: r["oursAvg"])  # our lowest-parsing specs first — the raid floor
-    return {
-        "oursMedian": round(statistics.median(o_p), 1) if o_p else 0,
-        "theirsMedian": round(statistics.median(t_p), 1) if t_p else 0,
-        "oursSub25": sum(1 for x in o_p if x < 25), "theirsSub25": sum(1 for x in t_p if x < 25),
-        "oursTotal": len(o_p), "theirsTotal": len(t_p),
-        "floorSpecs": floor[:5],
-    }
-
-
 # --- Prep: the throughput-potion COUNT, decomposed into WHEN it landed (opener prepot vs reactive) ---
 PREPOT_WINDOW_MS = 3000  # a potion buff band starting within 3s of (or before) the pull = an opener prepot
 
@@ -3297,7 +3220,7 @@ def heal_eff_buckets(report, spec_map, role_map, class_map):
     overhealing per spec. Overheal % = overheal / (overheal + effective) is throughput spent on full health
     bars — a clean better/worse signal for a healer spec (lower = tighter). Compared SAME-spec downstream,
     which cancels the structural difference between HoT specs (high baseline overheal) and direct healers,
-    leaving the real coaching signal. Mirrors spec_dps_buckets/activity_buckets. EXPERIMENTAL."""
+    leaving the real coaching signal. Mirrors spec_dps_buckets. EXPERIMENTAL."""
     buckets = {}
     for e in _entries(report, "heal"):
         nm = e.get("name")
@@ -3605,10 +3528,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "hasAttempts": has_attempts,
     }
 
-    # Parse SPREAD (EXPERIMENTAL) — decompose the Avg Raid Parse mean into median + floor (<25) count +
-    # the lowest-parsing specs, ours vs benchmark (is the gap the whole raid or a few anchors?).
-    parse_spread_payload = parse_spread(ours_idx, theirs_idx, common_ids)
-
     # Composition
     ours_roster = get_roster(ours_idx, common_ids)
     theirs_roster = get_roster(theirs_idx, common_ids)
@@ -3695,7 +3614,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
     # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
     tier_o_spec, tier_t_spec = {}, {}
-    tier_o_act, tier_t_act = {}, {}  # per-spec activity (active-GCD uptime) pools — EXPERIMENTAL
     tier_o_heff, tier_t_heff = {}, {}  # per healer-spec overheal pools (eff/over sums) — EXPERIMENTAL
     tier_o_dmg, tier_t_dmg = {}, {}  # avoidable damage by ability (ex-tanks), pooled tier-wide — EXPERIMENTAL
     ours_player_dps = {}  # name -> [per-boss DPS] → night-average DPS per raider, for the Ghost Run
@@ -3778,13 +3696,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             for key, bucket in spec_dps_buckets(rep, sp, ro, cl, dur).items():
                 ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "dps": []})
                 ent["dps"].extend(p["dps"] for p in bucket["players"])
-        # Pool per-spec activity (active-GCD uptime) across bosses — the per-spec activity rollup.
-        for pool, rep, sp, ro, cl, dur in ((tier_o_act, o_b, ours_spec, ours_role, ours_cls, o_dur),
-                                           (tier_t_act, t_b, theirs_spec, theirs_role, theirs_cls, t_dur)):
-            for key, bucket in activity_buckets(rep, sp, ro, cl, dur).items():
-                ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
-                                            "role": bucket["role"], "vals": []})
-                ent["vals"].extend(p["act"] for p in bucket["players"])
         # Pool per healer-spec overheal (effective + overheal sums) across bosses — the per-spec
         # decomposition of the raid Overheal figure (EXPERIMENTAL).
         for pool, rep, sp, ro, cl in ((tier_o_heff, o_b, ours_spec, ours_role, ours_cls),
@@ -3818,18 +3729,19 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 o_tl, t_tl,
                 (o_id_to_name, ours_spec, ours_role, ours_cls, o_pet),
                 (t_id_to_name, theirs_spec, theirs_role, theirs_cls, t_pet))
-        # Positioning (features 1,2,4,5) — one per-boss sub-tab fragment + the scalars the Overview headline
-        # (spread gap) and Execution melee view consume. Graceful None when this boss has no positions file
-        # (older data folder) or is a mobile boss (auto-suppressed). The avoidable rows pick which mechanic
-        # to plot (the top one we over-eat with a spatial signal).
+        # Positioning (feature 2 — formation map + spread-vs-demand verdict) — one per-boss sub-tab fragment
+        # + the scalars the Overview headline (spread gap) and Execution melee view consume. Graceful None
+        # when this boss has no positions file (older data folder) or is a mobile boss (auto-suppressed).
         pos_html = None
         o_pos = positioning.load_positions(ours_dir, enc)
         t_pos = positioning.load_positions(theirs_dir, enc)
         if o_pos and t_pos:
-            avoid_rows = boss_avoidable_rows(o_b, t_b, ours_tank, theirs_tank, o_dur, t_dur)
+            # Phase boundaries (id + sec into fight) per side → phase-anchored formation snapshots.
+            o_ph = (tl_payload.get("ours") or {}).get("phases") if tl_payload else None
+            t_ph = (tl_payload.get("theirs") or {}).get("phases") if tl_payload else None
             pos_res = positioning.boss_positioning(
                 o_pos, t_pos, o_pos_roles, t_pos_roles, o_tank_ids, t_tank_ids,
-                b["name"], avoid_rows, ours_name, theirs_name)
+                b["name"], ours_name, theirs_name, o_phases=o_ph, t_phases=t_ph, phase_names=pn)
             if pos_res:
                 pos_html = pos_res["html"]
                 if pos_res.get("spreadGap"):
@@ -3868,8 +3780,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             "deathCascade": death_cascades(o_deaths),
             "openerGap": opener_gap(o_tl, t_tl),
             "phases": phase_compare(ours_fights[enc], theirs_fights[enc], pn),
-            "threat": {"ours": threat_pulls(o_b, ours_fights[enc], ours_role, b["name"]),
-                       "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"])},
+            "threat": {"ours": threat_pulls(o_b, ours_fights[enc], ours_role, b["name"],
+                                            spec_map=ours_spec, class_map=ours_cls),
+                       "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"],
+                                              spec_map=theirs_spec, class_map=theirs_cls)},
             "focus": focus_view(o_tl, t_tl),
             "targetEngagement": target_engagement(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
             "timeline": tl_payload,
@@ -3916,9 +3830,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
     tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
     tier_uptime = tier_uptime_gap(tier_upt)
-    # Per-spec activity (active-GCD uptime) gap — EXPERIMENTAL. The spec-level decomposition of the
-    # raid-wide Activity figure (names which spec is actually losing the uptime).
-    tier_activity = tier_activity_gap(tier_o_act, tier_t_act)
     # Healing efficiency by spec (EXPERIMENTAL) — the per-healer-spec decomposition of the raid Overheal%.
     tier_heal_eff = tier_heal_eff_gap(tier_o_heff, tier_t_heff)
     # Hit / Expertise itemization audit (combatantInfo.stats) — EXPERIMENTAL. The snapshot is GEAR hit;
@@ -3983,9 +3894,16 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         o = (p.get("threat") or {}).get("ours") or {}
         t = (p.get("threat") or {}).get("theirs") or {}
         if (o.get("total") or 0) or (t.get("total") or 0):
+            # Spec attribution for OUR pulls only — the actionable side (who on our team to coach). Sorted
+            # most-pulls-first so the offender names itself; opener pulls flagged separately (the real signal).
+            by_spec = sorted(
+                ({"class": k.split("|", 1)[0], "spec": k.split("|", 1)[1], "count": c,
+                  "openerCount": (o.get("openerBySpec") or {}).get(k, 0)}
+                 for k, c in (o.get("bySpec") or {}).items()),
+                key=lambda r: (-r["count"], -r["openerCount"]))
             threat_rows.append({"boss": p["name"], "oursTotal": o.get("total", 0), "oursOpener": o.get("opener", 0),
                                 "theirsTotal": t.get("total", 0), "theirsOpener": t.get("opener", 0),
-                                "oursEarliest": o.get("earliestSec")})
+                                "oursEarliest": o.get("earliestSec"), "oursBySpec": by_spec})
     threat_summary = {"rows": threat_rows,
                       "oursTotal": ssum([r["oursTotal"] for r in threat_rows]),
                       "theirsTotal": ssum([r["theirsTotal"] for r in threat_rows]),
@@ -4030,17 +3948,21 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "headline": positioning.spread_headline(pos_spread_gaps),
     }
 
+    # The Bosses tab only needs each shared boss's id + name to build its sub-tabs (the old Kill
+    # Summary & Rosters block that consumed the full per-side rosters/parses was cut). Ship a slim
+    # list instead of the heavy index objects (which still carry full `players` rosters used elsewhere
+    # in the builder) so the report payload doesn't haul a roster dump nothing renders.
+    bosses_slim = [{"encounterID": b["encounterID"], "name": b["name"]} for b in bosses]
     payload = {
         "zone": zone_name, "ours": {"title": ours_name}, "theirs": {"title": theirs_name},
-        "summary": summary, "bosses": bosses, "gapsScorecard": gaps_scorecard, "didWell": did_well,
-        "parseSpread": parse_spread_payload,
+        "summary": summary, "bosses": bosses_slim, "gapsScorecard": gaps_scorecard, "didWell": did_well,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
                  "potionGap": potion_spec_gap, "prepot": prepot, "healEffGap": tier_heal_eff,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "avoidableDamage": avoidable_damage,
                  "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
-                 "tierActivityGap": tier_activity, "statAudit": stat_audit_payload,
+                 "statAudit": stat_audit_payload,
                  "deathTime": death_time, "ghostRun": ghost_run, "bloodlust": bloodlust,
                  "dpsRamp": dps_ramp_rows, "debuffTiming": debuff_timing_rows, "wipeRecovery": wipe_rec,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,

@@ -1,15 +1,16 @@
 """positioning.py - the Positioning views for the deep-dive report.
 
 Turns the per-boss `positions-<enc>.json` artifacts (per-actor x/y over the fight, the boss anchor track,
-and per-ability hit spots; written by fetch_report._fetch_positions) into the five flagship positioning
-features, all rendered as self-contained stdlib SVG/HTML fragments that build_deepdive injects into the
-template. No new top-level tab — each view embeds next to the boss/mechanic it explains:
+and per-ability hit spots; written by fetch_report._fetch_positions) into the positioning features, all
+rendered as self-contained stdlib SVG/HTML fragments that build_deepdive injects into the template. No new
+top-level tab — each view embeds next to the boss/mechanic it explains:
 
-  1. Why we eat more of this ability  -> per-boss Positioning sub-tab (avoidable-hit scatter + verdict)
   2. Spread-vs-demand index           -> per-boss Positioning sub-tab + an Overview headline
-  3. Melee uptime gap                 -> Execution, under Activity by Spec (tier aggregate)
-  4. Void-zone overlap heatmap        -> per-boss Positioning sub-tab
-  5. Spread-over-time gap strip       -> per-boss Positioning sub-tab
+  3. Melee uptime gap                 -> Execution, under Lowest-hanging DPS (tier aggregate)
+
+(Features 1 "Why we eat more <ability>" + 4 "Void-zone density heatmap" + 5 "Spread over time" were cut
+in the /audit pass: experimental, buried in a sub-tab, and redundant with Execution → Avoidable Damage by
+Mechanic — see TODO.md. Only the formation map + spread-vs-demand verdict and the melee-uptime gap remain.)
 
 Honesty rules baked in (see references/coordinate-system.md + the brainstorm's KEEP/SHARPEN filter):
   * WCL x/y are a LINEAR transform of yards (isotropic), so relative geometry — distance, spread, in/out
@@ -222,30 +223,6 @@ def spread_radius_yd(pos, roles, cohort="squishies"):
     return round(_yd(_median(per_bin)), 1)
 
 
-def spread_series(pos, roles, cohort="squishies", buckets=8):
-    """Raid spread radius (yd) over fight-fraction buckets — the spread-over-time curve (feature 5). Bins are
-    grouped into `buckets` equal fractions of the fight; each bucket is the median per-bin spread radius in
-    that window. Same robust metric as the headline number, so the strip and the scalar agree. Returns a list
-    of `buckets` values (None where a bucket lacks enough actors), comparable across fights via the fraction."""
-    ids = _cohort_ids(roles, cohort)
-    tracks = [_fill(pos["actors"][a]["bins"]) for a in ids if a in pos["actors"]]
-    tracks = [t for t in tracks if any(p for p in t)]
-    if len(tracks) < 3:
-        return None
-    nb = pos["nBins"]
-    out = []
-    for k in range(buckets):
-        lo = int(round(k * nb / buckets))
-        hi = max(lo + 1, int(round((k + 1) * nb / buckets)))
-        vals = []
-        for bi in range(lo, hi):
-            r = _bin_spread_radius([t[bi] for t in tracks if t[bi]])
-            if r is not None:
-                vals.append(r)
-        out.append(round(_yd(_median(vals)), 1) if vals else None)
-    return out if any(v is not None for v in out) else None
-
-
 def melee_uptime(pos, roles):
     """Melee in-range share vs the boss, time-anchored (feature 3). For each bin we fill every melee actor's
     position + the boss's, and score the distance with a SOFT band: <=8yd counts 1.0, 8-12yd 0.5, else 0.0
@@ -288,48 +265,6 @@ def melee_uptime(pos, roles):
     return {"pct": round(score / n * 100), "inPct": round(cin / n * 100),
             "edgePct": round(cedge / n * 100), "outPct": round(cout / n * 100),
             "samples": n, "meleeCount": len(tracks)}
-
-
-# ------------------------------------------------------------------------- avoidable-ability hit geometry
-
-def _hit_points(pos, ability, tank_ids):
-    """Non-tank target hit positions for one ability on one side: [(x,y), ...] (drops tank targets to match
-    the ex-tanks avoidable-damage gap). tank_ids is the set of str(actorId) tanks."""
-    rec = (pos.get("hitsByAbility") or {}).get(ability)
-    if not rec:
-        return []
-    out = []
-    for x, y, tid in rec["points"]:
-        if tid is not None and str(tid) in tank_ids:
-            continue
-        out.append((x, y))
-    return out
-
-
-def _gyration_yd(pts):
-    """Radius of gyration (yd) of a point cloud about its own centroid — low = clustered, high = scattered."""
-    if len(pts) < 2:
-        return None
-    cx = sum(p[0] for p in pts) / len(pts)
-    cy = sum(p[1] for p in pts) / len(pts)
-    return round(_yd(math.sqrt(sum((p[0] - cx) ** 2 + (p[1] - cy) ** 2 for p in pts) / len(pts))), 1)
-
-
-def ability_cluster(pos, t_pos, ability, o_tank_ids, t_tank_ids):
-    """The clustered-vs-scattered read behind an avoidable-damage gap (feature 1). Returns the hit clouds +
-    each side's radius of gyration + a verdict. A tight cloud (low gyration) = the raid keeps clipping ONE
-    hazard zone (a spacing/spot fix); a scattered/at-range cloud = the hits aren't a positioning problem
-    (route it to a cooldown/healing fix). None when our side lacks enough hits to judge."""
-    o_pts = _hit_points(pos, ability, o_tank_ids)
-    t_pts = _hit_points(t_pos, ability, t_tank_ids) if t_pos else []
-    if len(o_pts) < 6:
-        return None
-    o_gyr = _gyration_yd(o_pts)
-    t_gyr = _gyration_yd(t_pts) if len(t_pts) >= 6 else None
-    clustered = o_gyr is not None and o_gyr <= 14.0
-    return {"ability": ability, "oursPoints": o_pts, "theirsPoints": t_pts,
-            "oursGyr": o_gyr, "theirsGyr": t_gyr, "clustered": clustered,
-            "oursN": len(o_pts), "theirsN": len(t_pts)}
 
 
 # --------------------------------------------------------------------------------------- SVG rendering
@@ -425,97 +360,6 @@ def _formation_panel(pos, roles, frame, W=300):
         W, H, "".join(parts))
 
 
-def _scatter_panel(points, bm, frame, color, W=300):
-    """A boss-relative scatter of one side's avoidable-ability hit positions (semi-transparent dots, so
-    overlap reads as density). Same frame+scale as its sibling so the two clouds are directly comparable."""
-    scale, H, sx, sy = _projector(frame, W)
-    parts = _grid_and_border(W, H, scale)
-    _boss_marker(parts, bm, sx, sy, scale, W, H)
-    for x, y in points:
-        px, py = sx(x), sy(y)
-        if -6 <= px <= W + 6 and -6 <= py <= H + 6:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="3.4" fill="{}" opacity="0.5"/>'.format(
-                min(max(px, 0), W), min(max(py, 0), H), color))
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
-        W, H, "".join(parts))
-
-
-def _heatmap_panel(points, bm, frame, W=300, cells=18):
-    """A density heatmap of one side's avoidable-hit cloud: the frame binned into square cells, each shaded
-    by how many hits fell in it (the honest spread visual — a median would collapse it). One shared frame +
-    one colour scale across both panels so 'our hot corner vs their cold one' reads straight across."""
-    scale, H, sx, sy = _projector(frame, W)
-    cw = W / cells
-    rows = max(1, int(round(H / cw)))
-    grid = [[0] * cells for _ in range(rows)]
-    mx = 0
-    for x, y in points:
-        px, py = sx(x), sy(y)
-        ci = int(px // cw)
-        ri = int(py // cw)
-        if 0 <= ci < cells and 0 <= ri < rows:
-            grid[ri][ci] += 1
-            mx = max(mx, grid[ri][ci])
-    parts = ['<rect x="0" y="0" width="{:.0f}" height="{:.0f}" fill="#0f1420"/>'.format(W, H)]
-    if mx > 0:
-        for ri in range(rows):
-            for ci in range(cells):
-                v = grid[ri][ci]
-                if not v:
-                    continue
-                # perceptual-ish ramp toward warm; alpha by relative density
-                a = 0.18 + 0.72 * (v / mx)
-                parts.append('<rect x="{:.1f}" y="{:.1f}" width="{:.1f}" height="{:.1f}" fill="#f97316" opacity="{:.2f}"/>'.format(
-                    ci * cw, ri * cw, cw + 0.6, cw + 0.6, a))
-    parts.append('<rect x="0" y="0" width="{:.0f}" height="{:.0f}" fill="none" stroke="#334155" stroke-width="1.5"/>'.format(W, H))
-    _boss_marker(parts, bm, sx, sy, scale, W, H)
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
-        W, H, "".join(parts), W)
-
-
-def _strip_svg(o_series, t_series, W=620, H=120):
-    """The spread-over-time strip: footprint (yd) over fight fraction, ours vs benchmark overlaid, phase
-    markers implicit in the fraction axis. Two polylines on one y-scale; gaps (low-actor buckets) skipped."""
-    n = max(len(o_series or []), len(t_series or []))
-    allv = [v for v in (o_series or []) + (t_series or []) if v is not None]
-    if n < 2 or not allv:
-        return ""
-    pad = 26
-    top = 10
-    ymax = max(allv) * 1.15 or 1
-    iw = W - pad - 8
-    ih = H - top - 18
-
-    def pts(series, color, who):
-        if not series:
-            return ""
-        xy = []
-        for i, v in enumerate(series):
-            if v is None:
-                continue
-            x = pad + iw * (i / (len(series) - 1))
-            y = top + ih * (1 - v / ymax)
-            xy.append((x, y))
-        if not xy:
-            return ""
-        line = '<polyline points="{}" fill="none" stroke="{}" stroke-width="2.2" opacity="0.95"/>'.format(
-            " ".join("{:.1f},{:.1f}".format(x, y) for x, y in xy), color)
-        dots = "".join('<circle cx="{:.1f}" cy="{:.1f}" r="2.6" fill="{}"/>'.format(x, y, color) for x, y in xy)
-        return line + dots
-
-    parts = ['<rect x="0" y="0" width="{:.0f}" height="{:.0f}" fill="#0f1420"/>'.format(W, H)]
-    # y gridlines at 0 / mid / max
-    for frac in (0.0, 0.5, 1.0):
-        y = top + ih * (1 - frac)
-        parts.append('<line x1="{0:.0f}" y1="{1:.1f}" x2="{2:.0f}" y2="{1:.1f}" stroke="#1d2740" stroke-width="1"/>'.format(pad, y, W - 8))
-        parts.append('<text x="2" y="{:.1f}" fill="#64748b" font-size="9" font-family="sans-serif">{:.0f}</text>'.format(y + 3, ymax * frac))
-    parts.append(pts(t_series, "#38bdf8", "theirs"))
-    parts.append(pts(o_series, "#f59e0b", "ours"))
-    parts.append('<text x="{:.0f}" y="{:.0f}" fill="#64748b" font-size="9" font-family="sans-serif">pull</text>'.format(pad, H - 5))
-    parts.append('<text x="{:.0f}" y="{:.0f}" fill="#64748b" font-size="9" font-family="sans-serif" text-anchor="end">kill</text>'.format(W - 8, H - 5))
-    return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(W, H, "".join(parts))
-
-
 def _legend():
     items = [("tank", "Tank"), ("melee", "Melee"), ("ranged", "Ranged"), ("healer", "Healer")]
     sp = "".join('<span style="color:{}">&#9679; {}</span>'.format(COLORS[k], lbl) for k, lbl in items)
@@ -535,13 +379,89 @@ def esc(s):
     return (str(s) if s is not None else "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _mmss(sec):
+    sec = int(round(sec or 0))
+    return "{}:{:02d}".format(sec // 60, sec % 60)
+
+
+def _formation_at(pos, roles, frame, lo, hi, W=260):
+    """A formation panel like `_formation_panel`, but each actor's (and the boss's) position is the median
+    over a TIME WINDOW of bins [lo, hi) — so we can snapshot the raid's shape at a specific moment (a phase
+    start) instead of smearing the whole fight into one median. Tracks are carry-forward filled first, so an
+    idle actor in the window isn't dropped. Same shared frame/scale as every other snapshot → comparable."""
+    scale, H, sx, sy = _projector(frame, W)
+    parts = _grid_and_border(W, H, scale)
+    bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
+    bm = None
+    if bb:
+        bpts = [p for p in _fill(bb)[lo:hi] if p]
+        if bpts:
+            bm = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
+    _boss_marker(parts, bm, sx, sy, scale, W, H)
+    items = []
+    for aid, a in pos["actors"].items():
+        pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+        if pts:
+            items.append((roles.get(aid, "ranged"), (_median([p[0] for p in pts]), _median([p[1] for p in pts]))))
+    for role, c in sorted(items, key=lambda z: z[0]):
+        col = COLORS.get(role, "#9ca3af")
+        px, py = sx(c[0]), sy(c[1])
+        inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
+        px = min(max(px, 5), W - 5)
+        py = min(max(py, 5), H - 5)
+        if inframe:
+            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
+        else:
+            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
+        W, H, "".join(parts))
+
+
+def _snapshot_windows(pos, phases, phase_names, max_moments=3):
+    """Labeled snapshot windows for one side: the OPENING (once positions settle a few seconds after the pull)
+    plus the start of each named PHASE (`phases` = [{id, tSec}] from the fight's phaseTransitions). Each window
+    runs from a small stabilization offset into the moment up to the next moment's start, so the snapshot is the
+    *settled* formation, not the scramble of the transition. Returns up to `max_moments` windows as bin indices;
+    the stabilization offset + the approximate bin mapping mean times are labelled, never claimed exact."""
+    nb = pos.get("nBins") or 0
+    bin_ms = pos.get("binMs") or 1
+    dur_sec = (pos.get("durMs") or 0) / 1000.0
+    if nb < 4 or dur_sec <= 0:
+        return []
+
+    def to_bin(s):
+        return max(0, min(nb, int(round(s * 1000.0 / bin_ms))))
+
+    moments = [(0.0, "Opening")]
+    for p in sorted(phases or [], key=lambda x: x.get("tSec", 0)):
+        ts = p.get("tSec", 0)
+        if 0 < ts < dur_sec - 3:  # a phase that starts with at least a few seconds left to snapshot
+            nm = (phase_names or {}).get(int(p["id"])) or "Phase {}".format(p.get("id"))
+            moments.append((ts, nm))
+    starts = [s for s, _ in moments]
+    wins = []
+    for i, (s, lab) in enumerate(moments):
+        end = starts[i + 1] if i + 1 < len(starts) else dur_sec
+        stab = min(4.0, max(0.0, (end - s) * 0.25))  # let the formation settle into the window
+        lo, hi = to_bin(s + stab), to_bin(end)
+        if hi - lo >= 2:  # need a couple of bins to take an honest median
+            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(s)})
+        if len(wins) >= max_moments:
+            break
+    return wins
+
+
 # --------------------------------------------------------------------- the per-boss Positioning sub-tab
 
 def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
-                     boss_name, avoidable_rows, o_name, t_name):
-    """Compose one boss's Positioning sub-tab (features 1, 2, 4, 5) as an HTML fragment, and return the
-    scalars the Overview headline (spread gap) and the Execution melee-uptime view consume. Any sub-view
-    whose data is missing is silently omitted — the section only shows what it can honestly support."""
+                     boss_name, o_name, t_name, o_phases=None, t_phases=None, phase_names=None):
+    """Compose one boss's Positioning sub-tab (feature 2 — the formation map + spread-vs-demand verdict) as
+    an HTML fragment, and return the scalars the Overview headline (spread gap) and the Execution melee-uptime
+    view consume. When phase data is available the single whole-fight median map is replaced by PHASE-ANCHORED
+    snapshots (the raid's settled formation at the opening + each phase, ours vs benchmark) — where the raid
+    stood *when it mattered*, not a whole-fight smear; it falls back to the single map otherwise (no
+    regression). Add positions + per-actor facing arrows are NOT yet captured by the fetch pipeline, so they're
+    deferred (see TODO.md). Any sub-view whose data is missing is silently omitted."""
     if not o_pos or not t_pos:
         return None
     travel_o = boss_travel_yd(o_pos)
@@ -586,79 +506,38 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         else:
             verdict = ('Ranged + healer spread radius: ~{o}yd vs the benchmark\'s ~{t}yd '
                        '(descriptive — no curated spread/stack call on this boss).').format(o=o_sr, t=t_sr)
-        o_map = _formation_panel(o_pos, o_roles, frame)
-        t_map = _formation_panel(t_pos, t_roles, frame)
+        # Phase-anchored snapshots when both sides have ≥2 detectable moments (opening + phase starts);
+        # otherwise the single whole-fight median map (graceful, no coverage regression).
+        o_wins = _snapshot_windows(o_pos, o_phases, phase_names)
+        t_wins = _snapshot_windows(t_pos, t_phases, phase_names)
+        if len(o_wins) >= 2 and len(t_wins) >= 2:
+            nshow = min(len(o_wins), len(t_wins))
+            rows = []
+            for i in range(nshow):
+                ow, tw = o_wins[i], t_wins[i]
+                o_map = _formation_at(o_pos, o_roles, frame, ow["lo"], ow["hi"])
+                t_map = _formation_at(t_pos, t_roles, frame, tw["lo"], tw["hi"])
+                sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
+                rows.append('<div style="margin:10px 0 4px"><div class="posnote" style="margin:0 0 4px">'
+                            '<b>{}</b></div>{}</div>'.format(esc(ow["label"]),
+                                                             _dual(o_map, t_map, o_name, t_name, sub)))
+            maps_html = ("".join(rows)
+                         + '<p class="posnote" style="opacity:.8">Snapshots are <b>phase-anchored</b> — each is '
+                           'the settled formation a few seconds after that phase begins (times approximate; '
+                           'cross-check the Timeline). Add positions and per-actor facing aren\'t captured yet.</p>')
+        else:
+            o_map = _formation_panel(o_pos, o_roles, frame)
+            t_map = _formation_panel(t_pos, t_roles, frame)
+            maps_html = _dual(o_map, t_map, o_name, t_name,
+                              "median position per player &middot; one shared frame &amp; zoom")
         spread_html = (
             '<h4 style="margin:14px 0 4px">Raid formation &amp; spread'
             '<span class="xp">Experimental</span></h4>'
             + _legend()
-            + _dual(o_map, t_map, o_name, t_name, "median position per player &middot; one shared frame &amp; zoom")
+            + maps_html
             + '<p class="posnote">{}</p>'.format(verdict))
 
-    # ---- feature 5: spread-over-time strip ----
-    strip_html = ""
-    o_series = spread_series(o_pos, o_roles)
-    t_series = spread_series(t_pos, t_roles)
-    if o_series and t_series:
-        strip = _strip_svg(o_series, t_series)
-        if strip:
-            ov = [v for v in o_series if v is not None]
-            tv = [v for v in t_series if v is not None]
-            note = ""
-            if ov and tv:
-                # find the bucket with the biggest gap, expressed in fight-fraction terms
-                gaps = [(abs((o_series[i] or 0) - (t_series[i] or 0)), i)
-                        for i in range(min(len(o_series), len(t_series)))
-                        if o_series[i] is not None and t_series[i] is not None]
-                if gaps:
-                    g, gi = max(gaps)
-                    frac = int(round(100 * (gi + 0.5) / len(o_series)))
-                    if g >= 2:
-                        note = ('Biggest spacing gap opens around <b>{}% into the fight</b> (~{}yd vs '
-                                '~{}yd spread radius) — drill that window, not the whole fight.').format(
-                            frac, o_series[gi], t_series[gi])
-            strip_html = (
-                '<h4 style="margin:18px 0 4px">Spread over time<span class="xp">Experimental</span></h4>'
-                '<div style="color:#94a3b8;font-size:11px;margin-bottom:3px">'
-                '<span style="color:#f59e0b">&#9679; {}</span> &nbsp; <span style="color:#38bdf8">&#9679; {}</span>'
-                ' &nbsp; raid spread radius (~yd) across the fight</div>{}'
-                '{}'.format(esc(o_name), esc(t_name), strip,
-                            '<p class="posnote">{}</p>'.format(note) if note else ""))
-
-    # ---- feature 1 + 4: the top avoidable ability — clustered/scattered scatter + heatmap ----
-    ability_html = ""
-    ability = _top_avoidable_with_hits(avoidable_rows, o_pos, t_pos)
-    if ability:
-        clus = ability_cluster(o_pos, t_pos, ability, o_tank_ids, t_tank_ids)
-        if clus:
-            bm_o, bm_t = boss_median(o_pos), boss_median(t_pos)
-            sc_o = _scatter_panel(clus["oursPoints"], bm_o, frame, "#ef4444")
-            sc_t = _scatter_panel(clus["theirsPoints"], bm_t, frame, "#38bdf8")
-            hm_o = _heatmap_panel(clus["oursPoints"], bm_o, frame)
-            hm_t = _heatmap_panel(clus["theirsPoints"], bm_t, frame)
-            if clus["clustered"]:
-                verdict = ('Our <b>{ab}</b> hits cluster in one zone (~{og}yd spread{cmp}) — this is a '
-                           '<b>spacing fix</b>: half the raid is clipping the same hazard. Mark a spread/clear-out spot.'
-                           ).format(ab=esc(ability), og=clus["oursGyr"],
-                                    cmp=" vs benchmark ~{}yd".format(clus["theirsGyr"]) if clus["theirsGyr"] else "")
-            else:
-                verdict = ('Our <b>{ab}</b> hits are scattered/at-range (~{og}yd spread) — <b>not a positioning '
-                           'problem</b>. Route it to a cooldown/healing assignment, not a movement drill.'
-                           ).format(ab=esc(ability), og=clus["oursGyr"])
-            ability_html = (
-                '<h4 style="margin:18px 0 4px">Why we eat more {ab}<span class="xp">Experimental</span></h4>'
-                '<div style="color:#94a3b8;font-size:11px;margin-bottom:3px">where each <b>{ab}</b> hit landed '
-                '(non-tank), ours vs benchmark &middot; same frame &amp; boss anchor</div>'
-                '{scatter}'
-                '<div style="color:#94a3b8;font-size:11px;margin:10px 0 3px">Void-zone density — the same hits '
-                'binned, hotter = more hits there</div>{heat}'
-                '<p class="posnote">{verdict}</p>').format(
-                    ab=esc(ability),
-                    scatter=_dual(sc_o, sc_t, o_name, t_name, "{} hits ours / {} theirs".format(clus["oursN"], clus["theirsN"])),
-                    heat=_dual(hm_o, hm_t, o_name, t_name),
-                    verdict=verdict)
-
-    body = spread_html + strip_html + ability_html
+    body = spread_html
     if not body:
         return None
     cls_note = ""
@@ -680,34 +559,6 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                  "oursIn": mu["inPct"], "theirsIn": mu_t["inPct"], "meleeCount": mu["meleeCount"]}
 
     return {"html": html, "spreadGap": spread_gap, "meleeUptime": melee, "bossClass": bclass}
-
-
-# Damage-taken rows that are never a raid POSITIONING mechanic you reposition for: the boss's auto-attack and
-# its single-target tank-cleave. Player SELF-DAMAGE (Seal/Judgement of Blood, Shadow Word: Death, Dark Rune,
-# Life Tap, engineer bombs) is NOT name-listed — it self-filters via the distinct-target gate (it hits one
-# player), so a real raid mechanic that happens to share a name ("Bomb") on some other boss isn't wrongly hidden.
-_NOT_A_MECHANIC = {"Melee", "Knock Away"}
-
-
-def _top_avoidable_with_hits(avoidable_rows, o_pos, t_pos):
-    """Pick the ability for the scatter/heatmap: the highest-deficit row (we eat the most MORE of) that is a
-    real raid-wide mechanic with spatial signal — excludes melee/self-damage by name AND requires the hit
-    cloud to span >=5 distinct non-tank targets (so a one-victim self-hit can't masquerade as an AoE). On a
-    cleanly-executed boss nothing qualifies (we don't eat meaningfully more of any positional mechanic) — the
-    section then stays silent, which is the honest 'not a positioning problem' answer. avoidable_rows is the
-    per-boss [{name, ours, theirs, deficit}] list (ex-tanks, per-second)."""
-    o_hits = o_pos.get("hitsByAbility") or {}
-    for r in avoidable_rows or []:
-        nm = r.get("name")
-        if r.get("deficit", 0) <= 0 or nm in _NOT_A_MECHANIC:
-            continue  # only mechanics we take MORE of than the benchmark, and never melee/self-damage
-        rec = o_hits.get(nm)
-        if not rec or rec.get("total", 0) < 12:
-            continue
-        distinct = len({tid for _x, _y, tid in rec["points"] if tid is not None})
-        if distinct >= 5:
-            return nm
-    return None
 
 
 # --------------------------------------------------------------------- Execution: melee uptime gap (F3)
@@ -736,13 +587,10 @@ def melee_uptime_view(rows, o_name, t_name):
             boss=esc(r["boss"]), cls=esc((r.get("class") or "").replace("-", " ")),
             dc=dl_cls, ds="+" if dl > 0 else "", dl=dl)
     return ('<h2 class="section">Melee Uptime on the Boss<span class="xp">Experimental</span>'
-            '<span class="hint">The geometric cause beneath the Activity-by-Spec gap: the share of melee '
-            'samples within ~8&nbsp;yd of the boss (a soft in/edge/out band), time-weighted across the fight, '
-            'ours vs the benchmark. Restricted to <b>non-mobile</b> bosses, where a low in-range % is melee '
-            '<i>discipline</i> (chasing, over-reacting to mechanics) rather than the boss kiting itself away — '
-            'on a mobile boss the number would measure the boss\'s path, so it\'s suppressed. Higher is better; '
-            'a red boss means our melee left the ring more than the benchmark\'s. Ring distance is relative '
-            '(~8&nbsp;yd floor), not an absolute yard claim. <b>Experimental.</b></span></h2>'
+            '<span class="hint">The geometric cause beneath a DPS gap: the share of melee '
+            'samples within ~8&nbsp;yd of the boss, time-weighted, ours vs the benchmark. '
+            '<b>Non-mobile bosses only</b> — on a mobile boss this would measure the boss\'s path, not melee '
+            'discipline. Distances are relative, not absolute yards. Higher is better. <b>Experimental.</b></span></h2>'
             '<div class="dmgcmp"><div class="dmgcmphdr2"><span class="cours">{o}</span>'
             '<span>Melee in-range %, by boss</span><span class="cthe">{t}</span></div>'
             '<div class="ugrid">{body}</div></div>').format(o=esc(o_name), t=esc(t_name), body=body)

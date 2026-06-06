@@ -10,7 +10,7 @@ literal `/*__DATA__*/null`. Seven top-level tabs, a funnel:
 | **Composition** | Roster makeup & buffs |
 | **Prep** | Did we show up ready |
 | **Execution** | Raid-wide gaps + per-boss drill-down |
-| **Bosses** | Per-boss execution drill-down + kill summary |
+| **Bosses** | Per-boss execution drill-down |
 | **Wipes** | Why we wipe (the wall, the trend, the tax, what ends attempts) |
 | **Optimize** | How each raider's rotation compares to the world best |
 | **Trash** | How we handle trash packs |
@@ -37,19 +37,9 @@ guild or your own past raid; some checks are absolute, no B); weak/ambiguous or 
   strength requires benchmark uptime > 0 (a real "we maintain it better" lead, not a
   "they don't run it").
 - **Raid Summary cards** (incl. Total Wipes when attempt data present).
-- **Parse Spread** (`parse_spread` → `parseSpreadView`) — **EXPERIMENTAL**, the distribution behind the
-  Avg Raid Parse *mean*: median + the count of **floor** parses (rankPercent < 25) + the lowest-parsing
-  **specs** (with the benchmark's same spec), ours vs theirs. Tells a leader whether the gap is the whole
-  raid or a handful of anchors — coach the named floor specs vs re-gear everyone. Spec grain, never
-  per-player. From the per-player-per-shared-boss `rankPercent` already in the parses file.
-- **Boss-by-Boss** — one sub-tab per boss (`mountOverview` wires `.btab/.bsub
-  [data-otab]`): kill time, Raid DPS/HPS bars (total ÷ duration), avg parse, deaths,
-  wipes-before-kill (shown only if either wiped), **wipe depth** (`attempt_map`:
-  closest wipe's `fightPercentage` + `lastPhase` → "Best attempt: X% remaining
-  (Phase)"; sub-1% renders "<1%" — phase-reset bosses like Al'ar collapse to ~0
-  without a kill), and both rosters. Each side renders a DPS/tanks table + a
-  **separate Healers table** (`sideRosters` → `rosterTable`) with an HPS column
-  (healer parses are HPS-based — see `wcl-api.md`).
+- The per-fight kill time, parse, rosters and the full execution drill-down live on the **Bosses** tab
+  (the old Overview Boss-by-Boss / Kill Summary & Rosters block and the EXPERIMENTAL Parse Spread were
+  cut in the /audit pass — see TODO.md).
 
 ---
 
@@ -81,7 +71,7 @@ the honest version.)
 - **Consumables Coverage** (`consumable_report`) — Flask/Elixir-Pair card reads
   per-player consumes (`_cell_for`), so a battle+guardian **elixir pair** counts as
   prepared like a flask (the aggregate Buffs table can't tell them apart). Food =
-  per-player Well-Fed; Drums uptime % = fight-uptime from aggregate Buffs. Falls back
+  per-player Well-Fed. Falls back
   to aggregate flask/food totals on bosses without a consumes file. `ELIXIR_EXCLUDE`
   drops junk "…Elixir" names (Noggenfogger).
 - **Consumables classified by SPELL ID, not name.** WCL renames most consumable buffs
@@ -119,7 +109,8 @@ the honest version.)
   which shares a cooldown with the in-combat potion so skipping it wastes a potion) or only reactively
   mid-fight. From the aggregate Buffs `bands` (earliest potion band start vs fight start; ≤3s ≈ on the
   pull). **Raid-aggregate** (bands merge across players) → an honest raid-level "opener potion on the pull:
-  X/N bosses", NOT a per-player prepotter count (same precedent as Drums uptime).
+  X/N bosses", NOT a per-player prepotter count (an honest raid-level aggregate, same precedent as the
+  aggregate Buffs-table uptimes).
 - **Enchants & Weapon Oils** (`audit_report`) — missing enchants from
   `combatantInfo.gear.permanentEnchant` + weapon-oil presence, restricted to the
   **shared-boss roster** (matches Composition). **Windfury counts as a weapon buff for
@@ -170,14 +161,9 @@ the honest version.)
 - **Lowest-Hanging DPS — Spec Gaps** (`tier_spec_gap` → `tierSpecGapView`) — DPS
   pooled by (class, spec) across shared bosses, ranked by per-player deficit. Mirrored
   bars; one-raid-only specs noted.
-- **Activity by Spec** (`activity_buckets`/`tier_activity_gap` → `activityGapView`) — **EXPERIMENTAL**,
-  sits right under the spec DPS gap as its uptime decomposition. Each **DPS** spec's avg per-player
-  activity (`dd.activeTime` ÷ fight dur — the share of the fight spent actively dealing damage) pooled
-  across shared bosses, ours vs benchmark same spec, mirrored bars. Idle GCDs (movement/swaps/range) are
-  throughput recoverable *without* gear, so a trailing spec is high-leverage coaching — it names which
-  spec is losing the uptime behind the raid-wide Activity number. **Healers excluded on purpose:** their
-  "active" time isn't a clean better/worse signal (less healing can just mean the raid took less damage);
-  tanks excluded too (activeTime conflates tanking with incidental DPS). Clean better/worse for DPS.
+  (Activity by Spec was cut in the /audit pass — no decision hung on it: it named a trailing spec's
+  active-GCD uptime but couldn't say *why*, and the cause lives in Add Control / Damage Taken / Positioning.
+  The raid-wide Activity aggregate still feeds Output Quality and the Overview scorecard. See TODO.md.)
 - **DPS Ramp** (`dps_ramp` → `dpsRampView`) — **EXPERIMENTAL**, per boss: seconds to first reach 90% of
   the fight's **median** (cruising) DPS — how fast the raid got up to pace after the pull (median is robust
   to the opener and any execute spike). Coarse (binned to the timeline buckets), ours vs benchmark, lower
@@ -276,6 +262,14 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
   there). The track only renders when a side has phase transitions. Inline SVG, no libs. **Curves from events, not `graph()`** (see Timeline note
   below). **Opener caption** (`opener_gap` → `b.openerGap`): first ~30s of raid DPS, reddened
   only if we trail.
+  - **Ghost Run overlay** (EXPERIMENTAL, `ghostInner`/`computeGhost` over `deep.ghostRun`, on the Raid-DPS
+    sub-view) — a master toggle draws a dashed-green **ghost line**: your raid DPS as if the costliest DPS
+    deaths hadn't happened (each revived raider projected at their **night-average DPS** from death to kill),
+    with the shaded gap = output the deaths consumed and a green **projected-kill** marker. **Per-death
+    toggles** revive/down each raider individually, recomputing the curve + projected kill incrementally —
+    so a leader can isolate what just one death cost. **Upper bound** (assumes the raider sustains their
+    average, no battle-res, no phase gate). Moved here from a standalone Execution text block (TODO.md) so
+    the cost lands in the fight's shape — *when* the deaths hurt, not just how much.
 - **Buff Uptime** — boss debuffs + raid buffs, value←bar—name—bar→value, sorted by delta.
 - **DPS by Spec** (`spec_gap` → `specDpsView`) — DamageDone bucketed by (class, spec) for
   DPS, ranked by per-player deficit (avg/player, so 3-vs-2 mages stays fair). Spec grain, no
@@ -432,24 +426,30 @@ only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compas
   spread-vs-demand gap across vetted bosses, when we're past the benchmark by a real margin. Silent
   otherwise (an honest "no positioning gap here", as on the pinned Imminent matchup).
 - **Execution → Melee Uptime on the Boss** (`melee_uptime` per boss + `melee_uptime_view` →
-  `deep.positioning.meleeView`) — sits right under Activity by Spec as its geometric cause: the share of
+  `deep.positioning.meleeView`) — sits right under Lowest-Hanging DPS as the geometric cause beneath a DPS
+  gap: the share of
   melee samples within the ~melee ring of the boss (soft in/edge/out band, time-weighted), ours vs
   benchmark, per boss. **Gated to non-mobile bosses** (on a mobile boss it would measure the boss's path,
   not melee discipline); the ours-vs-benchmark delta on the SAME boss cancels the shared boss-path.
 - **Bosses → per-boss "Positioning" sub-tab** (`boss_positioning` → `perBoss[].positioning`, a 9th boss
   sub-tab, present only on non-mobile bosses with a positions file):
   - **Raid formation & spread** (feature 2) — side-by-side formation maps (one shared frame+scale,
-    role-coloured dots, boss diamond + dashed ring) + the spread-vs-demand verdict. Spread is a robust
+    role-coloured dots, boss diamond + dashed ring) + the spread-vs-demand verdict. When phase data exists,
+    the single whole-fight median map is replaced by **phase-anchored snapshots** (`_snapshot_windows` +
+    `_formation_at`): the raid's *settled* formation at the opening + each phase start (a few seconds in, so
+    it's the formation, not the transition scramble), ours vs benchmark per moment — *where the raid stood
+    when it mattered*, not a whole-fight smear. Falls back to the single median map on single-phase bosses
+    (no coverage regression); mobile bosses stay suppressed. Add positions + per-actor **facing arrows** are
+    NOT yet captured by the fetch pipeline, so they're deferred (the remaining half of the reframe — TODO.md).
+    Spread is a robust
     **spread radius** (`spread_radius_yd`: median per-bin distance to the cohort's median centroid — resists
     both the stacked-raid median-collapse and max-range-ranged outliers), not median-NN. The spread/stack
     VERDICT fires only for a curated `DEMAND` set (Void Reaver, Solarian, Vashj, Leotheras); elsewhere the
     numbers are descriptive with no "you should…" arrow.
-  - **Spread over time** (feature 5, `spread_series`) — spread radius over fight-fraction buckets, ours vs
-    benchmark, naming the bucket where the gap opens ("drill that window, not the whole fight").
-  - **Why we eat more <ability>** (feature 1, `ability_cluster`) + **Void-zone density** (feature 4) — the
-    top avoidable-damage-gap mechanic we over-eat *with spatial signal* (`_top_avoidable_with_hits`: deficit
-    > 0, ≥5 distinct non-tank targets, not melee/self-damage) rendered as a dual scatter + binned heatmap,
-    with a clustered→spacing-fix vs scattered→cooldown/healing verdict. Silent when no such mechanic exists.
+
+  (Features 1 "Why we eat more <ability>", 4 "Void-zone density heatmap", and 5 "Spread over time" were
+  cut in the /audit pass — EXPERIMENTAL, buried in a sub-tab, and redundant with Execution → Avoidable
+  Damage by Mechanic. Only feature 2 (formation map + spread-vs-demand verdict) remains. See TODO.md.)
 
 Boss auto-class (`boss_travel_yd`/`boss_class`: STATIONARY/PLANT-AND-MOVE/MOBILE from total boss travel)
 gates which features make sense — MOBILE bosses (Al'ar) get no Positioning section at all. Graceful when a

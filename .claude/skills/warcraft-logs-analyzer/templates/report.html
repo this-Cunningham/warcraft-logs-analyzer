@@ -1320,10 +1320,18 @@ function tlChart(o,t,m1,m2,ghost){
   // ghost line (the output the deaths consumed), the dashed ghost line, and the projected kill marker.
   if(gd){
     const gDur=ghost.dur||oDur;
-    const gpts=gd.map((v,i)=>Xs(i/(n-1)*gDur).toFixed(1)+" "+Y(v).toFixed(1));
-    const bpts=o.map((v,i)=>Xs(i/(n-1)*oDur).toFixed(1)+" "+Y(v).toFixed(1)).reverse();
+    // Clip the ghost projection (dashed line + shaded gap) at the projected kill — a ghost curve drawn
+    // past the moment the fight would already be won is meaningless. Interpolate the exact crossing so the
+    // line and shading stop ON the kill marker, not at the nearest bucket. Re-clips on every toggle since
+    // ghostInner re-renders with the recomputed killSec.
+    const kEnd=ghost.killSec!=null?ghost.killSec:gDur;
+    const clip=(arr,dur)=>{const pts=[]; for(let i=0;i<arr.length;i++){const sec=i/(arr.length-1)*dur;
+      if(sec<=kEnd){pts.push([sec,arr[i]]);} else {if(i>0){const s0=(i-1)/(arr.length-1)*dur,t=(kEnd-s0)/(sec-s0);pts.push([kEnd,arr[i-1]+(arr[i]-arr[i-1])*t]);} break;}} return pts;};
+    const gc2=clip(gd,gDur), bc2=clip(o,oDur);
+    const gpts=gc2.map(p=>Xs(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1));
+    const bpts=bc2.map(p=>Xs(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).reverse();
     s+=`<path d="M${gpts.join(" L")} L${bpts.join(" L")} Z" fill="${GHOST}" opacity=".13"/>`;
-    s+=`<path d="${gd.map((v,i)=>(i?"L":"M")+Xs(i/(n-1)*gDur).toFixed(1)+","+Y(v).toFixed(1)).join(" ")}" fill="none" stroke="${GHOST}" stroke-width="2" stroke-dasharray="5,4" opacity=".95"/>`;
+    s+=`<path d="${gc2.map((p,i)=>(i?"L":"M")+Xs(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)).join(" ")}" fill="none" stroke="${GHOST}" stroke-width="2" stroke-dasharray="5,4" opacity=".95"/>`;
     if(ghost.killSec!=null){const xk=Xs(ghost.killSec);
       s+=`<line x1="${xk.toFixed(1)}" y1="${padT}" x2="${xk.toFixed(1)}" y2="${axisY}" stroke="${GHOST}" stroke-dasharray="3,3"/>`+
          `<text x="${(xk+3).toFixed(1)}" y="${padT+22}" fill="${GHOST}" font-size="11">ghost kill</text>`;}

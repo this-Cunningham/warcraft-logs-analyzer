@@ -300,9 +300,11 @@ def melee_uptime(pos, roles):
 # --------------------------------------------------------------------------------------- SVG rendering
 
 def _robust_frame(sides, pad_frac=0.06):
-    """One shared frame (minx,miny,maxx,maxy) for side-by-side panels: the 3rd-97th percentile box of every
-    actor's median position + boss medians across BOTH fights, padded. Clipping the extremes keeps a single
-    max-range hunter from compressing the core to a blob; true outliers are drawn clamped at the border."""
+    """One shared frame (minx,miny,maxx,maxy) for side-by-side panels: the FULL min/max box of every actor's
+    median position + boss medians across BOTH fights, padded. No percentile clipping — every plotted dot
+    falls inside the frame, so nobody is clamped to the border and the formation is shown honestly (a genuine
+    far-out actor widens the frame; that's the true read, not an artefact). Used for the whole-fight single
+    panel; snapshot panels use `_window_frame` (positions in the window, not whole-fight medians)."""
     xs, ys = [], []
     for pos in sides:
         for a in pos["actors"].values():
@@ -316,13 +318,37 @@ def _robust_frame(sides, pad_frac=0.06):
             ys.append(bm[1])
     if len(xs) < 2:
         return None
+    minx, maxx = min(xs), max(xs)
+    miny, maxy = min(ys), max(ys)
+    if maxx - minx < 1 or maxy - miny < 1:
+        return None
+    pad = pad_frac * max(maxx - minx, maxy - miny)
+    return (minx - pad, miny - pad, maxx + pad, maxy + pad)
 
-    def pct(v, q):
-        s = sorted(v)
-        return s[max(0, min(len(s) - 1, int(round(q * (len(s) - 1)))))]
 
-    minx, maxx = pct(xs, 0.03), pct(xs, 0.97)
-    miny, maxy = pct(ys, 0.03), pct(ys, 0.97)
+def _window_frame(specs, pad_frac=0.06):
+    """Shared frame (minx,miny,maxx,maxy) for SNAPSHOT panels, built from the actual positions being plotted —
+    each actor's median over its window [lo,hi) plus the boss's — across every (pos, lo, hi) in `specs` (both
+    raids, all shown moments). Full min/max (no clipping), so every dot drawn lands inside the frame: no
+    clamping, and one frame for all snapshots → ours/theirs and every moment share the same perspective.
+    Fixes the prior bug of reusing the whole-fight median frame for a specific-window snapshot."""
+    xs, ys = [], []
+    for pos, lo, hi in specs:
+        for a in pos["actors"].values():
+            pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+            if pts:
+                xs.append(_median([p[0] for p in pts]))
+                ys.append(_median([p[1] for p in pts]))
+        bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
+        if bb:
+            bpts = [p for p in _fill(bb)[lo:hi] if p]
+            if bpts:
+                xs.append(_median([p[0] for p in bpts]))
+                ys.append(_median([p[1] for p in bpts]))
+    if len(xs) < 2:
+        return None
+    minx, maxx = min(xs), max(xs)
+    miny, maxy = min(ys), max(ys)
     if maxx - minx < 1 or maxy - miny < 1:
         return None
     pad = pad_frac * max(maxx - minx, maxy - miny)
@@ -447,12 +473,27 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         W, H, "".join(parts))
 
 
-def _snapshot_windows(pos, phases, phase_names, max_moments=3):
+def _boss_window_travel(pos, lo, hi):
+    """Boss path length (yd) within bins [lo,hi) — used to confirm a 'mobile' boss is actually PLANTED in a
+    snapshot window (low travel) rather than caught mid-flight, so we only snapshot its stable stands."""
+    bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
+    if not bb:
+        return None
+    pts = [p for p in _fill(bb)[lo:hi] if p]
+    if len(pts) < 2:
+        return 0.0
+    return _yd(sum(math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+                   for i in range(1, len(pts))))
+
+
+def _snapshot_windows(pos, phases, phase_names, max_moments=3, cap_sec=None):
     """Labeled snapshot windows for one side: the OPENING (once positions settle a few seconds after the pull)
     plus the start of each named PHASE (`phases` = [{id, tSec}] from the fight's phaseTransitions). Each window
     runs from a small stabilization offset into the moment up to the next moment's start, so the snapshot is the
-    *settled* formation, not the scramble of the transition. Returns up to `max_moments` windows as bin indices;
-    the stabilization offset + the approximate bin mapping mean times are labelled, never claimed exact."""
+    *settled* formation, not the scramble of the transition. `cap_sec` caps each window length (used for mobile
+    bosses, where a short window after the plant captures the stand, not the flight that follows). Returns up to
+    `max_moments` windows as bin indices; the stabilization offset + approximate bin mapping mean times are
+    labelled, never claimed exact."""
     nb = pos.get("nBins") or 0
     bin_ms = pos.get("binMs") or 1
     dur_sec = (pos.get("durMs") or 0) / 1000.0
@@ -473,7 +514,10 @@ def _snapshot_windows(pos, phases, phase_names, max_moments=3):
     for i, (s, lab) in enumerate(moments):
         end = starts[i + 1] if i + 1 < len(starts) else dur_sec
         stab = min(4.0, max(0.0, (end - s) * 0.25))  # let the formation settle into the window
-        lo, hi = to_bin(s + stab), to_bin(end)
+        win_start = s + stab
+        if cap_sec is not None:
+            end = min(end, win_start + cap_sec)
+        lo, hi = to_bin(win_start), to_bin(end)
         if hi - lo >= 2:  # need a couple of bins to take an honest median
             wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(s)})
         if len(wins) >= max_moments:
@@ -496,14 +540,14 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         return None
     travel_o = boss_travel_yd(o_pos)
     bclass = boss_class(travel_o)
-    # On a MOBILE boss (e.g. Al'ar flying between platforms) the room frame and the boss anchor are
-    # meaningless — actor "median positions" smear across the arena and a clustered/scattered verdict would
-    # just track the boss's path. The brainstorm's auto-class GATES which features make sense, so a mobile
-    # boss gets no Positioning section at all (melee-uptime is independently gated to non-mobile too).
-    if bclass == "mobile":
-        return None
+    # A MOBILE boss (e.g. Al'ar flying between platforms) is mobile BETWEEN plants but stationary DURING them.
+    # We no longer suppress it outright; instead we render only its PLANTED windows (phase-anchored snapshots
+    # where the boss is locally stationary) and skip the whole-fight single-panel map (that one really would
+    # smear across the arena). The spread RADIUS verdict below is frame-independent (within-cohort spacing) and
+    # stays valid on every class. If a mobile boss has no detectable plant window, we fall through to None.
+    is_mobile = (bclass == "mobile")
     frame = _robust_frame([o_pos, t_pos])
-    if not frame:
+    if not frame and not is_mobile:
         return None
     demand = DEMAND.get(boss_name)
 
@@ -536,25 +580,51 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         else:
             verdict = ('Ranged + healer spread radius: ~{o}yd vs the benchmark\'s ~{t}yd '
                        '(descriptive — no curated spread/stack call on this boss).').format(o=o_sr, t=t_sr)
-        # Phase-anchored snapshots when both sides have ≥2 detectable moments (opening + phase starts);
-        # otherwise the single whole-fight median map (graceful, no coverage regression).
-        o_wins = _snapshot_windows(o_pos, o_phases, phase_names)
-        t_wins = _snapshot_windows(t_pos, t_phases, phase_names)
-        if len(o_wins) >= 2 and len(t_wins) >= 2:
-            nshow = min(len(o_wins), len(t_wins))
+        # Phase-anchored snapshots when both sides have ≥2 detectable moments (opening + phase starts). On a
+        # mobile boss we cap each window short (capture the plant, not the flight) and keep only PLANTED moments
+        # (boss locally stationary in the window on both sides); on a stationary/plant boss we use the full
+        # windows and fall back to the single whole-fight median map when there aren't ≥2 moments.
+        _PLANT_YD = 30.0  # boss travel within a snapshot window below which it counts as a stable stand
+        cap = 8.0 if is_mobile else None
+        o_wins = _snapshot_windows(o_pos, o_phases, phase_names, cap_sec=cap)
+        t_wins = _snapshot_windows(t_pos, t_phases, phase_names, cap_sec=cap)
+        nshow = min(len(o_wins), len(t_wins))
+        moment_idx = list(range(nshow))
+        if is_mobile:
+            # keep only matched moments where the boss is actually planted in BOTH sides' windows
+            moment_idx = [i for i in moment_idx
+                          if (_boss_window_travel(o_pos, o_wins[i]["lo"], o_wins[i]["hi"]) or 0) <= _PLANT_YD
+                          and (_boss_window_travel(t_pos, t_wins[i]["lo"], t_wins[i]["hi"]) or 0) <= _PLANT_YD]
+        if len(moment_idx) >= (1 if is_mobile else 2):
+            specs = ([(o_pos, o_wins[i]["lo"], o_wins[i]["hi"]) for i in moment_idx]
+                     + [(t_pos, t_wins[i]["lo"], t_wins[i]["hi"]) for i in moment_idx])
+            # ONE frame for all snapshots, built from the actual window positions across both raids + every
+            # shown moment — so ours/theirs and each moment share the same perspective with nothing clamped,
+            # instead of reusing the whole-fight median frame (which clipped window-specific positions).
+            win_frame = _window_frame(specs) or frame
+            if not win_frame:
+                return None
             rows = []
-            for i in range(nshow):
+            for i in moment_idx:
                 ow, tw = o_wins[i], t_wins[i]
-                o_map = _formation_at(o_pos, o_roles, frame, ow["lo"], ow["hi"])
-                t_map = _formation_at(t_pos, t_roles, frame, tw["lo"], tw["hi"])
+                o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
+                t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
                 sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
                 rows.append('<div style="margin:10px 0 4px"><div class="posnote" style="margin:0 0 4px">'
                             '<b>{}</b></div>{}</div>'.format(esc(ow["label"]),
                                                              _dual(o_map, t_map, o_name, t_name, sub)))
+            plant_note = ('On this <b>mobile</b> boss only its <b>planted</b> moments are shown (the boss is '
+                          'stationary in these windows); the flight between them is skipped. ' if is_mobile else '')
             maps_html = ("".join(rows)
-                         + '<p class="posnote" style="opacity:.8">Snapshots are <b>phase-anchored</b> — each is '
+                         + '<p class="posnote" style="opacity:.8">{}Snapshots are <b>phase-anchored</b> — each is '
                            'the settled formation a few seconds after that phase begins (times approximate; '
-                           'cross-check the Timeline). Add positions and per-actor facing aren\'t captured yet.</p>')
+                           'cross-check the Timeline). Add positions and per-actor facing aren\'t captured '
+                           'yet.</p>'.format(plant_note))
+        elif is_mobile:
+            # mobile boss with no detectable plant window → no honest map; keep the (frame-independent) verdict
+            maps_html = ('<p class="posnote" style="opacity:.8">This is a <b>mobile</b> boss with no settled '
+                         'plant window long enough to snapshot a formation; the spread radius below is still '
+                         'valid (it measures cohort spacing, independent of the boss\'s path).</p>')
         else:
             o_map = _formation_panel(o_pos, o_roles, frame)
             t_map = _formation_panel(t_pos, t_roles, frame)

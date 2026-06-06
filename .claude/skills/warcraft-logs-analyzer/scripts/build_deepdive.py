@@ -1335,10 +1335,20 @@ def threat_pulls(report, fight_info, role_map, boss_name, opener_sec=30, max_ban
     threat = ((report.get("threat") or {}).get("data") or {}).get("threat") or []
     pulls = []
     by_spec, opener_by_spec = {}, {}
+    casts = None  # per-fight cast mix, computed lazily only to disambiguate a dps-classified bear Feral
     for t in threat:
         nm = t.get("name")
         if nm not in role_map or role_map.get(nm) == "tank":
             continue  # only roster non-tank players (tanks/pets/NPCs excluded)
+        # role_map is the WHOLE-REPORT majority role. A Feral Druid logged as "dps" overall may have
+        # BEAR-TANKED this specific fight — holding the boss is then her job, not a threat pull. Use the
+        # per-fight cast mix (bear abilities vs cat) to catch that and skip her, so we don't flag a tanking
+        # bear as her own aggro problem. Druid-only check; cast table fetched once on first Druid seen.
+        if (class_map or {}).get(nm) == "Druid":
+            if casts is None:
+                casts = _casts_by_name(report)
+            if _druid_form(casts.get(nm, {})) == "bear":
+                continue
         for tg in (t.get("targets") or []):
             if tg.get("name") != boss_name:
                 continue  # scope to the actual boss, not its adds

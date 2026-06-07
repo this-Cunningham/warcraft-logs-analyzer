@@ -887,16 +887,23 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
             tabs, panels, replant_n = [], [], 0
             for idx, r in enumerate(rows_m):
                 ow, tw = r["o"], r["t"]
-                # 1) the main snapshot in the ONE FIXED frame (perspective constant across tabs)
-                panel = _panel_at(ow, tw, win_frame, None)
-                # 2) the same moment ZOOMED to just this stand's positions (tight, NOT boss-centered)
+                # The formation in the ONE FIXED frame (constant across tabs) AND the same stand ZOOMED tight
+                # to just this moment's positions (NOT boss-centered) — shown via a "Fixed frame / Zoom" TOGGLE
+                # (one at a time, switched by the delegated .poszoombtn handler), not stacked vertically.
+                fixed_panel = _panel_at(ow, tw, win_frame, None)
                 mspecs = (([(o_pos, ow["lo"], ow["hi"])] if ow else [])
                           + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
                 moment_frame = _window_frame(mspecs)
                 if moment_frame:
-                    panel += _hdr('<b>Zoomed to this moment</b> — the same stand, framed tight to just this '
-                                  'moment\'s positions (not boss-centered).') + _panel_at(ow, tw, moment_frame, "zoomed to this moment")
-                # 3) Boss MOVEMENT TRAIL — cumulative boss spot per tab, ours and benchmark in SEPARATE windows
+                    zoom_panel = _panel_at(ow, tw, moment_frame, "zoomed to this stand")
+                    panel = ('<div class="poszoomgroup"><div class="poszoomtabs">'
+                             '<button class="poszoombtn active" data-zoom="0" type="button">Fixed frame</button>'
+                             '<button class="poszoombtn" data-zoom="1" type="button">Zoom</button></div>'
+                             '<div class="poszoompane" style="display:block">' + fixed_panel + '</div>'
+                             '<div class="poszoompane" style="display:none">' + zoom_panel + '</div></div>')
+                else:
+                    panel = fixed_panel
+                # Boss MOVEMENT TRAIL — cumulative boss spot per tab, ours and benchmark in SEPARATE windows
                 #    (same fixed frame, so the two paths still line up positionally).
                 o_trail = [rows_m[j]["o"]["bossXY"] for j in range(idx + 1)
                            if rows_m[j]["o"] and rows_m[j]["o"].get("bossXY")]

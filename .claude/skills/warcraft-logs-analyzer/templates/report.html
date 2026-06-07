@@ -150,6 +150,11 @@
   .postab{padding:3px 11px;border-radius:7px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   .postab:hover{color:var(--txt)}
   .postab.active{background:var(--accent,#7c83ff);color:#06101f;border-color:transparent}
+  /* Fixed-frame / Zoom toggle inside a snapshot tab */
+  .poszoomtabs{display:inline-flex;gap:4px;margin:2px 0 8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px}
+  .poszoombtn{padding:2px 12px;border-radius:6px;background:transparent;color:var(--muted);border:none;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .poszoombtn:hover{color:var(--txt)}
+  .poszoombtn.active{background:var(--accent,#7c83ff);color:#06101f}
   .optbench{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:13px;color:var(--muted)}
   .optbench b{color:var(--txt)}
   .optlabel{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);margin-right:4px}
@@ -287,7 +292,19 @@ const DATA = /*__DATA__*/null;
 // one .postabs bar of .postab buttons (data-pos=index) and a .pospanels list of .pospanel divs; clicking a
 // tab shows that panel and hides the rest, scoped to the clicked button's own .posblock.
 document.addEventListener("click", (e) => {
-  const tab = e.target.closest && e.target.closest(".postab");
+  if (!e.target.closest) return;
+  // Fixed-frame / Zoom toggle within a snapshot (scoped to its own .poszoomgroup)
+  const zb = e.target.closest(".poszoombtn");
+  if (zb) {
+    const grp = zb.closest(".poszoomgroup");
+    if (grp) {
+      const zi = parseInt(zb.getAttribute("data-zoom"), 10) || 0;
+      grp.querySelectorAll(".poszoompane").forEach((p, i) => { p.style.display = (i === zi ? "block" : "none"); });
+      zb.parentNode.querySelectorAll(".poszoombtn").forEach((b) => b.classList.toggle("active", b === zb));
+    }
+    return;
+  }
+  const tab = e.target.closest(".postab");
   if (!tab) return;
   const block = tab.closest(".posblock");
   if (!block) return;
@@ -699,9 +716,14 @@ function hitCapView(d){
   for(const p of pls){
     const pct=v=>v>0?v+"%":'<span class="cna">—</span>';   // 0 sources read as a muted dash
     const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.effPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
-    const tgtCell=`${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
+    // Ungraded (a role-fluid Feral / tank with no same-spec benchmark): the bare cat/melee cap isn't a real
+    // target for them, so show "—" + the reason instead of a number they appear to "fail".
+    const ungReason = (p.spec==='Feral'?'tank-fluid Feral':'tank')+' — not graded (no same-spec benchmark)';
+    const tgtCell=p.ungraded
+      ? `<span class="cna">—</span> <span class="num" style="opacity:.7">${ungReason}</span>`
+      : `${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
     const expCell=p.physical?(`${p.expertise}`+(p.benchExp!=null?` <span class="num">(bench ${p.benchExp})</span>`:"")):'<span class="cna">—</span>';
-    const roleCell=p.role==='tank'?'<b>tank</b>':esc(p.role||'');
+    const roleCell=(p.role==='tank'||p.ungraded)?'<b>tank</b>':esc(p.role||'');
     h+=`<tr class="${p.under?'isgap':''}"><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
       <td class="num">${esc(p.spec)}</td><td class="num">${roleCell}</td>
       <td class="num">${p.gearPct}%</td><td class="num">${pct(p.talentPct)}</td><td class="num">${pct(p.raidPct)}</td>
@@ -1576,7 +1598,11 @@ function optBossBody(d,cls,s,b){
   }
   const amt=bm.amount!=null?` · ${fmtR(bm.amount)} ${optMetricLbl(bm.metric)}`:"";
   const guild=bm.guild?` · ${esc(bm.guild)}`:"", reg=bm.region?` (${esc(bm.region)})`:"";
-  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — top ${fac} ${esc(s.spec)} ${esc(cls)} (World #${bm.globalRank} overall) on <b>${esc(b.name||"")}</b>${amt}</div>`;
+  // When WCL gave no faction on this encounter (e.g. Kael'thas returns faction=-1 for all entries), the
+  // benchmark falls back to the global #1 — say "top" (not "top Horde") and flag it as faction-unverified.
+  const facLbl=(bm.sameFaction===false)?"top":("top "+fac);
+  const facNote=(bm.sameFaction===false)?` <span class="num" style="opacity:.7">· faction unverified on this boss</span>`:"";
+  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — ${facLbl} ${esc(s.spec)} ${esc(cls)} (World #${bm.globalRank} overall) on <b>${esc(b.name||"")}</b>${amt}${facNote}</div>`;
   const players=rowsOf(b.players);
   if(!players.length){
     // Distinguish the two reasons players can be empty: a genuine role/form mismatch vs the benchmark's

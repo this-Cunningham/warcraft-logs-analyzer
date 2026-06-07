@@ -476,14 +476,16 @@ def stat_audit_compare(ours, theirs):
         else:
             target, margin = p["cap"], 3.0
         under = p["effPct"] < target - margin
-        # Don't invent a bare-cap "under hit" gap for a role-fluid Feral druid (bear/cat) or a tank when
-        # the benchmark fielded no same-spec player to compare against. A bear legitimately deprioritizes
-        # gear hit, so judging 3% hit against the 9% cat-DPS cap would otherwise put a half-night tank at
-        # the very top of the per-player gear-fix list with no role context.
-        if bench_hit is None and (p.get("role") == "tank" or (p["class"] == "Druid" and p["spec"] == "Feral")):
+        # Don't grade a role-fluid Feral druid (bear/cat) or a tank against the BARE CAP when the benchmark
+        # fielded no same-spec player to compare against. A bear legitimately deprioritizes gear hit, so the
+        # 9% cat-DPS cap is the wrong yardstick — judging 3% hit against it would put a half-night tank atop
+        # the per-player gear-fix list. Mark the row UNGRADED so the UI shows "—" for the target (no false
+        # red, and no misleading number to "fail"), with the reason, instead of silently leaving it unflagged.
+        ungraded = bench_hit is None and (p.get("role") == "tank" or (p["class"] == "Druid" and p["spec"] == "Feral"))
+        if ungraded:
             under = False
         n_under += 1 if under else 0
-        rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp,
+        rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp, "ungraded": ungraded,
                      "target": round(target, 1), "under": under, "gap": round(target - p["effPct"], 1)})
     rows.sort(key=lambda r: (not r["under"], -r["gap"]))
 
@@ -2084,6 +2086,7 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
                 "benchmark": {"name": player.get("name"), "guild": player.get("guild"),
                               "server": player.get("server"), "region": player.get("region"),
                               "amount": player.get("amount"), "globalRank": player.get("globalRank"),
+                              "sameFaction": player.get("sameFaction", True),
                               "metric": metric} if player.get("name") else None,
                 # Did the world-best player's CAST table actually fetch? When it didn't (empty abilities),
                 # every raider is dropped and players==[], which would otherwise render the "no raider

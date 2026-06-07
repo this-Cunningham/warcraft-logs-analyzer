@@ -34,6 +34,10 @@ import re
 from report_common import read_json
 
 SCALE = 52.8  # WCL units per yard — a FLOOR (UiMap 334 bounds fit); yard figures are approximate, ratios exact.
+# Snapshot panels pin WIDTH to 260px. A WIDE zoom stand would render short & crunched at 260, so we render it
+# a touch wider (uniform scale — proportions unchanged) for a bit more room; two still sit side by side in the
+# ~1080px content column. Tall zoom stands and the fixed frame keep the 260 width untouched.
+_WIDE_ZOOM_W = 320
 
 # Role palette (matches references/rendering.md): red is reserved for melee, so the boss is neutral silver.
 COLORS = {"tank": "#f59e0b", "melee": "#ef4444", "healer": "#a3e635", "ranged": "#a855f7"}
@@ -596,11 +600,17 @@ def _mmss(sec):
     return "{}:{:02d}".format(sec // 60, sec % 60)
 
 
-def _formation_at(pos, roles, frame, lo, hi, W=260):
+def _formation_at(pos, roles, frame, lo, hi, W=260, wide_room=False):
     """A formation panel like `_formation_panel`, but each actor's (and the boss's) position is the median
     over a TIME WINDOW of bins [lo, hi) — so we can snapshot the raid's shape at a specific moment (a phase
     start) instead of smearing the whole fight into one median. Tracks are carry-forward filled first, so an
-    idle actor in the window isn't dropped. Same shared frame/scale as every other snapshot → comparable."""
+    idle actor in the window isn't dropped. Same shared frame/scale as every other snapshot → comparable.
+    `wide_room`: the projector pins panel WIDTH to W, so a tall stand renders roomy (W×big-H) while a WIDE
+    stand renders short & crunched (its long edge capped at W). For zoom snapshots we render a wide stand a
+    touch wider (W=`_WIDE_ZOOM_W`) — a UNIFORM scale-up, so the aspect ratio / proportions are unchanged, it
+    just isn't cramped; two panels still sit side by side. Tall stands and the fixed frame keep W=260."""
+    if wide_room and frame[2] - frame[0] > frame[3] - frame[1]:
+        W = _WIDE_ZOOM_W            # a wide stand renders a bit wider than the 260 tall-panel width
     scale, H, sx, sy = _projector(frame, W)
     parts = _grid_and_border(W, H, scale)
     bd = pos.get("boss") or {}
@@ -867,17 +877,17 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                         + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
             win_frame = _window_frame(allspecs, pad_frac=0.10) or frame
 
-            def _panel_at(ow, tw, fr, label):
+            def _panel_at(ow, tw, fr, label, wide_room=False):
                 if ow and tw:
-                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
-                    tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"])
+                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"], wide_room=wide_room)
+                    tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"], wide_room=wide_room)
                     sub = label or "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
                     return _dual(om, tm, o_name, t_name, sub)
                 if ow:
-                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
+                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"], wide_room=wide_room)
                     return _single(om, o_name, "ours", label or
                                    "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
-                tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"])
+                tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"], wide_room=wide_room)
                 return _single(tm, t_name, "theirs", label or
                                "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
 
@@ -895,7 +905,7 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                           + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
                 moment_frame = _window_frame(mspecs)
                 if moment_frame:
-                    zoom_panel = _panel_at(ow, tw, moment_frame, "zoomed to this stand")
+                    zoom_panel = _panel_at(ow, tw, moment_frame, "zoomed to this stand", wide_room=True)
                     panel = ('<div class="poszoomgroup"><div class="poszoomtabs">'
                              '<button class="poszoombtn active" data-zoom="0" type="button">Fixed frame</button>'
                              '<button class="poszoombtn" data-zoom="1" type="button">Zoom</button></div>'

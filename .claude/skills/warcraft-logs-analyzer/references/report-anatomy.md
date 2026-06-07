@@ -306,11 +306,14 @@ the old Bosses-tab sub-tabs, now distributed across Output / Survival / Buffs & 
   boundaries differ because the timelines do (full-height dividers would fake an alignment that isn't
   there). The track only renders when a side has phase transitions. Inline SVG, no libs. **Curves from events, not `graph()`** (see Timeline note
   below). **Opener caption** (`opener_gap` → `b.openerGap`): first ~30s of raid DPS, reddened
-  only if we trail. **Per-spec sub-tabs** (`spec_timelines`/`_spec_curves`) plot each spec's curve
-  **PER PLAYER** (summed bins ÷ bin width ÷ the spec's distinct player count) — matching the DPS-by-Spec
-  table's avg/player, so a side with more players of a spec doesn't draw ~Nx taller when each player is
-  worse. The Melee/Ranged aggregate curves sum those per-player spec curves over overlapping specs; the
-  per-spec title annotates each side's player count when they differ.
+  only if we trail. **Inner tabs: Raid · Melee DPS · Ranged DPS · By spec** — the two aggregates stay as
+  tabs; the individual per-spec curves collapse behind the **By spec** tab's dropdown (`select.tlspecsel`,
+  `tlSpec[enc]` persists the choice across the `dmgMode` re-render) so the bar is ~4 tabs, not a dozen.
+  Each spec's curve (`spec_timelines`/`_spec_curves`) is plotted **PER PLAYER** (summed bins ÷ bin width ÷
+  the spec's distinct player count) — matching the DPS-by-Spec table's avg/player, so a side with more
+  players of a spec doesn't draw ~Nx taller when each player is worse. The Melee/Ranged aggregate curves
+  sum those per-player spec curves over overlapping specs; the per-spec title annotates each side's player
+  count when they differ.
   - **Ghost Run overlay** (EXPERIMENTAL, `ghostInner`/`computeGhost` over `deep.ghostRun`, on the Raid-DPS
     sub-view) — a master toggle draws a dashed-green **ghost line**: your raid DPS as if the costliest DPS
     deaths hadn't happened (each revived raider projected at their **night-average DPS** from death to kill),

@@ -131,6 +131,7 @@
   .btab{padding:6px 14px;border-radius:8px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   .btab:hover{color:var(--txt)}
   .btab.on{background:var(--ours);color:#06101f;border-color:transparent}
+  select.tlspecsel{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
   /* Per-spec Timeline tabs: class colour rides on --tlc (set inline). Inactive = coloured text;
      active = filled with the class colour. Raid / Melee / Ranged tabs set no --tlc → default accent. */
   .tltabs{margin-top:10px}
@@ -347,7 +348,8 @@ const dDelta=(o,t,fmt,unit,lower)=>{if(o==null||t==null)return{cls:"flat",txt:""
 let dmgMode="persec"; // "persec" | "total" — toggled in the Output Quality section, drives all damage-taken displays
 let combatScope="all"; // Combat-tab scope: "all" (raid-wide) | "<encounterID>" (one boss) — survives the dmgMode re-render
 let combatDim="output";// Combat-tab dimension: "output"|"survival"|"buffs"|"mech" — survives re-render & re-scope
-const tlTab={};        // per-boss Timeline inner-tab state, keyed by encounterID -> "raid" | "s<i>"
+const tlTab={};        // per-boss Timeline inner-tab state, keyed by encounterID -> "raid" | "s<i>" | "byspec"
+const tlSpec={};       // per-boss "By spec" dropdown selection (individual-spec index) — survives re-render
 
 function consumeMatrix(ppc){
   const bosses=rowsOf(ppc.bosses), players=rowsOf(ppc.players);
@@ -1434,22 +1436,35 @@ function timelineChart(b){
      ${spreadView(b)}`,
     cur==="raid");
 
-  specs.forEach((s,i)=>{
-    const k="s"+i, on=cur===k;
-    const color=s.agg?null:cc(s.class);          // class-colour the per-spec tabs; aggregates stay neutral
-    const label=s.agg?s.spec:`${s.spec} ${s.class}`;
-    tabs+=tabBtn(k,label,color,on);
+  // Shared chart title for a spec (aggregate vs individual).
+  const specTitle=(s)=>{
     const unit=s.metric==="hps"?"HPS":"DPS";
     const pnote=(!s.agg&&s.oursPlayers&&s.theirsPlayers)
       ? ` <span class="num" style="font-size:11px;opacity:.65">(per player${s.oursPlayers!==s.theirsPlayers?` — ours ${s.oursPlayers}p vs benchmark ${s.theirsPlayers}p`:""})</span>` : "";
-    const title=s.agg
+    return s.agg
       ? `${esc(s.spec)} over time <span class="role" style="text-transform:none;letter-spacing:0">· ${s.specCount} spec${s.specCount>1?"s":""} combined, ours vs benchmark</span>`
       : `<span style="color:${cc(s.class)}">${esc(s.spec)} ${esc(s.class)}</span> <span class="role" style="text-transform:none;letter-spacing:0">— ${unit} over time, ours vs benchmark</span>${pnote}`;
-    panes+=pane(k,`<h4 style="margin:8px 0 2px">${title}</h4>${tlChart(s.ours,s.theirs,tl.ours,tl.theirs)}`,on);
+  };
+  // Aggregates (Melee DPS / Ranged DPS) stay as primary tabs; the individual per-spec curves collapse
+  // behind ONE "By spec" tab with a dropdown — so the bar is ~4 tabs instead of a dozen.
+  specs.forEach((s,i)=>{
+    if(!s.agg) return;
+    const k="s"+i, on=cur===k;
+    tabs+=tabBtn(k,s.spec,null,on);
+    panes+=pane(k,`<h4 style="margin:8px 0 2px">${specTitle(s)}</h4>${tlChart(s.ours,s.theirs,tl.ours,tl.theirs)}`,on);
   });
+  const indiv=specs.map((s,i)=>({s,i})).filter(x=>!x.s.agg);
+  if(indiv.length){
+    const k="byspec", on=cur===k;
+    tabs+=tabBtn(k,"By spec",null,on);
+    const selIdx=(tlSpec[enc]!=null&&indiv.some(x=>x.i===tlSpec[enc]))?tlSpec[enc]:indiv[0].i;
+    const opts=indiv.map(x=>`<option value="${x.i}"${x.i===selIdx?" selected":""}>${esc(x.s.spec)} ${esc(x.s.class)}</option>`).join("");
+    const charts=indiv.map(x=>`<div class="tlspecpane" data-tlboss="${enc}" data-tlspec="${x.i}" style="display:${x.i===selIdx?"block":"none"}"><h4 style="margin:8px 0 2px">${specTitle(x.s)}</h4>${tlChart(x.s.ours,x.s.theirs,tl.ours,tl.theirs)}</div>`).join("");
+    panes+=pane(k,`<div class="segwrap" style="margin:6px 0 8px"><label class="lbl" for="tlspec-${enc}">Spec</label><select id="tlspec-${enc}" name="tlspec-${enc}" class="tlspecsel" data-tlboss="${enc}">${opts}</select></div>${charts}`,on);
+  }
 
   const tabBar=specs.length?`<div class="btabs tltabs">${tabs}</div>`:"";
-  const specNote=specs.length?` Use the tabs below for <b>Melee DPS</b> / <b>Ranged DPS</b> aggregates or an individual spec — each compares ours vs the benchmark's same spec, restricted to specs both raids fielded.`:"";
+  const specNote=specs.length?` Use the tabs below for <b>Melee DPS</b> / <b>Ranged DPS</b> aggregates, or <b>By spec</b> for an individual spec — each compares ours vs the benchmark's same spec, restricted to specs both raids fielded.`:"";
   return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Both fights share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line just <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are event-binned into ${tl.n} slices from every damage/heal event (not WCL's smoothed graph), so they track the Raid DPS shown elsewhere — they include all-target damage, so on add fights the curve can read a few percent above or below the boss-scoped Raid DPS number. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.${specNote}</p>
     ${legend}
     ${opLine}
@@ -1574,11 +1589,17 @@ function wireCombat(){
   el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{
     if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; renderCombatPanel(); wireCombat(); }
   }));
-  // Timeline inner tabs (Raid / Melee DPS / Ranged DPS / per-spec), scoped by data-tlboss.
+  // Timeline inner tabs (Raid / Melee DPS / Ranged DPS / By spec), scoped by data-tlboss.
   el.querySelectorAll(".btab[data-tlboss]").forEach(t=>t.addEventListener("click",()=>{
     const boss=t.dataset.tlboss, k=t.dataset.tlk; tlTab[boss]=k;
     el.querySelectorAll(`.btab[data-tlboss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.tlk===k));
     el.querySelectorAll(`.tlpane[data-tlboss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.tlk===k));
+  }));
+  // "By spec" dropdown inside the Timeline view — toggles which individual spec chart shows (per boss).
+  el.querySelectorAll(".tlspecsel").forEach(sel=>sel.addEventListener("change",()=>{
+    const v=sel.value; tlSpec[sel.dataset.tlboss]=+v;
+    const pane=sel.closest(".tlpane");
+    if(pane) pane.querySelectorAll(".tlspecpane").forEach(p=>{ p.style.display=(p.dataset.tlspec===v?"block":"none"); });
   }));
   // Ghost Run overlay toggles (master + per-death). Delegated on the persistent .ghostwrap node so the
   // listener survives the in-place innerHTML re-render the toggle triggers.

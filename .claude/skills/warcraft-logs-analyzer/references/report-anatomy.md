@@ -2,7 +2,7 @@
 
 `build_deepdive.py` (invoked by `compare_raids.py`) injects a `const DATA` blob into
 `templates/report.html` (inline CSS+JS, dark, offline, no CDN) by replacing the
-literal `/*__DATA__*/null`. Seven top-level tabs, a funnel:
+literal `/*__DATA__*/null`. Eight top-level tabs, a funnel:
 
 | Tab | Question it answers |
 |---|---|
@@ -108,9 +108,11 @@ the honest version.)
   of the potion-uses count: did the throughput potion land **on the pull** (the free TBC opener prepot,
   which shares a cooldown with the in-combat potion so skipping it wastes a potion) or only reactively
   mid-fight. From the aggregate Buffs `bands` (earliest potion band start vs fight start; ≤3s ≈ on the
-  pull). **Raid-aggregate** (bands merge across players) → an honest raid-level "opener potion on the pull:
-  X/N bosses", NOT a per-player prepotter count (an honest raid-level aggregate, same precedent as the
-  aggregate Buffs-table uptimes).
+  pull). **Scans THROUGHPUT potions only** (`THROUGHPUT_POTION_IDS` = Haste 28507 / Destruction 28508) —
+  the defensive **Ironshield** potion (28515, in the usage `POTION_IDS`) is a tank damage-absorb, not a free
+  DPS opener, so it must NOT count as a prepot or a tank's pull Ironshield fabricates a green "prepotted"
+  cell and halves the real DPS-prepot gap. **Raid-aggregate** (bands merge across players) → an honest
+  raid-level "opener potion on the pull: X/N bosses", NOT a per-player prepotter count.
 - **Enchants & Weapon Oils** (`audit_report`) — missing enchants from
   `combatantInfo.gear.permanentEnchant` + weapon-oil presence, restricted to the
   **shared-boss roster** (matches Composition). **Windfury counts as a weapon buff for
@@ -136,11 +138,19 @@ the honest version.)
     a Balance Druid is in that side's roster (raid-wide boss debuff). NOT modeled: Totem of Wrath / Heroic
     Presence (party-scoped), Misery (it's +5% spell DAMAGE, not hit). Melee/ranged raid = 0.
   **Target** = the *benchmark's same-spec EFFECTIVE* hit, capped at the textbook cap (`HIT_CAP`: spell 16 ·
-  melee 9 · ranged 8); same-spec so talents (shared) cancel and a raid buff asymmetry (we run boomkins,
+  melee 9 · ranged 9); same-spec so talents (shared) cancel and a raid buff asymmetry (we run boomkins,
   they don't) doesn't wrongly flag our capped casters. Flag = a clear margin under target (2pp vs a real
   benchmark, 3pp vs the bare cap). Talent's real payoff is an HONEST effective-vs-cap read — a Shadow
   Priest at 6% gear is capped via Shadow Focus, not under (under-flag count 7→2 on the sample). Expertise
   shown benchmark-relative only (unit ambiguous, no absolute cap claim). Graceful "" on older folders.
+  - **Summary cards compare GEAR+TALENT, not effective.** The "Avg Caster/Melee/Ranged Hit (gear+talent)"
+    cards drop the raid Imp-FF component so the better/worse delta reflects the controllable itemization
+    lever — otherwise an asymmetric boomkin buff (Imp FF on one side only) paints a green "we hit better"
+    while our casters' own gear+talent hit is worse. Melee/ranged have no raid hit component, so there
+    gear+talent == effective. The per-player table still shows full Effective hit + a **Role** column.
+  - **Role-fluid Feral / tanks are not flagged on the bare-cap fallback.** A bear that tanks half the night
+    legitimately deprioritizes gear hit; when the benchmark fielded no same-spec player to compare against,
+    a Feral druid or a tank is not flagged `under` against the bare 9% cat cap (no invented gear gap).
 - **Item level** — raid avg (`fights.averageItemLevel`) + **by role** (`role_ilvl`:
   dps/healer/tank from dd/heal/dt) so an under-geared role stands out.
 
@@ -164,10 +174,10 @@ the honest version.)
   (Activity by Spec was cut in the /audit pass — no decision hung on it: it named a trailing spec's
   active-GCD uptime but couldn't say *why*, and the cause lives in Add Control / Damage Taken / Positioning.
   The raid-wide Activity aggregate still feeds Output Quality and the Overview scorecard. See TODO.md.)
-- **DPS Ramp** (`dps_ramp` → `dpsRampView`) — **EXPERIMENTAL**, per boss: seconds to first reach 90% of
-  the fight's **median** (cruising) DPS — how fast the raid got up to pace after the pull (median is robust
-  to the opener and any execute spike). Coarse (binned to the timeline buckets), ours vs benchmark, lower
-  better. Complements the per-boss opener caption with a tier-wide "who starts slow" read.
+  (Cut: *DPS Ramp* — seconds to reach 90% of the fight's median DPS. Its self-normalization to each raid's
+  OWN median meant a weak raid (low median) could read a "fast ramp" while its absolute opener DPS trailed —
+  an honesty wobble — and the opener caption already covers the start. `dps_ramp`/`dpsRampView` and the
+  `deep.dpsRamp` payload were removed; the per-boss opener caption remains.)
 - **Buff & Debuff Coverage Gaps** (`tier_uptime_gap` → `tierUptimeGapView`) — each
   aura's avg uptime, listing only where we trail (biggest deficit first).
 - **Debuff Ramp & Continuity** (`debuff_timing`/`tier_debuff_timing` → `debuffTimingView`) —
@@ -200,11 +210,10 @@ the honest version.)
   `band` overlapped the lust window — did the burst actually coincide with lust (counts types, not
   activations: you can't hold a 2-min cooldown for one window). Graceful "—" when a side didn't lust /
   has no timeline. Assembled from the per-boss `oursLustSec`/`oursLustMult`/`oursLustCd` fields.
-- **Rotation — Ability Mix** (`rotation_buckets`/`tier_rotation` → `rotationView`) —
-  per spec both raids fielded, **share** of casts per ability (from the **Casts** table;
-  `dd.abilities` only covers damaging). DPS + Healer sub-tabs (`data-rtab`). Specs
-  within `collapse_diff` (5pp) collapse to a green "matches benchmark" chip. **Descriptive,
-  not scored** (cast mix is gear/talent/fight-driven); spec grain; `min_share` drops fillers.
+  (Cut: *Rotation — Ability Mix*, a tier-wide per-spec cast-share-vs-benchmark table. It pooled a spec's
+  casts across raids, which blended a bear-Feral's threat casts into the cat-Feral comparison (a form/role
+  blind spot). Superseded by the **Optimize** tab, which compares each raider's rotation per boss against the
+  world best with form/role awareness. `rotation_buckets`/`tier_rotation`/`rotationView`/`data-rtab` removed.)
 - **Early Aggro — Threat Pulls** (`threat_pulls` → `threatPullsView`) — new modality
   (`table(Threat)`): per boss, count of times a **non-tank** held the **named boss's**
   aggro, + opener count (first 30s). Clean better/worse (fewer = better). **Two scopings
@@ -212,10 +221,9 @@ the honest version.)
   reads 131% on Al'ar — that naive metric was NOT built); (2) only **brief** holds (≤15s
   — a sustained hold is an intended off-tank). Tanks/pets excluded. Under-counts. Opener
   count feeds the scorecard.
-- **Target Focus** (`focus_view` → `focusFireView`) — avg share of raid damage on the
-  single most-focused enemy per time slice (higher = concentrated). **Free** — binned off
-  the Timeline's DamageDone pull by `targetID` (`_binned_curves`). Shown only when both
-  sides multi-target (`multiTarget`: top-enemy share <80% AND ≥2 enemies ≥5%). Descriptive.
+  (Cut in the /audit pass: *Target Focus* — avg share of raid damage on the single most-focused enemy per
+  slice. It was redundant with **Add Control — Kill Speed** (which names the actual add) and read as
+  scored despite being descriptive. `focus_view`/`focusFireView` and the `deep.focusFire` payload removed.)
 - **Add Control — Kill Speed** (`target_engagement`/`_targets_by_name` →
   `targetEngagementView`) — per boss >1 target, for each non-boss add either raid engaged,
   survival (median first→last hit), ranked by how much **slower** we are. A slower add =
@@ -227,16 +235,10 @@ the honest version.)
   **DPS gap diagnosis** (`dps_diagnosis` → `quality.dpsDiagnosis`) splits the raid-DPS
   deficit into an **activity** (uptime/movement) vs **throughput** (gear/rotation/buffs)
   component — what *kind* of fix. An estimate; silent unless we trail on raid DPS.
-- **Healing Efficiency by Spec** (`heal_eff_buckets`/`tier_heal_eff_gap` → `healEfficiencyView`) —
-  **EXPERIMENTAL**, the per-healer-spec decomposition of the raid **Overheal %** number (sits right under
-  Output Quality). Each healer spec's overheal % (overheal ÷ (overheal + effective), pooled across shared
-  bosses) ours vs the benchmark's **same spec**, biggest excess first — names which healer spec is
-  splashing/sniping inefficiently (coachable on spell choice, snipe discipline, assignments). Same-spec
-  comparison cancels the structural HoT-vs-direct-heal overheal difference (Resto Druid ~67% on both
-  sides), leaving the residual Δ as the real signal. Specs with no benchmark same-spec ride along as a
-  first-party absolute note (overheal% is a valid absolute — lower is tighter). DPS got DPS-by-spec and
-  Activity got Activity-by-spec; this completes the set for Overheal. (Note: NOT decomposable by *spell* —
-  the Healing table carries `overheal` only at the player level, not per ability.)
+  (Cut: *Healing Efficiency by Spec* — each healer spec's overheal % vs the benchmark's same spec. On the
+  sample it was extremely thin (only 1 of 6 specs had a same-spec benchmark to compare), so it rarely said
+  anything actionable. The raid-wide Overheal % stays under Output Quality. `heal_eff_buckets`/
+  `tier_heal_eff_gap`/`healEfficiencyView` and the `deep.healEffGap` payload removed.)
 - **Clear Efficiency** (`efficiency`) — first-pull→last-kill wall-clock vs in-combat time,
   **scoped to shared bosses** on each side (filters fights to shared encounters — the bug
   fix: the old full-report span was meaningless when the two reports covered different
@@ -261,7 +263,11 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
   boundaries differ because the timelines do (full-height dividers would fake an alignment that isn't
   there). The track only renders when a side has phase transitions. Inline SVG, no libs. **Curves from events, not `graph()`** (see Timeline note
   below). **Opener caption** (`opener_gap` → `b.openerGap`): first ~30s of raid DPS, reddened
-  only if we trail.
+  only if we trail. **Per-spec sub-tabs** (`spec_timelines`/`_spec_curves`) plot each spec's curve
+  **PER PLAYER** (summed bins ÷ bin width ÷ the spec's distinct player count) — matching the DPS-by-Spec
+  table's avg/player, so a side with more players of a spec doesn't draw ~Nx taller when each player is
+  worse. The Melee/Ranged aggregate curves sum those per-player spec curves over overlapping specs; the
+  per-spec title annotates each side's player count when they differ.
   - **Ghost Run overlay** (EXPERIMENTAL, `ghostInner`/`computeGhost` over `deep.ghostRun`, on the Raid-DPS
     sub-view) — a master toggle draws a dashed-green **ghost line**: your raid DPS as if the costliest DPS
     deaths hadn't happened (each revived raider projected at their **night-average DPS** from death to kill),
@@ -271,6 +277,11 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
     average, no battle-res, no phase gate). Moved here from a standalone Execution text block (TODO.md) so
     the cost lands in the fight's shape — *when* the deaths hurt, not just how much.
 - **Buff Uptime** — boss debuffs + raid buffs, value←bar—name—bar→value, sorted by delta.
+  On a multi-target boss a **Debuffs-by-Enemy-Target zoom** (`per_target_debuffs` → `targetDebuffsView`)
+  decomposes each key debuff's uptime per enemy (normalized to that enemy's *engaged* window). Cells whose
+  raw debuff ms implausibly exceeds the enemy's active window (>110% — a multi-instance / fight-end
+  force-close artifact on reused phased-add NPC ids that would otherwise CLAMP to a fake 100%) are
+  **dropped, not laundered**, so the zoom can't manufacture a false "they held it, you didn't" lever.
 - **DPS by Spec** (`spec_gap` → `specDpsView`) — DamageDone bucketed by (class, spec) for
   DPS, ranked by per-player deficit (avg/player, so 3-vs-2 mages stays fair). Spec grain, no
   per-player drill-down.
@@ -284,7 +295,10 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
   with Fire Mages, you used Ele Shaman"). Descriptive. Below: **Casts That Went Off Un-kicked**
   (leaked = `missedCasts[]` filtered to hostile casters).
 - **Dispels** (`disp_compare` → `dispelsView`) — which enemy auras each raid *chose* to remove,
-  how often. **Descriptive, neutral Δ** (more dispels ≠ better; a debuff can be dispellable yet
+  how often. **Counts only removals whose TARGET actor is hostile** (`details[].actors[].type` in
+  Boss/NPC): the WCL Dispels table also lists friendly cleanses (a Mind-Control break, an ally poison-cure),
+  which are defensive plays, not enemy-aura removals — including them would mislabel the view and inflate the
+  count. **Descriptive, neutral Δ** (more dispels ≠ better; a debuff can be dispellable yet
   un-kickable). Kept per-boss (tier-wide would lose which fight).
 - **Phases** (`phase_compare`) — per-phase duration + share, delta, from `phaseTransitions`.
   **Phase NAMES** from report-level `report.phases` (`PhaseMetadata{id,name}`, populated in TBC
@@ -435,8 +449,8 @@ only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compas
   sub-tab, present only on non-mobile bosses with a positions file):
   - **Raid formation & spread** (feature 2) — side-by-side formation maps (one shared frame+scale,
     role-coloured dots, boss diamond + dashed ring) + the spread-vs-demand verdict. When phase data exists,
-    the single whole-fight median map is replaced by **phase-anchored snapshots** (`_snapshot_windows` +
-    `_formation_at`): the raid's *settled* formation at the opening + each phase start (a few seconds in, so
+    the single whole-fight median map is replaced by **phase-anchored snapshots** (`_plant_windows` +
+    `_match_moments` + `_formation_at`): the raid's *settled* formation at the opening + each phase start (a few seconds in, so
     it's the formation, not the transition scramble), ours vs benchmark per moment — *where the raid stood
     when it mattered*, not a whole-fight smear. Falls back to the single median map on single-phase bosses
     (no coverage regression); mobile bosses stay suppressed. Add positions + per-actor **facing arrows** are

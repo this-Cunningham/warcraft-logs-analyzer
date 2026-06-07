@@ -8,40 +8,25 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 
 ---
 
-## TODO: Positioning snapshots — fetch add positions + per-actor facing
+## SHIPPED: Positioning snapshots — add positions + per-actor facing (2026-06-06, commit b680c60)
 
 > the remaining half of the formation-snapshot reframe — adds shown too, and the direction each is facing
 
-**Status of the reframe so far:** the phase-anchored snapshot half shipped — the Positioning sub-tab now
-shows the raid's *settled formation at the opening + each phase* (ours vs benchmark per moment) instead of
-one whole-fight median smear, with a graceful fallback to the single map on single-phase bosses. What's
-left is the half the **fetch pipeline can't yet feed**: the cached `positions-<enc>.json` carries only
-roster actor x/y bins + the single boss anchor track — **no `facing` field and no non-boss hostile (add)
-actors**. So facing arrows and add dots can't be drawn without first capturing that data.
+**Done.** Both halves of the reframe shipped:
+- **Phase-anchored snapshots** — the Positioning sub-tab shows the raid's *settled formation at the opening
+  + each phase* (ours vs benchmark per moment), with a graceful fallback to a single map on single-phase
+  bosses. (Mobile bosses, e.g. Al'ar, get NO Positioning sub-tab — a single arena-wide frame would smear
+  the formation and the snapshots would pair physically different boss platforms.)
+- **Per-actor facing — captured + rendered.** `_page_resourced` (`fetch_report.py`) now yields each event's
+  `facing` (centiradians; `heading = -facing/100`, see the positioning skill's `coordinate-system.md`) and
+  stores a per-bin median heading per actor; `positioning.py` draws facing arrows (`_arrow_svg`, a
+  line + barbed polygon) on player + add markers, only when `facing` is present for that actor at that moment.
+- **Add (non-boss hostile) positions — captured + rendered.** `_fetch_positions` keeps every resourced NPC
+  actor (id→name via `masterData`) as its own track under `adds`; `positioning.py` draws them as rose
+  squares (`_add_marker`).
 
-**Investigation — DONE (verified live against report `pkHqfrBbhQK9GP1a`, 2026-06-06). Both pieces are
-already in the events stream we fetch; no new query type, only plumbing + a re-fetch:**
-
-- **Per-actor facing — available NOW, not captured.** Every resourced event (`includeResources:true`)
-  already carries a `facing` field right next to `x`/`y` (`mapID` too). It's **centiradians** (radians ×
-  100); decode `heading = -facing / 100.0` (confirmed in the positioning skill's `coordinate-system.md`).
-  `_page_resourced` in `fetch_report.py` simply drops it on the floor — it yields `(ts, aid, x, y, tid,
-  gid)` and never reads `e["facing"]`. **Fix:** yield `facing` too, and store a per-bin median *heading*
-  per actor in `positions-<enc>.json`.
-- **Add (non-boss hostile) positions — already in the sweep, just discarded.** The boss track is built by
-  the `DamageDone` resourced sweep, keeping only the event whose resourced actor *is the boss* (`targetID`
-  pinned to the boss id). Dropping that restriction surfaces **every enemy NPC as a resourced actor** —
-  verified on the Solarian fight, the same sweep returned the boss (`High Astromancer Solarian`, 1598
-  position samples) **and** the add (`Solarium Agent`, 322 samples), each with `facing`. **Fix:** in
-  `_fetch_positions`, bucket every resourced **NPC** actor (id → name via `masterData.actors type:NPC`),
-  store each non-boss NPC as its own track (bins + facing) in `positions-<enc>.json` under e.g. `adds`.
-  Cost note: removing `targetID:boss` widens the sweep (more pages); cap pages or add a dedicated enemy
-  sweep if it gets heavy.
-
-**Then build (render):** add facing arrows to player + add dots in `_formation_at`/`_formation_panel`
-(`positioning.py`) — **only when `facing` is present** for that actor at that moment, never inferred — and
-draw adds as distinct shapes/colours (add facing = cleave/cone-threat arcs). Extend the snapshot caption.
-Requires regenerating the cached `positions-<enc>.json` (a live re-fetch) before the render half can show.
+**Possible follow-up (not done):** add *facing* could be drawn as a cleave/cone-threat ARC rather than the
+plain arrow that shipped (richer cone geometry). Spin out as a separate item if wanted.
 
 ---
 

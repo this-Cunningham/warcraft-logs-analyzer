@@ -2,8 +2,9 @@
 
 All access is the **client-credentials flow** against the **public** API
 (`https://www.warcraftlogs.com/api/v2/client`) — public reports only, no user auth.
-The full introspected schema is in `schema.json` (repo root) — grep it before
-adding a new query.
+To explore the schema before adding a new query, run `scripts/introspect.py` (or a
+live `__type` query via `scripts/query.py`); there is no committed `schema.json`
+(it would be a generated, gitignored artifact, not a checked-in file).
 
 ## Rate limit
 

@@ -285,12 +285,23 @@ def main(argv=None):
     # part of the fetch (≈half the API points) off the repeated dev-loop path.
     wb_age_h = ((time.time() - os.path.getmtime(worldbest_path)) / 3600.0
                 if os.path.isfile(worldbest_path) else None)
-    if wb_age_h is not None and wb_age_h < args.worldbest_ttl_hours and not args.refresh_worldbest:
+    # The cached worldbest.json is per-encounter (its rotations are keyed to the shared bosses it was fetched
+    # for). A pure age-based TTL would reuse a file fetched against a DIFFERENT benchmark (different shared
+    # set) within the TTL, rendering Optimize rows for bosses not in this comparison. So also require the
+    # stamped `shared` set to match the current one — an older file with no `shared` key re-fetches once.
+    wb_shared_ok = False
+    if wb_age_h is not None:
+        try:
+            _wb = json.load(open(worldbest_path, encoding="utf-8"))
+            wb_shared_ok = sorted(int(x) for x in (_wb.get("shared") or [])) == sorted(int(x) for x in shared)
+        except (OSError, ValueError):
+            wb_shared_ok = False
+    if wb_age_h is not None and wb_age_h < args.worldbest_ttl_hours and wb_shared_ok and not args.refresh_worldbest:
         print("Using cached world-best rotations ({:.1f}h old < {:g}h TTL).".format(
             wb_age_h, args.worldbest_ttl_hours))
     else:
-        why = "forced" if args.refresh_worldbest else ("missing" if wb_age_h is None
-                                                       else "{:.1f}h old".format(wb_age_h))
+        why = ("forced" if args.refresh_worldbest else "missing" if wb_age_h is None
+               else "shared-set changed" if not wb_shared_ok else "{:.1f}h old".format(wb_age_h))
         print("Fetching same-faction world-best rotations ({})...".format(why))
         heavy_jobs.append(worldbest_task)
 

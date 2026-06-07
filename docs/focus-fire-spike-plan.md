@@ -1,5 +1,7 @@
 # Focus-fire / target-switch latency — spike plan
 
+> **⚠ SUPERSEDED (historical).** The "Target Focus / focus-concentration" view this plan describes (`focus_view` → `focusFireView`) was built, then **CUT** — it was redundant with **Add Control — Kill Speed**, which names the actual add. The builder/template code and its `deep.focusFire` payload were removed. Kept for history.
+
 > **Re-read through the current [soul](../PRODUCT_MANAGER_SOUL.md)** (rewritten 2026-06-05): lead with the leader decision, gate on magnitude, hold to the legibility floor. "Leverage" here means *would fixing this move a real outcome* — not a data-nook bonus. This plan is otherwise well-aligned (it already refuses the blame machine and false precision).
 
 **Status (updated 2026-06-02):**

@@ -187,7 +187,11 @@ def fetch(ours_code, specs, shared_encs, enc_names, out_path):
             print("  [worldbest] {} {}: no same-faction ranking on any shared boss".format(spec, cls))
         out_specs.append({"class": cls, "spec": spec, "role": role, "metric": metric_for(sp), "bosses": bosses_out})
 
-    payload = {"present": True, "factionId": fid, "factionName": fname, "region": region, "specs": out_specs}
+    # Stamp the shared-boss set this file was fetched for, so the cache can detect a re-pairing against a
+    # DIFFERENT benchmark (different shared bosses) and re-fetch instead of reusing per-boss rotations that
+    # belong to the old pairing (the worldbest TTL otherwise only checks file age, not the boss set).
+    payload = {"present": True, "factionId": fid, "factionName": fname, "region": region,
+               "shared": sorted(int(e) for e in shared_encs), "specs": out_specs}
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2, ensure_ascii=False)
     print("  [worldbest] wrote {} ({} specs)".format(out_path, len(out_specs)))

@@ -336,10 +336,12 @@ def spread_series(pos, roles, cohort="squishies", buckets=20):
 
 def melee_uptime(pos, roles):
     """Melee in-range share vs the boss, time-anchored (feature 3). For each bin we fill every melee actor's
-    position + the boss's, and score the distance with a SOFT band: <=8yd counts 1.0, 8-12yd 0.5, else 0.0
-    (so a melee hovering at the ring edge isn't a hard miss). The mean over all (melee,bin) samples is the
-    in-ring %. Returns {pct, inPct, edgePct, outPct, samples, meleeCount} or None when there's no boss anchor
-    or no melee. The CALLER gates this to non-mobile bosses (on a mobile boss it measures the boss's path)."""
+    position + the boss's, and score the distance with a SOFT band in COMPUTED yards: <=_RING_YD (12yd) counts
+    1.0, 12-_EDGE_YD (17yd) 0.5, else 0.0 (so a melee hovering at the ring edge isn't a hard miss). The 12yd
+    ring is the SCALE-floor-corrected stand-in for true ~8yd melee range — computed yd run ~1.3x true (see the
+    _RING_YD note), which is why the user-facing legend says "~8 yd". The mean over all (melee,bin) samples is
+    the in-ring %. Returns {pct, inPct, edgePct, outPct, samples, meleeCount} or None when there's no boss
+    anchor or no melee. The CALLER gates this to non-mobile bosses (on a mobile boss it measures the boss's path)."""
     boss = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
     if not boss:
         return None
@@ -743,16 +745,21 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
     sub-view whose data is missing is silently omitted."""
     if not o_pos or not t_pos:
         return None
+    # Classify the boss from BOTH sides' travel (max), so the class is a property of the ENCOUNTER, not of
+    # one raid's pull — a boss mobile on either side is treated as mobile and never fed to the plantable
+    # melee/formation views (avoids a latent mis-gate when the two raids disagree on class).
     travel_o = boss_travel_yd(o_pos)
-    bclass = boss_class(travel_o)
-    # A MOBILE boss (e.g. Al'ar flying between platforms) is mobile BETWEEN plants but stationary DURING them.
-    # We no longer suppress it outright; instead we render only its PLANTED windows (phase-anchored snapshots
-    # where the boss is locally stationary) and skip the whole-fight single-panel map (that one really would
-    # smear across the arena). The spread RADIUS verdict below is frame-independent (within-cohort spacing) and
-    # stays valid on every class. If a mobile boss has no detectable plant window, we fall through to None.
-    is_mobile = (bclass == "mobile")
+    travel_t = boss_travel_yd(t_pos)
+    bclass = boss_class(max(travel_o or 0, travel_t or 0))
+    # A MOBILE boss (e.g. Al'ar flying between platforms) gets NO per-boss Positioning sub-tab: a single
+    # arena-wide frame smears the formation into a tiny corner clump, and the snapshot moments would pair
+    # physically DIFFERENT boss locations (different platforms, seconds apart) side-by-side as if comparable.
+    # The frame-independent spread-over-time curve still rides the Timeline sub-tab; only this map is skipped.
+    if bclass == "mobile":
+        return None
+    is_mobile = False  # reached only for non-mobile bosses (mobile returned above) — kept for the snapshot logic
     frame = _robust_frame([o_pos, t_pos])
-    if not frame and not is_mobile:
+    if not frame:
         return None
     demand = DEMAND.get(boss_name)
 

@@ -1,5 +1,10 @@
 # Report Explanation-Correctness Audit — do the words match the math?
 
+> **⚠ Point-in-time snapshot (2026-06-05).** Several features named here have since been **cut** and are no
+> longer in the report: *Parse Spread* (Overview), and the EXPERIMENTAL Execution views *DPS Ramp*,
+> *Target Focus*, *Healing Efficiency by Spec*, and *Rotation — Ability Mix*. See `references/report-anatomy.md`
+> for the current feature map.
+
 **Date:** 2026-06-05 · **Scope:** every user-facing explanation in the deep-dive report
 (`templates/report.html`) — tab hints, "how to read" paragraphs, card labels, column headers,
 tooltips — across **all 8 tabs**: Overview, Composition, Prep, Execution, Bosses, Wipes, Optimize,

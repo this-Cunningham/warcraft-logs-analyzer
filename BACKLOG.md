@@ -20,17 +20,16 @@ research/design, or are lower priority than [`TODO.md`](TODO.md).
 
 ---
 
-## BACKLOG: per-actor positioning (dead-end until OAuth)
+## SHIPPED: per-actor positioning (2026-06-05)
 
 > Spread-vs-stack, boss-facing, "where does the melee stand" — the classic positioning gap.
 
-WCL records per-actor coordinates (the website replay works; `boundingBox` is populated per fight), but
-the **public client-credentials API withholds the per-actor stream** — all 17k events on a Hydross kill
-carried zero `x`/`y`. Confirmed dead-end on the current auth path (2026-06-01).
-
-**One unopened door:** the user-OAuth flow (authorization-code, needs a one-time browser login) *might*
-expose the stream. Spike only if positioning becomes a real priority — don't re-investigate the
-client-credentials path.
+**Done.** The earlier "dead-end until OAuth" note was wrong: the per-actor stream IS available on the
+public client-credentials API — the old test simply omitted `includeResources:true` (default `false`), so
+it saw zero `x`/`y`. With the flag set, events carry `x`/`y`/`facing`/`mapID`/`hitPoints`. Positioning is
+now a shipped feature (the `warcraft-logs-positioning` skill, `positioning.py`,
+`fetch_report._fetch_positions`, the per-boss Positioning sub-tab + melee-uptime + the spread headline). See
+`references/wcl-api.md` and the positioning skill's `references/` for the coordinate system and decode rules.
 
 ---
 

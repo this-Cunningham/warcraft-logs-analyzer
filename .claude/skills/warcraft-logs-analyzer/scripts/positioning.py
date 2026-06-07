@@ -40,6 +40,8 @@ COLORS = {"tank": "#f59e0b", "melee": "#ef4444", "healer": "#a3e635", "ranged": 
 BOSS_COLOR = "#e5e7eb"
 ADD_COLOR = "#ffffff"  # enemy NPC (add) — a WHITE square; the boss is a (slightly off-white) diamond, so the
 #                        two read distinctly by SHAPE (square vs diamond) and the boss's dashed melee ring
+OURS_TRAIL = "#4ea1ff"    # boss-path trail colour for ours (matches the report's --ours blue)
+THEIRS_TRAIL = "#e268a8"  # boss-path trail colour for the benchmark (matches --theirs pink)
 MELEE_CLASSES = {"Warrior", "Rogue", "DeathKnight"}
 RANGED_CLASSES = {"Mage", "Warlock", "Hunter", "Priest"}
 
@@ -500,13 +502,12 @@ def _boss_marker(parts, bm, sx, sy, scale, W, H, heading=None):
     by = min(max(by, 0), H)
     parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="none" stroke="#94a3b8" '
                  'stroke-width="1.4" stroke-dasharray="5 4" opacity="0.55"/>'.format(bx, by, _RING_YD * SCALE * scale))
-    # Facing arrow (cleave/cone-threat direction): start at the diamond's edge (r0=13) so the whole arrow reads
+    # Facing arrow (cleave/cone-threat direction): start at the diamond's edge (r0=9) so the whole arrow reads
     # OUTSIDE the boss glyph, and draw it longer than a player's so the boss's heading is unmistakable.
-    # Diamond is drawn larger than a player dot so the boss anchor is unmistakable at the map's center.
     parts.append('<polygon points="{0:.1f},{1:.1f} {2:.1f},{3:.1f} {0:.1f},{4:.1f} {5:.1f},{3:.1f}" '
-                 'fill="{6}" stroke="#0f1420" stroke-width="1.8"/>'.format(
-                     bx, by - 13, bx + 13, by, by + 13, bx - 13, BOSS_COLOR))
-    parts.append(_arrow_svg(bx, by, heading, BOSS_COLOR, ln=22.0, r0=13.0))
+                 'fill="{6}" stroke="#0f1420" stroke-width="1.6"/>'.format(
+                     bx, by - 9, bx + 9, by, by + 9, bx - 9, BOSS_COLOR))
+    parts.append(_arrow_svg(bx, by, heading, BOSS_COLOR, ln=20.0, r0=9.0))
 
 
 def _add_marker(parts, c, heading, sx, sy, W, H):
@@ -522,33 +523,39 @@ def _add_marker(parts, c, heading, sx, sy, W, H):
     parts.append(_arrow_svg(ax, ay, heading, ADD_COLOR, ln=14.0, r0=8.0))
 
 
+def _player_dot(parts, role, c, hd, sx, sy, frame, W, H):
+    """One role-coloured player marker (facing arrow + dot; hollow + smaller when it clamps to the border)."""
+    col = COLORS.get(role, "#9ca3af")
+    px, py = sx(c[0]), sy(c[1])
+    inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
+    px = min(max(px, 5), W - 5)
+    py = min(max(py, 5), H - 5)
+    parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
+    if inframe:
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
+    else:
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
+
+
 def _formation_panel(pos, roles, frame, W=300):
     """A faithful top-down panel: each actor at its whole-fight median position (role-coloured), the boss as
-    a neutral diamond + dashed ~8yd ring. Outliers clamp to the border (hollow) so the core stays readable."""
+    a neutral diamond + dashed ~8yd ring. Outliers clamp to the border (hollow) so the core stays readable.
+    Z-order: non-tank players → adds → boss → TANKS on top."""
     scale, H, sx, sy = _projector(frame, W)
     parts = _grid_and_border(W, H, scale)
-    # Draw PLAYERS first, then adds, then the boss LAST — so the boss diamond + add squares always sit ON TOP
-    # of the player dots (the anchors a leader reads the formation against are never hidden behind a dot).
     items = []
     for aid, a in pos["actors"].items():
         c = _actor_median(a)
         if c:
             items.append((roles.get(aid, "ranged"), c, _heading_all(a)))
-    for role, c, hd in sorted(items, key=lambda z: z[0]):
-        col = COLORS.get(role, "#9ca3af")
-        px, py = sx(c[0]), sy(c[1])
-        inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
-        px = min(max(px, 5), W - 5)
-        py = min(max(py, 5), H - 5)
-        parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
-        if inframe:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
-        else:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
+    for role, c, hd in sorted([it for it in items if it[0] != "tank"], key=lambda z: z[0]):
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
     for a in (pos.get("adds") or {}).values():
         _add_marker(parts, _actor_median(a), _heading_all(a), sx, sy, W, H)
     bd = pos.get("boss") or {}
     _boss_marker(parts, boss_median(pos), sx, sy, scale, W, H, heading=_heading_all(bd) if bd else None)
+    for role, c, hd in [it for it in items if it[0] == "tank"]:
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
     return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
         W, H, "".join(parts))
 
@@ -603,8 +610,9 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         bpts = [p for p in _fill(bb)[lo:hi] if p]
         if bpts:
             bm = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
-    # Draw PLAYERS first, then adds, then the boss LAST — so the boss diamond + add squares always sit ON TOP
-    # of the player dots (the anchors a leader reads the formation against are never hidden behind a dot).
+    # Z-order: NON-TANK players (bottom) → adds → boss → TANKS (very top). Tanks sit on the boss they hold, so
+    # they're painted last; the boss diamond + add squares sit above the dps/healer dots so the anchors a
+    # leader reads against are never hidden behind a dot.
     items = []
     for aid, a in pos["actors"].items():
         pts = [p for p in _fill(a["bins"])[lo:hi] if p]
@@ -612,17 +620,8 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
             items.append((roles.get(aid, "ranged"),
                           (_median([p[0] for p in pts]), _median([p[1] for p in pts])),
                           _heading_at(a, lo, hi, fill=True)))
-    for role, c, hd in sorted(items, key=lambda z: z[0]):
-        col = COLORS.get(role, "#9ca3af")
-        px, py = sx(c[0]), sy(c[1])
-        inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
-        px = min(max(px, 5), W - 5)
-        py = min(max(py, 5), H - 5)
-        parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
-        if inframe:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
-        else:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
+    for role, c, hd in sorted([it for it in items if it[0] != "tank"], key=lambda z: z[0]):
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
     # Enemy NPCs (adds) present in this window. Use RAW (un-filled) bins: an add that despawned earlier must
     # NOT carry-forward its last position into later snapshots (that ghosted dead adds into every panel). It's
     # shown only where it actually has samples in [lo,hi); its facing needs ≥2 real samples (no inference).
@@ -632,9 +631,39 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
             ac = (_median([p[0] for p in pts]), _median([p[1] for p in pts]))
             _add_marker(parts, ac, _heading_at(a, lo, hi, min_n=2), sx, sy, W, H)
     # Boss heading: fill from the nearest captured sample (the boss persists all fight, so a short window that
-    # misses a sparse facing reading still gets the right arrow). Drawn last → always on top.
+    # misses a sparse facing reading still gets the right arrow).
     _boss_marker(parts, bm, sx, sy, scale, W, H,
                  heading=_heading_at(bd, lo, hi, fill=True) if bd else None)
+    for role, c, hd in [it for it in items if it[0] == "tank"]:   # tanks ON TOP of the boss/adds
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
+        W, H, "".join(parts))
+
+
+def _boss_trail_svg(o_xys, t_xys, frame, W=300):
+    """The boss MOVEMENT TRAIL through the tabs so far: the boss's settled spot at each snapshot up to this tab,
+    in time order, connected into a path — ours vs the benchmark OVERLAID in one (constant) frame so the two
+    trails compare directly. NO players. The latest point (this tab's stand) is drawn larger. `o_xys`/`t_xys`
+    are the boss (x,y) per moment up to the current tab. Returns '' when neither side has ≥1 point."""
+    o_xys = [p for p in (o_xys or []) if p]
+    t_xys = [p for p in (t_xys or []) if p]
+    if not o_xys and not t_xys:
+        return ""
+    scale, H, sx, sy = _projector(frame, W)
+    parts = _grid_and_border(W, H, scale)
+
+    def trail(xys, col):
+        pts = [(min(max(sx(x), 4), W - 4), min(max(sy(y), 4), H - 4)) for (x, y) in xys]
+        if len(pts) >= 2:
+            parts.append('<polyline points="{}" fill="none" stroke="{}" stroke-width="2.4" '
+                         'stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>'.format(
+                             " ".join("{:.1f},{:.1f}".format(px, py) for px, py in pts), col))
+        for i, (px, py) in enumerate(pts):
+            r = 6.0 if i == len(pts) - 1 else 3.2   # the most recent stand (this tab) is the big dot
+            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="{}" stroke="#0f1420" '
+                         'stroke-width="1.4"/>'.format(px, py, r, col))
+    trail(t_xys, THEIRS_TRAIL)   # benchmark under
+    trail(o_xys, OURS_TRAIL)     # ours over
     return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
         W, H, "".join(parts))
 
@@ -839,44 +868,57 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         t_wins = _plant_windows(t_pos, t_phases, phase_names)
         rows_m = _match_moments(o_wins, t_wins)
         if rows_m:
+            # ONE CONSTANT frame for the whole boss (used by every tab) — the tightest box that still contains
+            # every snapshot position across all moments + both raids (with a little padding), so we zoom in as
+            # far as we can from the full room WITHOUT the perspective ever changing as you click through tabs.
             allspecs = ([(o_pos, r["o"]["lo"], r["o"]["hi"]) for r in rows_m if r["o"]]
                         + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
-            win_frame = _window_frame(allspecs) or frame
+            win_frame = _window_frame(allspecs, pad_frac=0.10) or frame
+
+            def _panel_at(ow, tw):
+                if ow and tw:
+                    om = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
+                    tm = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
+                    sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
+                    return _dual(om, tm, o_name, t_name, sub)
+                if ow:
+                    om = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
+                    return _single(om, o_name, "ours",
+                                   "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
+                tm = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
+                return _single(tm, t_name, "theirs",
+                               "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
+
             tabs, panels, replant_n = [], [], 0
             for idx, r in enumerate(rows_m):
                 ow, tw = r["o"], r["t"]
-                if is_mobile:
-                    rspecs = (([(o_pos, ow["lo"], ow["hi"])] if ow else [])
-                              + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
-                    rframe = _window_frame(rspecs) or win_frame
-                else:
-                    rframe = win_frame
-                if not rframe:
-                    continue
-                if ow and tw:
-                    o_map = _formation_at(o_pos, o_roles, rframe, ow["lo"], ow["hi"])
-                    t_map = _formation_at(t_pos, t_roles, rframe, tw["lo"], tw["hi"])
-                    sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
-                    panel = _dual(o_map, t_map, o_name, t_name, sub)
-                elif ow:
-                    o_map = _formation_at(o_pos, o_roles, rframe, ow["lo"], ow["hi"])
-                    panel = _single(o_map, o_name, "ours",
-                                    "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
-                else:
-                    t_map = _formation_at(t_pos, t_roles, rframe, tw["lo"], tw["hi"])
-                    panel = _single(t_map, t_name, "theirs",
-                                    "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
+                panel = _panel_at(ow, tw)
+                # Boss MOVEMENT TRAIL — the boss's settled spot at each tab SO FAR (cumulative), in time order,
+                # connected into a path: ours vs benchmark overlaid in the same constant frame, no players.
+                o_trail = [rows_m[j]["o"]["bossXY"] for j in range(idx + 1)
+                           if rows_m[j]["o"] and rows_m[j]["o"].get("bossXY")]
+                t_trail = [rows_m[j]["t"]["bossXY"] for j in range(idx + 1)
+                           if rows_m[j]["t"] and rows_m[j]["t"].get("bossXY")]
+                trail = _boss_trail_svg(o_trail, t_trail, win_frame)
+                if trail:
+                    panel += ('<div class="posnote" style="margin:10px 0 2px;opacity:.8"><b>Boss path</b> — the '
+                              'boss\'s settled spot at each tab so far, connected in time order: '
+                              '<span style="color:{}">ours</span> vs <span style="color:{}">benchmark</span> '
+                              '(big dot = this tab). No players — just where each raid moved the boss.</div>'
+                              '<div style="text-align:center">{}</div>').format(OURS_TRAIL, THEIRS_TRAIL, trail)
                 tlab, replant_n = _moment_tab_label(r["label"], replant_n)
                 tabs.append('<button class="postab{}" data-pos="{}" type="button" title="{}">{}</button>'.format(
                     " active" if idx == 0 else "", idx, esc(r["label"]), esc(tlab)))
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
                     "block" if idx == 0 else "none", panel))
             note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, and every boss '
-                    '<b>re-plant</b> (numbered) — times approximate, cross-check the Timeline. The two raids '
-                    'share one map window at <b>real positions</b> (not aligned), so a difference in where or '
-                    'how your raid stood vs the benchmark shows as a real offset — that\'s the positioning gap. '
-                    'A moment only one raid reached is shown alone. Arrows are each actor\'s (and the boss\'s) '
-                    'facing where captured; white squares are enemy adds.')
+                    '<b>re-plant</b> — times approximate, cross-check the Timeline. The two raids share <b>one '
+                    'fixed map window at real positions</b> (the perspective never changes across tabs), so a '
+                    'difference in where or how your raid stood vs the benchmark shows as a real offset — '
+                    'that\'s the positioning gap. Below each formation, the <b>Boss path</b> trail grows tab by '
+                    'tab so you can compare how the two raids moved the boss. A moment only one raid reached is '
+                    'shown alone. Arrows are each actor\'s (and the boss\'s) facing where captured; tanks are '
+                    'painted on top; white squares are enemy adds.')
             maps_html = ('<div class="posblock"><div class="postabs">' + "".join(tabs) + '</div>'
                          + '<div class="pospanels">' + "".join(panels) + '</div>'
                          + '<p class="posnote" style="opacity:.8">' + note + '</p></div>')

@@ -3838,8 +3838,9 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 (o_id_to_name, ours_spec, ours_role, ours_cls, o_pet),
                 (t_id_to_name, theirs_spec, theirs_role, theirs_cls, t_pet))
         # Positioning (feature 2 — formation map + spread-vs-demand verdict) — one per-boss sub-tab fragment
-        # + the scalars the Overview headline (spread gap) and Execution melee view consume. Graceful None
-        # when this boss has no positions file (older data folder) or is a mobile boss (auto-suppressed).
+        # + the scalars the Overview headline (spread gap) and Execution melee view consume. Mobile bosses DO
+        # render (co-location-gated plant-window snapshots); pos_html is None only when there's no positions
+        # file (older data folder) or no settled plant window long enough to snapshot.
         pos_html = None
         o_pos = positioning.load_positions(ours_dir, enc)
         t_pos = positioning.load_positions(theirs_dir, enc)

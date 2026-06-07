@@ -804,8 +804,9 @@ function execPanel(b){
     {k:"phases",label:"Phases"}
   );
   // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (the formation map and spread-vs-demand
-  // verdict). Only present on non-mobile bosses with a positions file; shown last because it's the
-  // newest/most-experimental lens.
+  // verdict). Present on any boss with a positions file, including mobile bosses (which render
+  // co-location-gated, per-stand plant-window snapshots — only the whole-fight single map is skipped);
+  // shown last because it's the newest/most-experimental lens.
   if(b.positioning) subs.push({k:"pos",label:"Positioning"});
   const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
   const body={

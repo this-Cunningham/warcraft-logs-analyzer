@@ -15,8 +15,9 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 **Done.** Both halves of the reframe shipped:
 - **Phase-anchored snapshots** — the Positioning sub-tab shows the raid's *settled formation at the opening
   + each phase* (ours vs benchmark per moment), with a graceful fallback to a single map on single-phase
-  bosses. (Mobile bosses, e.g. Al'ar, get NO Positioning sub-tab — a single arena-wide frame would smear
-  the formation and the snapshots would pair physically different boss platforms.)
+  bosses. (Mobile bosses, e.g. Al'ar, DO render — their per-stand plant-window snapshots, with each snapshot
+  framed to its own stand and a re-plant the two raids did at different platforms shown separately, never
+  paired. See the "mobile bosses snapshot their plant windows" SHIPPED note below.)
 - **Per-actor facing — captured + rendered.** `_page_resourced` (`fetch_report.py`) now yields each event's
   `facing` (centiradians; `heading = -facing/100`, see the positioning skill's `coordinate-system.md`) and
   stores a per-bin median heading per actor; `positioning.py` draws facing arrows (`_arrow_svg`, a
@@ -187,38 +188,29 @@ clipping by the recomputed `killSec` will update automatically — no additional
 
 ---
 
-## TODO: BUG — mobile bosses hide ALL positioning; should snapshot their plant windows
+## SHIPPED: mobile bosses snapshot their plant windows (don't hide positioning)
 
 > No why are we hiding positioning if labelled mobile, "BUG", it is still possible for mobile bosses to plant and for us to find relatively stable positioning states
 
-**The bug:** `boss_positioning()` (`positioning.py:468-474`) classifies a boss by **whole-fight** boss travel
-(`boss_travel_yd`) and bails entirely when `bclass == "mobile"`. Al'ar's flight between platforms smears to
-~1448yd, so it's tagged mobile and gets **no Positioning tab at all** — even though Al'ar (and other "mobile"
-bosses) repeatedly **plant** on a platform, and during those windows the raid's formation around the planted
-boss is exactly as meaningful as on any stationary boss. Whole-fight travel is the wrong grain: a boss that
-teleports/flies between stable stands is mobile *between* plants but stationary *during* them.
+**Done.** A boss labelled `mobile` (Al'ar's flight between platforms smears whole-fight travel to ~1448yd) no
+longer bails out of the Positioning tab. `boss_positioning` renders its **planted-window snapshots** — the
+formation at each stand the boss settles on — and skips only the whole-fight single-panel map (the one that
+really would smear across the arena). Per the brainstorm's prior: a boss that teleports between stable stands
+is mobile *between* plants but stationary *during* them, so the per-stand formation is as meaningful as on any
+stationary boss.
 
-**The fix — per-window classification, not whole-fight:** the phase-anchored snapshot machinery already
-exists and already solves this — it's just gated out by the early `return None`. `_snapshot_windows()` +
-`_formation_at()` (`positioning.py`) detect settled windows and render a per-moment formation map. The change:
+Two correctness safeguards (added when the cross-raid pairing was found unsound — `_match_moments` had paired
+re-plants by index with no location check, putting *different platforms* side-by-side):
+- **Co-location gate** (`_match_moments`): a paired ours/theirs window is only kept as a dual panel when the
+  two raids' boss medians are within `_PLANT_RADIUS_YD` (12yd). A re-plant the raids did at different
+  platforms is split into two **single** panels, never paired as if comparable.
+- **Per-row frames**: each mobile snapshot is framed to its own stand (a `STATIONARY`/`PLANT` boss keeps one
+  shared frame so moments stay comparable), so a stand reads as a real formation instead of a corner clump in
+  an arena-wide box.
 
-1. **Don't bail on mobile.** Instead of returning None for `bclass == "mobile"`, detect the **stable
-   sub-windows** within the fight — bins where the boss anchor is locally stationary (low travel over a
-   short rolling window), i.e. the plant phases. Phase boundaries (`o_phases`/`t_phases`) are a strong prior
-   for where plants begin.
-2. **Anchor each snapshot's frame to that window's planted boss position**, not a whole-fight frame (which is
-   what makes the mobile smear meaningless). Per-plant frame = relative geometry is honest again.
-3. **Render only the planted windows** as phase-anchored snapshots; skip the flight gaps. If no stable window
-   is found (truly always-moving boss), fall back to the current suppression with the honest one-liner.
-
-**Why it matters (soul):** Al'ar is a real shared boss; hiding positioning entirely is a coverage hole, not a
-clean omission. Plant-phase formation surfaces the same lever as any stationary boss (spread/stack vs the
-benchmark when it actually counts). Magnitude gate: only worth it if the plant windows hold enough position
-samples to compute a stable spread radius — verify on the live Al'ar fight before building.
-
-**Verify the data:** confirm the cached `positions-<enc>.json` for Al'ar has enough per-bin boss anchor +
-roster samples *during* the plant windows to compute spread (it should — the suppression happens after fetch,
-on classification, so the data is already there).
+The melee-uptime view and the whole-fight single map remain non-mobile (on a mobile boss they'd measure the
+boss's path). Boss class is computed from the **max** of both raids' travel, so a boss mobile on either pull
+is treated as mobile. Falls back to the honest "no settled plant window" one-liner if no stand is long enough.
 
 ---
 

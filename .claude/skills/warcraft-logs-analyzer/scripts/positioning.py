@@ -701,7 +701,14 @@ def _plant_windows(pos, phases, phase_names):
         win_end = min(nxt, win_start + _PLANT_WINDOW_SEC, dur_sec)
         lo, hi = to_bin(win_start), to_bin(win_end)
         if hi - lo >= 2:
-            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec)})
+            # The boss's median position over this window — lets _match_moments tell whether ours and theirs
+            # re-planted at the SAME stand (a fair side-by-side) or at different platforms (must not be paired).
+            bxy = None
+            if bb:
+                bpts = [p for p in _fill(bb)[lo:hi] if p]
+                if bpts:
+                    bxy = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
+            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy})
         if len(wins) >= _MAX_MOMENTS:
             break
     return wins
@@ -711,6 +718,11 @@ def _match_moments(o_wins, t_wins):
     """Pair ours/theirs snapshot windows into render rows. Windows are grouped by LABEL and paired in
     chronological order within each label; a window with no counterpart on the other side becomes an UNMATCHED
     row (shown as a single panel) rather than being dropped — so a re-plant only one raid did is still shown.
+    CO-LOCATION GATE: a paired ours/theirs window is only kept as a dual panel when the two raids' boss
+    medians are within a plant radius (`_PLANT_RADIUS_YD`). On a teleporting boss the same-index re-plants
+    can be at DIFFERENT platforms — pairing them side-by-side would imply a comparison that doesn't exist, so
+    they are split into two single panels instead. (A no-op for stationary/plant bosses, whose stands always
+    co-locate, and for windows with no boss track — those keep the index pairing.)
     Returns a list of {label, sec, o, t} sorted by time (o or t may be None)."""
     o_by, t_by = {}, {}
     for w in o_wins:
@@ -723,6 +735,13 @@ def _match_moments(o_wins, t_wins):
         for i in range(max(len(ol), len(tl))):
             ow = ol[i] if i < len(ol) else None
             tw = tl[i] if i < len(tl) else None
+            if ow and tw and ow.get("bossXY") and tw.get("bossXY"):
+                d = math.hypot(ow["bossXY"][0] - tw["bossXY"][0], ow["bossXY"][1] - tw["bossXY"][1])
+                if _yd(d) > _PLANT_RADIUS_YD:
+                    # different platforms — show each stand alone rather than as a false comparison
+                    rows.append({"label": lab, "sec": ow["sec"], "o": ow, "t": None})
+                    rows.append({"label": lab, "sec": tw["sec"], "o": None, "t": tw})
+                    continue
             sec = (ow or tw)["sec"]
             rows.append({"label": lab, "sec": sec, "o": ow, "t": tw})
     rows.sort(key=lambda r: r["sec"])
@@ -746,20 +765,21 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
     if not o_pos or not t_pos:
         return None
     # Classify the boss from BOTH sides' travel (max), so the class is a property of the ENCOUNTER, not of
-    # one raid's pull — a boss mobile on either side is treated as mobile and never fed to the plantable
-    # melee/formation views (avoids a latent mis-gate when the two raids disagree on class).
+    # one raid's pull — a boss mobile on either side is treated as mobile (never wrongly fed to the
+    # plantable melee view when the two raids disagree on class).
     travel_o = boss_travel_yd(o_pos)
     travel_t = boss_travel_yd(t_pos)
     bclass = boss_class(max(travel_o or 0, travel_t or 0))
-    # A MOBILE boss (e.g. Al'ar flying between platforms) gets NO per-boss Positioning sub-tab: a single
-    # arena-wide frame smears the formation into a tiny corner clump, and the snapshot moments would pair
-    # physically DIFFERENT boss locations (different platforms, seconds apart) side-by-side as if comparable.
-    # The frame-independent spread-over-time curve still rides the Timeline sub-tab; only this map is skipped.
-    if bclass == "mobile":
-        return None
-    is_mobile = False  # reached only for non-mobile bosses (mobile returned above) — kept for the snapshot logic
+    # A MOBILE boss (e.g. Al'ar flying between platforms) is mobile BETWEEN plants but stationary DURING them.
+    # We render only its PLANTED windows (phase/re-plant snapshots where the boss is locally stationary) and
+    # skip the whole-fight single-panel map (that one really would smear across the arena). Two safeguards keep
+    # a teleporting boss honest: (1) snapshot pairs are CO-LOCATION-GATED in _match_moments — a re-plant the
+    # two raids did at DIFFERENT platforms is split into separate single panels, never paired as if comparable;
+    # (2) each mobile snapshot gets its OWN tight per-row frame, so it reads as a formation, not a corner clump
+    # in an arena-wide box. The spread RADIUS verdict is frame-independent and valid on every class.
+    is_mobile = (bclass == "mobile")
     frame = _robust_frame([o_pos, t_pos])
-    if not frame:
+    if not frame and not is_mobile:
         return None
     demand = DEMAND.get(boss_name)
 
@@ -800,37 +820,57 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         t_wins = _plant_windows(t_pos, t_phases, phase_names)
         rows_m = _match_moments(o_wins, t_wins)
         if len(rows_m) >= (1 if is_mobile else 2):
-            # ONE frame for all snapshots, built from every window actually drawn (both raids, all moments) —
-            # so ours/theirs and each moment share one perspective with nothing clamped.
+            # Frame choice: a STATIONARY/PLANT boss uses ONE shared frame across all snapshots (every stand
+            # is at ~the same place, so a shared perspective lets a leader read drift moment-to-moment). A
+            # MOBILE boss instead gets a tight PER-ROW frame — its stands are different platforms, so a single
+            # arena-wide frame would shrink every snapshot to a corner clump. A co-located dual row (gated in
+            # _match_moments) still shares one frame across its two panels, so ours/theirs stay comparable.
             specs = ([(o_pos, r["o"]["lo"], r["o"]["hi"]) for r in rows_m if r["o"]]
                      + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
             win_frame = _window_frame(specs) or frame
-            if not win_frame:
+            if not win_frame and not is_mobile:
                 return None
             rows = []
             for r in rows_m:
                 ow, tw = r["o"], r["t"]
+                if is_mobile:
+                    rspecs = (([(o_pos, ow["lo"], ow["hi"])] if ow else [])
+                              + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
+                    rframe = _window_frame(rspecs) or win_frame
+                else:
+                    rframe = win_frame
+                if not rframe:
+                    continue  # no readable frame for this stand — skip rather than draw a clamped smear
                 if ow and tw:
-                    o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
-                    t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
+                    o_map = _formation_at(o_pos, o_roles, rframe, ow["lo"], ow["hi"])
+                    t_map = _formation_at(t_pos, t_roles, rframe, tw["lo"], tw["hi"])
                     sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
                     panel = _dual(o_map, t_map, o_name, t_name, sub)
                 elif ow:
-                    o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
+                    o_map = _formation_at(o_pos, o_roles, rframe, ow["lo"], ow["hi"])
                     panel = _single(o_map, o_name, "ours",
                                     "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
                 else:
-                    t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
+                    t_map = _formation_at(t_pos, t_roles, rframe, tw["lo"], tw["hi"])
                     panel = _single(t_map, t_name, "theirs",
                                     "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
                 rows.append('<div style="margin:10px 0 4px"><div class="posnote" style="margin:0 0 4px">'
                             '<b>{}</b></div>{}</div>'.format(esc(r["label"]), panel))
+            mobile_note = (' On this <b>mobile</b> boss each snapshot is framed to its own stand and a re-plant '
+                           'the two raids did at different platforms is shown <b>separately</b>, never paired.'
+                           if is_mobile else '')
             maps_html = ("".join(rows)
                          + '<p class="posnote" style="opacity:.8">Snapshots freeze the settled formation at the '
                            'opening, each phase, and <b>every time the boss re-plants</b> (moves then settles) — '
                            'times approximate, cross-check the Timeline. A moment only one raid reached is shown '
-                           'alone. Arrows are each actor\'s (and the boss\'s) facing where captured; rose squares '
-                           'are enemy adds.</p>')
+                           'alone.' + mobile_note + ' Arrows are each actor\'s (and the boss\'s) facing where '
+                           'captured; rose squares are enemy adds.</p>') if rows else None
+            if maps_html is None and is_mobile:
+                maps_html = ('<p class="posnote" style="opacity:.8">This is a <b>mobile</b> boss with no settled '
+                             'plant window long enough to snapshot a formation; the spread radius below is still '
+                             'valid (it measures cohort spacing, independent of the boss\'s path).</p>')
+            elif maps_html is None:
+                return None
         elif is_mobile:
             # mobile boss with no detectable plant window → no honest map; keep the (frame-independent) verdict
             maps_html = ('<p class="posnote" style="opacity:.8">This is a <b>mobile</b> boss with no settled '

@@ -15,9 +15,9 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 **Done.** Both halves of the reframe shipped:
 - **Phase-anchored snapshots** — the Positioning sub-tab shows the raid's *settled formation at the opening
   + each phase* (ours vs benchmark per moment), with a graceful fallback to a single map on single-phase
-  bosses. (Mobile bosses, e.g. Al'ar, DO render — their per-stand plant-window snapshots, with each snapshot
-  framed to its own stand and a re-plant the two raids did at different platforms shown separately, never
-  paired. See the "mobile bosses snapshot their plant windows" SHIPPED note below.)
+  bosses. (Mobile bosses, e.g. Al'ar, DO render — their plant-window snapshots, shown as labelled tabs with
+  the benchmark aligned to ours at the opener. See the "mobile bosses snapshot their plant windows" SHIPPED
+  note below.)
 - **Per-actor facing — captured + rendered.** `_page_resourced` (`fetch_report.py`) now yields each event's
   `facing` (centiradians; `heading = -facing/100`, see the positioning skill's `coordinate-system.md`) and
   stores a per-bin median heading per actor; `positioning.py` draws facing arrows (`_arrow_svg`, a
@@ -199,18 +199,21 @@ really would smear across the arena). Per the brainstorm's prior: a boss that te
 is mobile *between* plants but stationary *during* them, so the per-stand formation is as meaningful as on any
 stationary boss.
 
-Two correctness safeguards (added when the cross-raid pairing was found unsound — `_match_moments` had paired
-re-plants by index with no location check, putting *different platforms* side-by-side):
-- **Co-location gate** (`_match_moments`): a paired ours/theirs window is only kept as a dual panel when the
-  two raids' boss medians are within `_PLANT_RADIUS_YD` (12yd). A re-plant the raids did at different
-  platforms is split into two **single** panels, never paired as if comparable.
-- **Per-row frames**: each mobile snapshot is framed to its own stand (a `STATIONARY`/`PLANT` boss keeps one
-  shared frame so moments stay comparable), so a stand reads as a real formation instead of a corner clump in
-  an arena-wide box.
+Presentation + cross-raid comparability (the snapshots are shown as labelled **tabs** — `Opener` / numbered
+re-plants / phase tags — switched by a delegated `.postab` handler, not a vertical wall of maps):
+- **Opener alignment** (`_opener_align` + `_match_moments`): the two raids often anchor the boss at slightly
+  different spots in the room (verified: Void Reaver ~30yd apart, Solarian ~44yd, constant from the pull —
+  real different tank spots, not a coordinate bug, since Al'ar matches to 0.4yd). So the benchmark is
+  translated by a single constant offset measured at the **opener** (where neither fight has drifted) to
+  align it to ours; the opener then overlays cleanly and any real later drift still shows. This is NOT
+  per-panel boss-centering (that was tried and rejected — it hid drift and removed absolute geometry).
+- **Per-moment shared frame**: each tab is framed to its own moment over ours + the aligned benchmark, so a
+  stand reads as a real formation instead of a corner clump in an arena-wide box.
+- **Icons**: bigger boss diamond + bigger **white** add squares, both drawn ON TOP of the player dots.
 
 The melee-uptime view and the whole-fight single map remain non-mobile (on a mobile boss they'd measure the
 boss's path). Boss class is computed from the **max** of both raids' travel, so a boss mobile on either pull
-is treated as mobile. Falls back to the honest "no settled plant window" one-liner if no stand is long enough.
+is treated as mobile. Falls back to one boss-aligned whole-fight map if no stand is long enough.
 
 ---
 

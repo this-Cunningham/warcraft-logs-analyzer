@@ -447,20 +447,21 @@ only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compas
   not melee discipline); the ours-vs-benchmark delta on the SAME boss cancels the shared boss-path.
 - **Bosses → per-boss "Positioning" sub-tab** (`boss_positioning` → `perBoss[].positioning`, a 9th boss
   sub-tab, present on any boss with a positions file — including **mobile** bosses, see below):
-  - **Raid formation & spread** (feature 2) — side-by-side formation maps (role-coloured dots, boss diamond +
-    dashed ring, per-actor + add **facing arrows** where captured, enemy adds as rose squares) + the
-    spread-vs-demand verdict. When phase data exists, the single whole-fight median map is replaced by
-    **phase-anchored snapshots** (`_plant_windows` + `_match_moments` + `_formation_at`): the raid's *settled*
-    formation at the opening + each phase start + every boss **re-plant** (a few seconds in, so it's the
-    formation, not the transition scramble), ours vs benchmark per moment — *where the raid stood when it
-    mattered*, not a whole-fight smear. Falls back to the single median map on single-phase bosses (no
-    coverage regression). **Mobile bosses (Al'ar) DO render** their planted-window snapshots (only the
-    whole-fight single-panel map is skipped — that one really would smear across the arena), with two
-    safeguards that keep a teleporting boss honest: snapshot pairs are **co-location-gated** in
-    `_match_moments` (a re-plant the two raids did at DIFFERENT platforms is shown as two separate single
-    panels, never paired as if comparable), and each mobile snapshot gets its own **tight per-row frame**
-    (a `STATIONARY`/`PLANT` boss keeps one shared frame so moments are comparable). The melee-uptime view and
-    the whole-fight single map stay non-mobile. Spread is a robust **spread radius** (`spread_radius_yd`:
+  - **Raid formation & spread** (feature 2) — side-by-side formation maps (role-coloured dots, **boss diamond +
+    dashed ring and white add squares drawn ON TOP of the player dots**, per-actor + add **facing arrows**
+    where captured) + the spread-vs-demand verdict. When phase data exists, the single whole-fight median map
+    is replaced by **phase-anchored snapshots** (`_plant_windows` + `_match_moments` + `_formation_at`), shown
+    as **labelled TABS** (`Opener` / numbered re-plants / phase tags like `P2`, switched by a delegated
+    `.postab` handler): the raid's *settled* formation at the opening + each phase start + every boss
+    **re-plant** (a few seconds in, so it's the formation, not the transition scramble), ours vs benchmark per
+    moment — *where the raid stood when it mattered*, not a whole-fight smear. **The benchmark is ALIGNED to
+    ours by the OPENER offset** (`_opener_align`): the two raids often anchor the boss at slightly different
+    spots in the room, so matching them at the pull — before either drifts — makes the formations directly
+    comparable, while real later drift still shows (it's a single constant translation, NOT per-panel
+    boss-centering). Falls back to one boss-aligned whole-fight map when no plant window is detected.
+    **Mobile bosses (Al'ar) DO render** their planted-window snapshots (only the whole-fight single-panel map
+    is skipped — that one really would smear across the arena). The melee-uptime view and the whole-fight
+    single map stay non-mobile. Spread is a robust **spread radius** (`spread_radius_yd`:
     median per-bin distance to the cohort's median centroid — resists both the stacked-raid median-collapse
     and max-range-ranged outliers), not median-NN. The spread/stack VERDICT fires only for a curated `DEMAND`
     set (Void Reaver, Solarian, Vashj, Leotheras); elsewhere the numbers are descriptive with no "you should…"
@@ -472,8 +473,8 @@ only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compas
 
 Boss auto-class (`boss_travel_yd`/`boss_class`: STATIONARY/PLANT-AND-MOVE/MOBILE from the **max** of both
 raids' total boss travel — so a boss mobile on either pull is treated as mobile) gates which features make
-sense: a MOBILE boss renders its plant-window snapshots (co-location-gated, per-row frames) but NOT the
-whole-fight single map or the melee-uptime row. Graceful when a data folder predates the positions fetch
+sense: a MOBILE boss renders its plant-window snapshots (opener-aligned, tabbed) but NOT the whole-fight
+single map or the melee-uptime row. Graceful when a data folder predates the positions fetch
 (the views simply don't render). See the `warcraft-logs-positioning` skill's `references/` for the
 coordinate system, the centiradian facing decode, and rendering rules.
 

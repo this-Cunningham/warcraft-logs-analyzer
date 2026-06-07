@@ -144,6 +144,12 @@
   .btabs.ospecs{margin:2px 0 14px}
   .btabs.ospecs .btab.on{background:var(--theirs);color:#06101f}
   .btabs.obosses{margin:2px 0 12px}
+  /* Positioning snapshot tabs (server-rendered fragment; switched by a delegated handler) */
+  .posblock{margin:4px 0}
+  .postabs{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 10px}
+  .postab{padding:3px 11px;border-radius:7px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .postab:hover{color:var(--txt)}
+  .postab.active{background:var(--accent,#7c83ff);color:#06101f;border-color:transparent}
   .optbench{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:13px;color:var(--muted)}
   .optbench b{color:var(--txt)}
   .optlabel{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);margin-right:4px}
@@ -275,6 +281,20 @@
 
 <script>
 const DATA = /*__DATA__*/null;
+
+// Positioning snapshot tabs: the maps are a server-rendered fragment injected as innerHTML, so a single
+// DELEGATED click handler switches the visible snapshot panel (no per-fragment wiring). Each .posblock holds
+// one .postabs bar of .postab buttons (data-pos=index) and a .pospanels list of .pospanel divs; clicking a
+// tab shows that panel and hides the rest, scoped to the clicked button's own .posblock.
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest && e.target.closest(".postab");
+  if (!tab) return;
+  const block = tab.closest(".posblock");
+  if (!block) return;
+  const idx = parseInt(tab.getAttribute("data-pos"), 10) || 0;
+  block.querySelectorAll(".pospanel").forEach((p, i) => { p.style.display = (i === idx ? "block" : "none"); });
+  tab.parentNode.querySelectorAll(".postab").forEach((t) => t.classList.toggle("active", t === tab));
+});
 
 const CLASS_COLORS = {Warrior:"#C79C6E",Paladin:"#F58CBA",Hunter:"#ABD473",Rogue:"#FFF569",Priest:"#FFFFFF",
   Shaman:"#0070DE",Mage:"#69CCF0",Warlock:"#9482C9",Druid:"#FF7D0A","Death Knight":"#C41F3B"};
@@ -803,10 +823,10 @@ function execPanel(b){
     {k:"disp",label:"Dispels"},
     {k:"phases",label:"Phases"}
   );
-  // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (the formation map and spread-vs-demand
-  // verdict). Present on any boss with a positions file, including mobile bosses (which render
-  // co-location-gated, per-stand plant-window snapshots — only the whole-fight single map is skipped);
-  // shown last because it's the newest/most-experimental lens.
+  // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (tabbed formation snapshots + spread-vs-demand
+  // verdict; the .postab tabs are switched by the delegated handler near the top of this script). Present on
+  // any boss with a positions file, including mobile bosses (which render their plant-window snapshots — only
+  // the whole-fight single map is skipped); shown last because it's the newest/most-experimental lens.
   if(b.positioning) subs.push({k:"pos",label:"Positioning"});
   const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
   const body={

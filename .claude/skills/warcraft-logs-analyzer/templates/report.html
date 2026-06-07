@@ -293,15 +293,15 @@ const DATA = /*__DATA__*/null;
 // tab shows that panel and hides the rest, scoped to the clicked button's own .posblock.
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
-  // Fixed-frame / Zoom toggle within a snapshot (scoped to its own .poszoomgroup)
+  // Fixed-frame / Zoom toggle — GLOBAL: one click sets the view for EVERY snapshot on the page (all
+  // moments, all bosses) so the choice persists as you tab between stands instead of resetting per tab.
   const zb = e.target.closest(".poszoombtn");
   if (zb) {
-    const grp = zb.closest(".poszoomgroup");
-    if (grp) {
-      const zi = parseInt(zb.getAttribute("data-zoom"), 10) || 0;
+    const zi = parseInt(zb.getAttribute("data-zoom"), 10) || 0;
+    document.querySelectorAll(".poszoomgroup").forEach((grp) => {
       grp.querySelectorAll(".poszoompane").forEach((p, i) => { p.style.display = (i === zi ? "block" : "none"); });
-      zb.parentNode.querySelectorAll(".poszoombtn").forEach((b) => b.classList.toggle("active", b === zb));
-    }
+      grp.querySelectorAll(".poszoombtn").forEach((b) => b.classList.toggle("active", (parseInt(b.getAttribute("data-zoom"), 10) || 0) === zi));
+    });
     return;
   }
   const tab = e.target.closest(".postab");
@@ -687,8 +687,8 @@ function renderEnchants(d){
 }
 
 /* ---------- HIT & EXPERTISE (combatantInfo.stats) — EXPERIMENTAL ---------- */
-// Per-raider gear-sourced hit% vs the benchmark's same-spec target (capped at the textbook hit cap).
-// The one report view (besides Optimize) that's per-raider — a gear FIX, not a skill judgment.
+// Per-raider effective hit% vs the hardcoded textbook hit cap (spell 16% · melee/ranged 9%) — a fixed,
+// benchmark-independent target every DPS and tank itemizes toward. A gear FIX, not a skill judgment.
 function hitCapView(d){
   const sa=d.deep&&d.deep.statAudit; const pls=sa?rowsOf(sa.players):[];
   if(!pls.length) return "";
@@ -709,21 +709,17 @@ function hitCapView(d){
   const env=s.spellEnv||{ours:0,theirs:0};
   const envTxt=p=>p>0?`+${p}% Imp. Faerie Fire`:"none";
   const envNote=`<p class="srcs" style="margin:8px 0 0">The cards above compare <b>gear + talent</b> hit — the itemization lever you actually control; the raid spell-hit buff (Imp. Faerie Fire) is listed here, not baked into the card delta, so a comp difference (boomkins on one side) can't fake a better/worse read. <b>Effective hit = gear + talent + raid</b> (the table's Effective column). <b>Talent</b> is the spec's standard PvE build, assumed in full (e.g. Shadow Focus +10%, Balance of Power +4%, Precision +5%). <b>Raid</b> spell-hit — <span class="cours">${oT}</span>: ${envTxt(env.ours)} · <span class="cthe">${tT}</span>: ${envTxt(env.theirs)}. Not modeled (party-scoped / partial, and they cancel between similar raids): Totem of Wrath, Heroic Presence, Warlock Suppression.</p>`;
-  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> = <b>gear + talent + raid</b> vs the benchmark. Gear from <code>combatantInfo</code>; talent assumed taken; raid = Improved Faerie Fire (+3% with a Balance Druid). The summary cards compare <b>gear+talent only</b> (the controllable lever). Under-hit = missed casts, fixable with gems/enchants/gear. <b>Target</b> = benchmark hit, capped (spell 16% · melee/ranged 9%). A bear/role-fluid Feral reads low on gear hit by design (they don't itemize for it) and isn't flagged. Healers excluded. <b>Experimental</b> — talent assumed; treat borderline rows as a prompt.</span></h2>
+  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> = <b>gear + talent + raid</b> vs the <b>hit cap</b>. Gear from <code>combatantInfo</code>; talent assumed taken; raid = Improved Faerie Fire (+3% with a Balance Druid). The summary cards compare <b>gear+talent only</b> (the controllable lever). Under-hit = missed casts/swings, fixable with gems/enchants/gear. <b>Target</b> = the hardcoded hit cap (spell 16% · melee/ranged 9%) — a fixed goal every DPS and tank itemizes toward, independent of the benchmark (tanks want hit for threat). Specs whose hit talent we can't count (warrior/bear tanks, Arcane/Affliction, BM/MM, Ret) read low and are only flagged on a large shortfall. Healers excluded; <b>Protection Paladins excluded too</b> — their threat is spell-based but WCL only exposes physical hit, so their spell hit isn't measurable here. <b>Experimental</b> — talent assumed; treat borderline rows as a prompt.</span></h2>
   <div class="cards">${cards}</div>${envNote}
   <h4 class="ours">${oT} — hit &amp; expertise by raider</h4>
   <table><thead><tr><th>Player</th><th>Spec</th><th>Role</th><th>Gear</th><th>Talent</th><th>Raid</th><th>Effective</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
   for(const p of pls){
     const pct=v=>v>0?v+"%":'<span class="cna">—</span>';   // 0 sources read as a muted dash
     const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.effPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
-    // Ungraded (a role-fluid Feral / tank with no same-spec benchmark): the bare cat/melee cap isn't a real
-    // target for them, so show "—" + the reason instead of a number they appear to "fail".
-    const ungReason = (p.spec==='Feral'?'tank-fluid Feral':'tank')+' — not graded (no same-spec benchmark)';
-    const tgtCell=p.ungraded
-      ? `<span class="cna">—</span> <span class="num" style="opacity:.7">${ungReason}</span>`
-      : `${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
+    // Target = the hardcoded hit cap (every DPS and tank is graded against it); flag the gap when under.
+    const tgtCell=`${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
     const expCell=p.physical?(`${p.expertise}`+(p.benchExp!=null?` <span class="num">(bench ${p.benchExp})</span>`:"")):'<span class="cna">—</span>';
-    const roleCell=(p.role==='tank'||p.ungraded)?'<b>tank</b>':esc(p.role||'');
+    const roleCell=p.role==='tank'?'<b>tank</b>':esc(p.role||'');
     h+=`<tr class="${p.under?'isgap':''}"><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
       <td class="num">${esc(p.spec)}</td><td class="num">${roleCell}</td>
       <td class="num">${p.gearPct}%</td><td class="num">${pct(p.talentPct)}</td><td class="num">${pct(p.raidPct)}</td>

@@ -391,8 +391,15 @@ SPEC_TALENT_HIT = {
 
 def _hit_kind(cls, spec, role):
     """('spell'|'melee'|'ranged') for a hit-relevant role, or None to skip. Healers don't itemize hit;
-    hunters use ranged hit; casters use spell hit; everyone else (incl. tanks, for threat) melee hit."""
+    hunters use ranged hit; casters use spell hit; everyone else (incl. tanks, for threat) melee hit.
+    Protection Paladins are EXCLUDED: their threat is spell-based (Consecration/Holy Shield/Judgement) so
+    they itemize SPELL hit, but WCL's combatantInfo exposes only a single PHYSICAL hit field and never
+    captures prot-pally spell hit — every prot pally (ours and the benchmark) reads an identical ~15
+    melee-residue rating. Grading the stat we can see (melee) against a cap they rightly ignore would only
+    paint a false red, so we skip them — same reason healers are out: the hit that matters isn't measurable."""
     if role == "healer":
+        return None
+    if cls == "Paladin" and (role == "tank" or spec in ("Protection", "Justicar")):
         return None
     if cls == "Hunter":
         return "ranged"
@@ -452,40 +459,31 @@ def stat_audit(directory, role_map, spec_map, class_map, allow_names, spell_env=
 
 
 def stat_audit_compare(ours, theirs):
-    """Attach each raider's practical hit TARGET (= benchmark same-spec EFFECTIVE hit, capped at the
-    textbook cap) + benchmark expertise, and flag raiders a clear margin under target. Compares on
-    EFFECTIVE hit (gear + each side's raid Imp FF) so a buff asymmetry — e.g. we run boomkins and the
-    benchmark doesn't — doesn't wrongly flag our (effectively-capped) casters. Sorted worst hit gap first."""
+    """Attach each raider's hit TARGET — the HARDCODED textbook hit cap for their hit type (spell 16% ·
+    melee/ranged 9%), independent of the benchmark: every DPS and tank itemizes toward hit cap (DPS for
+    landed casts/swings, tanks for threat). Benchmark same-spec expertise is still surfaced as a reference.
+    Flag raiders a clear margin under cap, on EFFECTIVE hit (gear + talent + raid). Worst hit gap first."""
     bench = {}
     for p in theirs:
-        b = bench.setdefault((p["class"], p["spec"]), {"hit": [], "exp": []})
-        b["hit"].append(p["effPct"])  # benchmark's EFFECTIVE hit (their gear + their raid Imp FF)
+        b = bench.setdefault((p["class"], p["spec"]), {"exp": []})
         if p["physical"]:
             b["exp"].append(p["expertise"])
     rows, n_under = [], 0
     for p in ours:
         b = bench.get((p["class"], p["spec"]), {})
-        bh, be = b.get("hit") or [], b.get("exp") or []
-        bench_hit = round(sum(bh) / len(bh), 1) if bh else None
+        be = b.get("exp") or []
         bench_exp = round(sum(be) / len(be)) if be else None
-        # Target = benchmark same-spec EFFECTIVE hit, never above the textbook cap; fall back to the cap
-        # when the benchmark didn't field this spec. Flag = a clear margin under target (2% vs a real
-        # benchmark, 3% against the bare cap — wider, since the cap ignores talent hit reductions).
-        if bench_hit is not None:
-            target, margin = min(bench_hit, p["cap"]), 2.0
-        else:
-            target, margin = p["cap"], 3.0
+        # Target = the textbook hit cap for this hit type — a fixed, benchmark-independent goal every DPS
+        # and tank wants to reach. Flag = a clear margin under cap. The margin is TIGHT (1%) when the spec's
+        # standard hit talent is MODELED in SPEC_TALENT_HIT (we then see the full gear+talent+raid picture,
+        # so any shortfall is real), and WIDER (3%) when it isn't (tanks, Arcane/Affliction casters, BM/MM
+        # Hunter, Ret): their effPct understates true hit because we don't assume a talent we can't count, so
+        # we only flag a large, unambiguous shortfall to avoid a false red on an actually-capped raider.
+        target = p["cap"]
+        margin = 1.0 if (p["class"], p["spec"]) in SPEC_TALENT_HIT else 3.0
         under = p["effPct"] < target - margin
-        # Don't grade a role-fluid Feral druid (bear/cat) or a tank against the BARE CAP when the benchmark
-        # fielded no same-spec player to compare against. A bear legitimately deprioritizes gear hit, so the
-        # 9% cat-DPS cap is the wrong yardstick — judging 3% hit against it would put a half-night tank atop
-        # the per-player gear-fix list. Mark the row UNGRADED so the UI shows "—" for the target (no false
-        # red, and no misleading number to "fail"), with the reason, instead of silently leaving it unflagged.
-        ungraded = bench_hit is None and (p.get("role") == "tank" or (p["class"] == "Druid" and p["spec"] == "Feral"))
-        if ungraded:
-            under = False
         n_under += 1 if under else 0
-        rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp, "ungraded": ungraded,
+        rows.append({**p, "benchExp": bench_exp,
                      "target": round(target, 1), "under": under, "gap": round(target - p["effPct"], 1)})
     rows.sort(key=lambda r: (not r["under"], -r["gap"]))
 

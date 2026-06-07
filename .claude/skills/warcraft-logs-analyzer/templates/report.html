@@ -98,6 +98,10 @@
      an h2.section title; not a `.hint`, so the section-title styling leaves it as a pill. */
   .xp{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;padding:2px 8px;border-radius:6px;
     background:rgba(148,130,201,.18);color:#ccbff2;border:1px solid rgba(148,130,201,.4);vertical-align:middle;margin-left:8px}
+  /* Hide the "Experimental" badges (the plain, style-less .xp pills) while keeping the .xp component for
+     future use. The styled .xp variants (e.g. the Optimize "Prep flag") are unaffected. Delete this one
+     line to bring the Experimental badges back. */
+  .xp:not([style]){display:none}
 
   /* Positioning views (server-rendered SVG fragments + their captions/verdicts). */
   .poshd{font-size:12.5px;font-weight:700;margin:0 0 3px}
@@ -143,7 +147,7 @@
   .ossub{display:none}.ossub.active{display:block}
   .obsub{display:none}.obsub.active{display:block}
   .btabs.ospecs{margin:2px 0 14px}
-  .btabs.ospecs .btab.on{background:var(--theirs);color:#06101f}
+  .btabs.ospecs .btab.on{background:var(--tlc,var(--theirs));color:#06101f}
   .btabs.obosses{margin:2px 0 12px}
   /* Positioning snapshot tabs (server-rendered fragment; switched by a delegated handler) */
   .posblock{margin:4px 0}
@@ -1677,7 +1681,7 @@ function renderOptimize(d){
   classes.forEach((c,ci)=>{
     const specs=rowsOf(c.specs);
     h+=`<div class="osub ${ci===0?"active":""}" data-octab="${esc(c.class)}">`;
-    h+=`<div class="btabs ospecs">`+specs.map((s,j)=>`<button class="btab ${j===0?"on":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}" data-ocls="${esc(c.class)}">${esc(s.spec)}</button>`).join("")+`</div>`;
+    h+=`<div class="btabs ospecs">`+specs.map((s,j)=>`<button class="btab tltab ${j===0?"on":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}" data-ocls="${esc(c.class)}" style="--tlc:${cc(c.class)}">${esc(s.spec)}</button>`).join("")+`</div>`;
     specs.forEach((s,si)=>{
       const skey=`${esc(c.class)}|${esc(s.spec)}`;
       h+=`<div class="ossub ${si===0?"active":""}" data-ospec="${skey}">`;

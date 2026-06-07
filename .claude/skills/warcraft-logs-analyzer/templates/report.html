@@ -1671,7 +1671,9 @@ function renderOptimize(d){
   if(!classes.length) return `<h2 class="section">Optimize</h2><p class="num" style="padding:8px 2px">No DPS or healer specs to benchmark.</p>`;
   const fac=o.factionName?esc(o.factionName):"same-faction";
   let h=`<h2 class="section">Optimize — Rotation vs World Best<span class="hint">Every raider's cast mix benchmarked <b>per boss</b> against the top <b>${fac}</b> player of their class &amp; spec. Pick a <b>class</b>, <b>spec</b>, then <b>boss</b>; each shows cast share per ability vs world best. Only appears where they played that role (form-aware). Within <b>5 points</b> everywhere = a green chip. <b>Descriptive, not scored.</b></span></h2>`;
-  h+=`<div class="btabs">`+classes.map((c,i)=>`<button class="btab ${i===0?"on":""}" data-octab="${esc(c.class)}">${esc(c.class)}</button>`).join("")+`</div>`;
+  // Class tabs wear their class colour (reusing the Timeline `.tltab`/`--tlc` idiom: class-coloured text when
+  // inactive, dark text on a class-colour fill when active).
+  h+=`<div class="btabs">`+classes.map((c,i)=>`<button class="btab tltab ${i===0?"on":""}" data-octab="${esc(c.class)}" style="--tlc:${cc(c.class)}">${esc(c.class)}</button>`).join("")+`</div>`;
   classes.forEach((c,ci)=>{
     const specs=rowsOf(c.specs);
     h+=`<div class="osub ${ci===0?"active":""}" data-octab="${esc(c.class)}">`;

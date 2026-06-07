@@ -347,3 +347,29 @@ knows.
 
 **Scope:** renderer-only — update the CSS variable or color constant used for the benchmark/theirs side
 (bars, labels, column headers) from red to pink. No builder changes.
+
+---
+
+## TODO: Link back to the source Warcraft Logs reports
+
+> urls that point at the warcraft logs reports from the report
+
+**What to add:** make the report link back to the two source WCL logs it was built from — ours and the
+benchmark's — so a leader can jump from a named lever in this report straight into the raw log to dig deeper.
+Natural home: the team-name chips in the hero header (ours / benchmark), each an anchor to its
+`…/reports/<code>` page.
+
+**Leader decision this serves:** *"the report says we leak Fireballs on Kael — now show me the actual casts."*
+It's the drill-from-lever-into-source bridge: this report puts a finger on *which* mechanic / spec / phase,
+and the link lets the leader (or a stranger reading it cold) go pull the exact casts/deaths on Warcraft Logs.
+It also carries **provenance** — any number can be traced back to the log it came from — which reinforces the
+accuracy floor's trust rather than adding a new metric.
+
+**Data is already present:** both report codes are the build inputs (`compare_raids.py` `--ours-url` /
+`--theirs-url`), so the builder already has them — thread the two URLs into `DATA.ours` / `DATA.theirs` and
+render anchors on the header chips. Use the host the report was fetched from
+(e.g. `https://fresh.warcraftlogs.com/reports/<code>`). No new fetch.
+
+**Scope:** small — pass the source URLs through to the template, render as links. Open question: link the whole
+report (header) only, or also deep-link per-boss to that fight (`?fight=<id>`) once fight IDs are threaded
+through to the per-boss sections.

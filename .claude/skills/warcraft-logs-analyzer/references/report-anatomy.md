@@ -2,18 +2,25 @@
 
 `build_deepdive.py` (invoked by `compare_raids.py`) injects a `const DATA` blob into
 `templates/report.html` (inline CSS+JS, dark, offline, no CDN) by replacing the
-literal `/*__DATA__*/null`. Eight top-level tabs, a funnel:
+literal `/*__DATA__*/null`. Seven top-level tabs, a funnel:
 
-| Tab | Question it answers |
-|---|---|
-| **Overview** | Where's the gap, at a glance |
-| **Composition** | Roster makeup & buffs |
-| **Prep** | Did we show up ready |
-| **Execution** | Raid-wide gaps + per-boss drill-down |
-| **Bosses** | Per-boss execution drill-down |
-| **Wipes** | Why we wipe (the wall, the trend, the tax, what ends attempts) |
-| **Optimize** | How each raider's rotation compares to the world best |
-| **Trash** | How we handle trash packs |
+| Tab | `data-t` | Question it answers |
+|---|---|---|
+| **Overview** | `overview` | Where's the gap, at a glance |
+| **Readiness** | `enchants` | Did we show up set up to win — roster, buffs, consumes, gear (sub-tabs: **Roster & Buffs** · **Consumables** · **Enchants & Gear**) |
+| **Execution** | `execution` | Raid-wide, how did we play the fights (sub-tabs: **Output** · **Survival** · **Buffs & Cooldowns** · **Threat & Adds**) |
+| **Bosses** | `bosses` | Per-boss execution drill-down |
+| **Wipes** | `wipes` | Why we wipe (the wall, the trend, the tax, what ends attempts) |
+| **Rotations** | `optimize` | How each raider's rotation compares to the world best |
+| **Trash** | `trash` | How we handle trash packs (sub-tabs: **Overview** · **Deaths** · **Coordination**) |
+
+The funnel was reorganized for legibility (layout only — no metric changed): the old
+**Composition** tab folded into **Readiness** (the old **Prep** tab) as its *Roster & Buffs*
+sub-tab; the 14-section **Execution** wall and the flat **Trash** tab gained inner sub-tabs;
+**Optimize** was renamed **Rotations**. Tab `data-t` ids and panel ids are unchanged (so the
+Execution `dmgMode` re-render and the dynamic mounts keep working); `enchants` now hosts
+Readiness, `optimize` now hosts Rotations. Sub-tabs reuse the `.btab`/`.bsub` idiom the
+Bosses tab already used; `execSub` persists the active Execution pane across the `dmgMode` re-render.
 
 Most sections compare ours vs benchmark with a delta (B is whatever's loaded — a better
 guild or your own past raid; some checks are absolute, no B); weak/ambiguous or hard-to-read metrics are deliberately omitted (the soul's accuracy + legibility floors — see `PRODUCT_MANAGER_SOUL.md`). Symbols below are
@@ -43,8 +50,9 @@ guild or your own past raid; some checks are absolute, no B); weak/ambiguous or 
 
 ---
 
-## Composition
+## Readiness → Roster & Buffs (was the Composition tab)
 
+`renderComposition` is now the **Roster & Buffs** sub-tab of Readiness (`renderReadiness`).
 Raid composition + buff-provider gaps (`PROVIDER_CHECKS`: class/spec → raid buff it
 brings). Spec = each player's **primary (most-frequent) spec across shared bosses**
 (`primary_spec_map`), so a Feral who bear-tanks one fight still reads Feral and still
@@ -66,7 +74,14 @@ the honest version.)
 
 ---
 
-## Prep
+## Readiness → Consumables + Enchants & Gear (was the Prep tab)
+
+`renderEnchants(d, group)` now renders one of two Readiness sub-tabs: `group="consumables"`
+emits the five consumable sections below (Consumables Coverage → Opener Potion — Prepot);
+`group="gear"` emits Enchants & Weapon Oils + Hit & Expertise + Item Level by Role. The split
+is layout-only (each section's HTML is byte-identical; the section blocks are just guarded by
+`wantC`/`wantG`). `renderReadiness` wires the three panes (Roster & Buffs · Consumables ·
+Enchants & Gear) and `mountReadiness` toggles them via `data-rdy`.
 
 - **Consumables Coverage** (`consumable_report`) — Flask/Elixir-Pair card reads
   per-player consumes (`_cell_for`), so a battle+guardian **elixir pair** counts as
@@ -157,6 +172,19 @@ the honest version.)
 ---
 
 ## Execution — raid-wide gaps
+
+`renderExecution` groups the 14 sections into four inner sub-tabs (`data-esub`, built into
+pane buffers then assembled; empty groups are dropped):
+- **Output** — Output Quality (holds the `dmgMode` Per-second/Overall toggle), Clear Efficiency,
+  DPS Gaps — By Spec, Melee Uptime on the Boss.
+- **Survival** — What's Killing Us, Time Lost to Deaths, Avoidable Damage by Mechanic.
+- **Buffs & Cooldowns** — Buff & Debuff Coverage Gaps, Debuff Ramp & Continuity, Interrupts Leaked,
+  Cooldown & Trinket Usage, Bloodlust.
+- **Threat & Adds** — Early Aggro — Threat Pulls, Add Control — Kill Speed.
+
+The tab stays ONE dynamic panel (`p-execution`), so the `dmgMode` toggle still re-renders both
+`p-execution` and `p-bosses` unchanged; `execSub` (module var) restores the active pane after that
+re-render, and `wireExecution` re-binds the `data-esub` handler each render.
 
 - **What's Killing Us** (`death_cause_compare` → `deathCausesView`) — killing-blow
   names across all shared bosses, ranked by **biggest avoidable delta** (ours−theirs;
@@ -307,9 +335,10 @@ Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default)
 
 ---
 
-## Optimize
+## Rotations (the Optimize tab; `data-t="optimize"`)
 
-`build_optimize` → `renderOptimize`/`optSpecBody` (wired by `mountOptimize`). The **only per-player
+Tab labelled **Rotations** in the nav; the in-panel section header keeps "Optimize — Rotation vs World
+Best" for recognition. `build_optimize` → `renderOptimize`/`optSpecBody` (wired by `mountOptimize`). The **only per-player
 view in the report** (a deliberate exception to the otherwise raid/spec-level rule) and the only one
 benchmarked against the **world**, not the comparison guild. Two nested tab levels: **class** sub-tabs
 (`data-octab`) → **spec** sub-tabs (`data-ospec`, scoped per class via `data-ocls` so distinct classes
@@ -380,6 +409,11 @@ Benchmark wipe counts ride along per boss as light context where present (`dp.wi
 ---
 
 ## Trash
+
+`renderTrash` groups its sections into three inner sub-tabs (`data-trsub`, wired by `mountTrash`'s
+generic `wire("trsub")` — distinct from the nested `data-ttab`/`data-ktab` toggles it preserves):
+**Overview** (Trash at a Glance + Chain-Pulling), **Deaths** (What's Killing Us on Trash + Trash Deaths
+by Pull Size), **Coordination** (Kill Order & Crowd Control). Layout-only regroup of the existing sections.
 
 `build_trash` → `renderTrash`. WCL splits trash into pull **segments**
 (`fights(killType:Trash)`), each named after its notable mob, with `enemyNPCs` (mob ids+counts)

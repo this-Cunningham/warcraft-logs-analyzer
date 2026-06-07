@@ -454,11 +454,12 @@ only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compas
     as **labelled TABS** (`Opener` / numbered re-plants / phase tags like `P2`, switched by a delegated
     `.postab` handler): the raid's *settled* formation at the opening + each phase start + every boss
     **re-plant** (a few seconds in, so it's the formation, not the transition scramble), ours vs benchmark per
-    moment — *where the raid stood when it mattered*, not a whole-fight smear. **The benchmark is ALIGNED to
-    ours by the OPENER offset** (`_opener_align`): the two raids often anchor the boss at slightly different
-    spots in the room, so matching them at the pull — before either drifts — makes the formations directly
-    comparable, while real later drift still shows (it's a single constant translation, NOT per-panel
-    boss-centering). Falls back to one boss-aligned whole-fight map when no plant window is detected.
+    moment — *where the raid stood when it mattered*, not a whole-fight smear. **The two raids share ONE
+    absolute frame at REAL positions** (`_window_frame`) — not aligned or boss-centered — so a positioning GAP
+    (a different tank spot, a looser spread, the wrong side of the boss) reads as a real offset to point at,
+    which is the whole purpose of the view. A non-mobile boss uses one frame across all moments (read drift as
+    the raid moves within a stable window); a MOBILE boss uses a tight per-moment frame (its stands are
+    different platforms). Falls back to one shared-frame whole-fight map when no plant window is detected.
     **Mobile bosses (Al'ar) DO render** their planted-window snapshots (only the whole-fight single-panel map
     is skipped — that one really would smear across the arena). The melee-uptime view and the whole-fight
     single map stay non-mobile. Spread is a robust **spread radius** (`spread_radius_yd`:
@@ -473,7 +474,7 @@ only the ours-vs-benchmark ratio is leaned on — never an absolute yard, compas
 
 Boss auto-class (`boss_travel_yd`/`boss_class`: STATIONARY/PLANT-AND-MOVE/MOBILE from the **max** of both
 raids' total boss travel — so a boss mobile on either pull is treated as mobile) gates which features make
-sense: a MOBILE boss renders its plant-window snapshots (opener-aligned, tabbed) but NOT the whole-fight
+sense: a MOBILE boss renders its plant-window snapshots (tabbed, real positions) but NOT the whole-fight
 single map or the melee-uptime row. Graceful when a data folder predates the positions fetch
 (the views simply don't render). See the `warcraft-logs-positioning` skill's `references/` for the
 coordinate system, the centiradian facing decode, and rendering rules.

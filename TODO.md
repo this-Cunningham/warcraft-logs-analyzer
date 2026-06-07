@@ -199,16 +199,16 @@ really would smear across the arena). Per the brainstorm's prior: a boss that te
 is mobile *between* plants but stationary *during* them, so the per-stand formation is as meaningful as on any
 stationary boss.
 
-Presentation + cross-raid comparability (the snapshots are shown as labelled **tabs** — `Opener` / numbered
-re-plants / phase tags — switched by a delegated `.postab` handler, not a vertical wall of maps):
-- **Opener alignment** (`_opener_align` + `_match_moments`): the two raids often anchor the boss at slightly
-  different spots in the room (verified: Void Reaver ~30yd apart, Solarian ~44yd, constant from the pull —
-  real different tank spots, not a coordinate bug, since Al'ar matches to 0.4yd). So the benchmark is
-  translated by a single constant offset measured at the **opener** (where neither fight has drifted) to
-  align it to ours; the opener then overlays cleanly and any real later drift still shows. This is NOT
-  per-panel boss-centering (that was tried and rejected — it hid drift and removed absolute geometry).
-- **Per-moment shared frame**: each tab is framed to its own moment over ours + the aligned benchmark, so a
-  stand reads as a real formation instead of a corner clump in an arena-wide box.
+Presentation (the snapshots are shown as labelled **tabs** — `Opener` / numbered re-plants / phase tags —
+switched by a delegated `.postab` handler, not a vertical wall of maps):
+- **Real positions, one shared frame** (`_window_frame`): the two raids are drawn in the SAME absolute map
+  window at their actual room positions — NOT aligned or boss-centered — so a positioning GAP (a different
+  tank spot, a looser spread, the wrong side of the boss) shows as a real offset you can point at. (The two
+  raids do often anchor the boss at different spots — verified Void Reaver ~30yd apart, Solarian ~44yd,
+  constant from the pull, real different tank spots, not a coordinate bug since Al'ar matches to 0.4yd — and
+  seeing that gap is the point. Boss-centering and opener-alignment were both tried and rejected: they hid the
+  gap.) A non-mobile boss uses one frame across all moments (read drift as the raid moves within a stable
+  window); a mobile boss uses a tight per-moment frame.
 - **Icons**: bigger boss diamond + bigger **white** add squares, both drawn ON TOP of the player dots.
 
 The melee-uptime view and the whole-fight single map remain non-mobile (on a mobile boss they'd measure the

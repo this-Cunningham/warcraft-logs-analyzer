@@ -418,30 +418,27 @@ def _robust_frame(sides, pad_frac=0.06):
 
 def _window_frame(specs, pad_frac=0.06):
     """Shared frame (minx,miny,maxx,maxy) for SNAPSHOT panels, built from the actual positions being plotted —
-    each actor's median over its window [lo,hi) plus the boss's — across every spec in `specs`. A spec is
-    `(pos, lo, hi)` or `(pos, lo, hi, (dx, dy))`; the optional shift `(dx, dy)` is ADDED to that side's points
-    before they enter the frame (used to align the benchmark to ours by the opener offset, so a co-plotted
-    pair shares one perspective). Full min/max (no clipping), so every drawn dot lands inside the frame."""
+    each actor's median over its window [lo,hi) plus the boss's — across every (pos, lo, hi) in `specs` (both
+    raids share one frame, so a position is the same screen point in both panels and a gap reads as an offset).
+    Full min/max (no clipping), so every drawn dot lands inside the frame."""
     xs, ys = [], []
-    for spec in specs:
-        pos, lo, hi = spec[0], spec[1], spec[2]
-        dx, dy = spec[3] if len(spec) > 3 else (0.0, 0.0)
+    for pos, lo, hi in specs:
         for a in pos["actors"].values():
             pts = [p for p in _fill(a["bins"])[lo:hi] if p]
             if pts:
-                xs.append(_median([p[0] for p in pts]) + dx)
-                ys.append(_median([p[1] for p in pts]) + dy)
+                xs.append(_median([p[0] for p in pts]))
+                ys.append(_median([p[1] for p in pts]))
         for a in (pos.get("adds") or {}).values():
             pts = [p for p in a["bins"][lo:hi] if p]  # raw — a despawned add must not inflate the frame
             if pts:
-                xs.append(_median([p[0] for p in pts]) + dx)
-                ys.append(_median([p[1] for p in pts]) + dy)
+                xs.append(_median([p[0] for p in pts]))
+                ys.append(_median([p[1] for p in pts]))
         bb = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
         if bb:
             bpts = [p for p in _fill(bb)[lo:hi] if p]
             if bpts:
-                xs.append(_median([p[0] for p in bpts]) + dx)
-                ys.append(_median([p[1] for p in bpts]) + dy)
+                xs.append(_median([p[0] for p in bpts]))
+                ys.append(_median([p[1] for p in bpts]))
     if len(xs) < 2:
         return None
     minx, maxx = min(xs), max(xs)
@@ -452,32 +449,24 @@ def _window_frame(specs, pad_frac=0.06):
     return (minx - pad, miny - pad, maxx + pad, maxy + pad)
 
 
-def _opener_align(o_wins, t_wins):
-    """The constant translation that aligns the benchmark to OURS, measured at the OPENER (where neither fight
-    has drifted yet, so it's the clean common reference). Returns (dx, dy) to ADD to the benchmark's points so
-    its opener boss coincides with ours; (0, 0) when either opener boss is missing. Applied to ALL the
-    benchmark's snapshots — so the opener overlays cleanly even when the two raids anchored the boss at
-    different spots in the room, while any real DRIFT later (the two bosses diverging) still shows, since the
-    offset is fixed once at the opener and never re-derived per moment (this is NOT per-panel boss-centering)."""
-    ob = o_wins[0].get("bossXY") if o_wins else None
-    tb = t_wins[0].get("bossXY") if t_wins else None
-    if ob and tb:
-        return (ob[0] - tb[0], ob[1] - tb[1])
-    return (0.0, 0.0)
-
-
 def _moment_tab_label(label, replant_n):
-    """Short tab label for a snapshot moment, in the user's scheme: the opening is 'Opener', a named-phase
-    start is its phase tag ('P2'), and each boss re-plant is a running number ('1','2',…). Returns
-    (tab_label, new_replant_n)."""
-    low = (label or "").lower()
+    """Tab label for a snapshot moment: the opening is 'Opener'; a phase start shows the PHASE'S NAME when the
+    encounter has named phases (e.g. 'P2: The Weapons') and 'Phase N' otherwise; a boss re-plant is a running
+    number ('1','2',…), prefixed with its phase NAME when it falls inside one ('P5: Gravity Lapse · re-plant 2').
+    Returns (tab_label, new_replant_n). (`label` is already the phase name / 'Re-plant' from `_plant_windows`.)"""
+    label = label or ""
+    low = label.lower()
     if low == "opening":
         return "Opener", replant_n
     if "re-plant" in low or "replant" in low:
         replant_n += 1
-        return str(replant_n), replant_n
-    m = re.search(r'p(?:hase)?\s*(\d+)', low)
-    return (("P" + m.group(1)) if m else (label[:8] if label else "?")), replant_n
+        # A re-plant with no named phase (label exactly "Re-plant") shows the bare running number; one inside a
+        # named phase keeps that phase name so the tab still names its phase.
+        if re.match(r'\s*re-?plant\s*$', label, flags=re.I):
+            return str(replant_n), replant_n
+        return "{} {}".format(label, replant_n), replant_n
+    # phase start — `label` is already the phase name ("P2: The Weapons") or a "Phase N" fallback.
+    return label, replant_n
 
 
 def _projector(frame, W):
@@ -754,9 +743,8 @@ def _match_moments(o_wins, t_wins):
     """Pair ours/theirs snapshot windows into render rows. Windows are grouped by LABEL and paired in
     chronological order within each label; a window with no counterpart on the other side becomes an UNMATCHED
     row (shown as a single panel) rather than being dropped — so a re-plant only one raid did is still shown.
-    The benchmark is then ALIGNED to ours by the opener offset (see `_opener_align`), so a pair is a valid
-    FORMATION comparison even when the two raids anchored the boss at different spots in the room — the
-    benchmark is translated (not re-centered per panel), so the opener overlays and real later drift still shows.
+    The two panels share one absolute frame (real positions, not aligned or centered), so a positioning gap
+    between the raids reads as a real offset.
     Returns a list of {label, sec, o, t} sorted by time (o or t may be None)."""
     o_by, t_by = {}, {}
     for w in o_wins:
@@ -799,10 +787,10 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
     bclass = boss_class(max(travel_o or 0, travel_t or 0))
     # A MOBILE boss (e.g. Al'ar flying between platforms) is mobile BETWEEN plants but stationary DURING them.
     # We render only its PLANTED windows (phase/re-plant snapshots where the boss is locally stationary) and
-    # skip the whole-fight single-panel map (that one really would smear across the arena). The benchmark is
-    # aligned to ours by the opener offset and each tab is framed to its own moment, so a teleporting boss
-    # reads as a sequence of comparable formations. The spread RADIUS verdict is frame-independent (valid on
-    # every class).
+    # skip the whole-fight single-panel map (that one really would smear across the arena). Each tab is framed
+    # to its own moment (its stands are different platforms) and both raids share that frame at real positions,
+    # so a teleporting boss reads as a sequence of formations with any gap visible. The spread RADIUS verdict
+    # is frame-independent (valid on every class).
     is_mobile = (bclass == "mobile")
     frame = _robust_frame([o_pos, t_pos])
     if not frame and not is_mobile:
@@ -840,40 +828,42 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                        '(descriptive — no curated spread/stack call on this boss).').format(o=o_sr, t=t_sr)
         # Snapshot moments: the opening, each phase start, AND every boss RE-PLANT (the boss moving and
         # settling into a new stand). Each side is detected independently and paired by _match_moments (a
-        # moment only one raid reached is shown alone). The benchmark is ALIGNED TO OURS by a single constant
-        # offset measured at the OPENER (where neither fight has drifted — `_opener_align`), so the opener
-        # overlays cleanly even when the two raids anchored the boss at different spots in the room, while real
-        # later DRIFT still shows. NOT boss-centered. Per moment the two panels share one absolute frame (built
-        # over ours + the aligned benchmark). Moments render as labelled TABS (Opener / numbered re-plants /
-        # phase tags) in chronological order, not a wall of maps.
+        # moment only one raid reached is shown alone). The two raids share ONE absolute frame at REAL room
+        # positions — NOT aligned or boss-centered — so a positioning GAP between your raid and the benchmark
+        # (a different tank spot, a looser spread, standing on the wrong side of the boss) shows as a real
+        # offset you can point at. A non-mobile boss uses one frame across all moments (read drift as the raid
+        # moves within a stable window); a MOBILE boss uses a tight per-moment frame (its stands are different
+        # platforms, so one arena-wide frame would shrink every snapshot to a corner clump). Moments render as
+        # labelled TABS (Opener / numbered re-plants / phase tags) in chronological order, not a wall of maps.
         o_wins = _plant_windows(o_pos, o_phases, phase_names)
         t_wins = _plant_windows(t_pos, t_phases, phase_names)
         rows_m = _match_moments(o_wins, t_wins)
         if rows_m:
-            align = _opener_align(o_wins, t_wins)   # (dx, dy) added to the benchmark to align it to ours
+            allspecs = ([(o_pos, r["o"]["lo"], r["o"]["hi"]) for r in rows_m if r["o"]]
+                        + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
+            win_frame = _window_frame(allspecs) or frame
             tabs, panels, replant_n = [], [], 0
             for idx, r in enumerate(rows_m):
                 ow, tw = r["o"], r["t"]
-                # One shared frame per moment, built over ours' points and the benchmark's points SHIFTED by
-                # the opener offset, so the two panels share zoom + perspective with the benchmark aligned.
-                specs = (([(o_pos, ow["lo"], ow["hi"], (0.0, 0.0))] if ow else [])
-                         + ([(t_pos, tw["lo"], tw["hi"], align)] if tw else []))
-                shared = _window_frame(specs) or frame
-                of = shared
-                tf = ((shared[0] - align[0], shared[1] - align[1], shared[2] - align[0], shared[3] - align[1])
-                      if shared else frame)   # benchmark frame shifted back so its real coords render aligned
+                if is_mobile:
+                    rspecs = (([(o_pos, ow["lo"], ow["hi"])] if ow else [])
+                              + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
+                    rframe = _window_frame(rspecs) or win_frame
+                else:
+                    rframe = win_frame
+                if not rframe:
+                    continue
                 if ow and tw:
-                    o_map = _formation_at(o_pos, o_roles, of, ow["lo"], ow["hi"])
-                    t_map = _formation_at(t_pos, t_roles, tf, tw["lo"], tw["hi"])
-                    sub = "ours @ {} &middot; benchmark @ {} into the fight &middot; aligned at the opener".format(
-                        _mmss(ow["sec"]), _mmss(tw["sec"]))
+                    o_map = _formation_at(o_pos, o_roles, rframe, ow["lo"], ow["hi"])
+                    t_map = _formation_at(t_pos, t_roles, rframe, tw["lo"], tw["hi"])
+                    sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
                     panel = _dual(o_map, t_map, o_name, t_name, sub)
                 elif ow:
-                    o_map = _formation_at(o_pos, o_roles, of, ow["lo"], ow["hi"])
+                    o_map = _formation_at(o_pos, o_roles, rframe, ow["lo"], ow["hi"])
                     panel = _single(o_map, o_name, "ours",
                                     "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
                 else:
-                    t_map = _formation_at(t_pos, t_roles, tf, tw["lo"], tw["hi"])
+                    t_map = _formation_at(t_pos, t_roles, rframe, tw["lo"], tw["hi"])
                     panel = _single(t_map, t_name, "theirs",
                                     "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
                 tlab, replant_n = _moment_tab_label(r["label"], replant_n)
@@ -882,11 +872,11 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
                     "block" if idx == 0 else "none", panel))
             note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, and every boss '
-                    '<b>re-plant</b> (numbered) — times approximate, cross-check the Timeline. The benchmark is '
-                    '<b>aligned to your raid at the opener</b> (the two raids anchored the boss at slightly '
-                    'different spots in the room; matching them at the pull, before either drifts, makes the '
-                    'formations directly comparable). A moment only one raid reached is shown alone. Arrows are '
-                    'each actor\'s (and the boss\'s) facing where captured; white squares are enemy adds.')
+                    '<b>re-plant</b> (numbered) — times approximate, cross-check the Timeline. The two raids '
+                    'share one map window at <b>real positions</b> (not aligned), so a difference in where or '
+                    'how your raid stood vs the benchmark shows as a real offset — that\'s the positioning gap. '
+                    'A moment only one raid reached is shown alone. Arrows are each actor\'s (and the boss\'s) '
+                    'facing where captured; white squares are enemy adds.')
             maps_html = ('<div class="posblock"><div class="postabs">' + "".join(tabs) + '</div>'
                          + '<div class="pospanels">' + "".join(panels) + '</div>'
                          + '<p class="posnote" style="opacity:.8">' + note + '</p></div>')
@@ -896,18 +886,12 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                          'plant window long enough to snapshot a formation; the spread radius below is still '
                          'valid (it measures cohort spacing, independent of the boss\'s path).</p>')
         else:
-            # No plant window detected (very short / no boss track) — one whole-fight map per side, with the
-            # benchmark aligned to ours by the whole-fight boss offset (same idea as the opener alignment).
-            ob, tb = boss_median(o_pos), boss_median(t_pos)
-            align = (ob[0] - tb[0], ob[1] - tb[1]) if (ob and tb) else (0.0, 0.0)
-            nb_o, nb_t = o_pos.get("nBins") or 0, t_pos.get("nBins") or 0
-            shared = _window_frame([(o_pos, 0, nb_o, (0.0, 0.0)), (t_pos, 0, nb_t, align)]) or frame
-            tf = ((shared[0] - align[0], shared[1] - align[1], shared[2] - align[0], shared[3] - align[1])
-                  if shared else frame)
-            o_map = _formation_panel(o_pos, o_roles, shared)
-            t_map = _formation_panel(t_pos, t_roles, tf)
+            # No plant window detected (very short / no boss track) — one whole-fight map per side in the same
+            # shared frame, real positions (so a positioning gap still shows).
+            o_map = _formation_panel(o_pos, o_roles, frame)
+            t_map = _formation_panel(t_pos, t_roles, frame)
             maps_html = _dual(o_map, t_map, o_name, t_name,
-                              "median position per player &middot; aligned by the boss")
+                              "median position per player &middot; one shared frame, real positions")
         has_adds = bool((o_pos.get("adds") or {}) or (t_pos.get("adds") or {}))
         spread_html = (
             '<h4 style="margin:14px 0 4px">Raid formation &amp; spread'

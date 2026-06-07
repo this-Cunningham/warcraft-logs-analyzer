@@ -451,6 +451,23 @@ def _window_frame(specs, pad_frac=0.06):
     return (minx - pad, miny - pad, maxx + pad, maxy + pad)
 
 
+def _full_room_frame(o_pos, t_pos):
+    """The whole-room frame: the UNION of both raids' fight bounding boxes (`positions['frame']`, the WCL
+    boundingBox = the fight's full data extent for that boss's room). Shared, so both panels show real
+    positions within the whole area the fight used. None if neither side has a boundingBox."""
+    boxes = [p.get("frame") for p in (o_pos, t_pos) if p and p.get("frame")]
+    boxes = [b for b in boxes if b and all(k in b for k in ("minX", "maxX", "minY", "maxY"))]
+    if not boxes:
+        return None
+    minx = min(b["minX"] for b in boxes)
+    maxx = max(b["maxX"] for b in boxes)
+    miny = min(b["minY"] for b in boxes)
+    maxy = max(b["maxY"] for b in boxes)
+    if maxx - minx < 1 or maxy - miny < 1:
+        return None
+    return (minx, miny, maxx, maxy)
+
+
 def _moment_tab_label(label, replant_n):
     """Tab label for a snapshot moment: the opening is 'Opener'; a phase start shows the PHASE'S NAME when the
     encounter has named phases (e.g. 'P2: The Weapons') and 'Phase N' otherwise; a boss re-plant is a running
@@ -640,30 +657,22 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         W, H, "".join(parts))
 
 
-def _boss_trail_svg(o_xys, t_xys, frame, W=300):
-    """The boss MOVEMENT TRAIL through the tabs so far: the boss's settled spot at each snapshot up to this tab,
-    in time order, connected into a path — ours vs the benchmark OVERLAID in one (constant) frame so the two
-    trails compare directly. NO players. The latest point (this tab's stand) is drawn larger. `o_xys`/`t_xys`
-    are the boss (x,y) per moment up to the current tab. Returns '' when neither side has ≥1 point."""
-    o_xys = [p for p in (o_xys or []) if p]
-    t_xys = [p for p in (t_xys or []) if p]
-    if not o_xys and not t_xys:
-        return ""
+def _trail_one_svg(xys, col, frame, W=260):
+    """ONE raid's boss MOVEMENT TRAIL: its settled boss spot at each snapshot up to this tab, in time order,
+    connected into a path. NO players. The latest point (this tab's stand) is drawn larger. Rendered in the
+    shared constant frame, so ours and the benchmark (drawn in separate side-by-side panels) stay positionally
+    comparable. `xys` are the boss (x,y) per moment up to the current tab."""
     scale, H, sx, sy = _projector(frame, W)
     parts = _grid_and_border(W, H, scale)
-
-    def trail(xys, col):
-        pts = [(min(max(sx(x), 4), W - 4), min(max(sy(y), 4), H - 4)) for (x, y) in xys]
-        if len(pts) >= 2:
-            parts.append('<polyline points="{}" fill="none" stroke="{}" stroke-width="2.4" '
-                         'stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>'.format(
-                             " ".join("{:.1f},{:.1f}".format(px, py) for px, py in pts), col))
-        for i, (px, py) in enumerate(pts):
-            r = 6.0 if i == len(pts) - 1 else 3.2   # the most recent stand (this tab) is the big dot
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="{}" stroke="#0f1420" '
-                         'stroke-width="1.4"/>'.format(px, py, r, col))
-    trail(t_xys, THEIRS_TRAIL)   # benchmark under
-    trail(o_xys, OURS_TRAIL)     # ours over
+    pts = [(min(max(sx(x), 4), W - 4), min(max(sy(y), 4), H - 4)) for (x, y) in (xys or []) if x is not None]
+    if len(pts) >= 2:
+        parts.append('<polyline points="{}" fill="none" stroke="{}" stroke-width="2.4" '
+                     'stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>'.format(
+                         " ".join("{:.1f},{:.1f}".format(px, py) for px, py in pts), col))
+    for i, (px, py) in enumerate(pts):
+        r = 6.0 if i == len(pts) - 1 else 3.2   # the most recent stand (this tab) is the big dot
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="{}" stroke="#0f1420" '
+                     'stroke-width="1.4"/>'.format(px, py, r, col))
     return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
         W, H, "".join(parts))
 
@@ -875,48 +884,64 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                         + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
             win_frame = _window_frame(allspecs, pad_frac=0.10) or frame
 
-            def _panel_at(ow, tw):
+            room_frame = _full_room_frame(o_pos, t_pos)   # the whole room (boundingBox union)
+
+            def _panel_at(ow, tw, fr, label):
                 if ow and tw:
-                    om = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
-                    tm = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
-                    sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
+                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
+                    tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"])
+                    sub = label or "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
                     return _dual(om, tm, o_name, t_name, sub)
                 if ow:
-                    om = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
-                    return _single(om, o_name, "ours",
+                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
+                    return _single(om, o_name, "ours", label or
                                    "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
-                tm = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
-                return _single(tm, t_name, "theirs",
+                tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"])
+                return _single(tm, t_name, "theirs", label or
                                "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
+
+            def _hdr(text):
+                return '<div class="posnote" style="margin:12px 0 2px;opacity:.75">{}</div>'.format(text)
 
             tabs, panels, replant_n = [], [], 0
             for idx, r in enumerate(rows_m):
                 ow, tw = r["o"], r["t"]
-                panel = _panel_at(ow, tw)
-                # Boss MOVEMENT TRAIL — the boss's settled spot at each tab SO FAR (cumulative), in time order,
-                # connected into a path: ours vs benchmark overlaid in the same constant frame, no players.
+                # 1) the main snapshot in the ONE FIXED frame (perspective constant across tabs)
+                panel = _panel_at(ow, tw, win_frame, None)
+                # 2) the same moment ZOOMED to just this stand's positions (tight, NOT boss-centered)
+                mspecs = (([(o_pos, ow["lo"], ow["hi"])] if ow else [])
+                          + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
+                moment_frame = _window_frame(mspecs)
+                if moment_frame:
+                    panel += _hdr('<b>Zoomed to this moment</b> — the same stand, framed tight to just this '
+                                  'moment\'s positions (not boss-centered).') + _panel_at(ow, tw, moment_frame, "zoomed to this moment")
+                # 3) the same moment in the FULL ROOM (the whole fight area)
+                if room_frame:
+                    panel += _hdr('<b>Full room</b> — the same stand within the whole fight area.') + _panel_at(ow, tw, room_frame, "full room")
+                # 4) Boss MOVEMENT TRAIL — cumulative boss spot per tab, ours and benchmark in SEPARATE windows
+                #    (same fixed frame, so the two paths still line up positionally).
                 o_trail = [rows_m[j]["o"]["bossXY"] for j in range(idx + 1)
                            if rows_m[j]["o"] and rows_m[j]["o"].get("bossXY")]
                 t_trail = [rows_m[j]["t"]["bossXY"] for j in range(idx + 1)
                            if rows_m[j]["t"] and rows_m[j]["t"].get("bossXY")]
-                trail = _boss_trail_svg(o_trail, t_trail, win_frame)
-                if trail:
-                    panel += ('<div class="posnote" style="margin:10px 0 2px;opacity:.8"><b>Boss path</b> — the '
-                              'boss\'s settled spot at each tab so far, connected in time order: '
-                              '<span style="color:{}">ours</span> vs <span style="color:{}">benchmark</span> '
-                              '(big dot = this tab). No players — just where each raid moved the boss.</div>'
-                              '<div style="text-align:center">{}</div>').format(OURS_TRAIL, THEIRS_TRAIL, trail)
+                if o_trail or t_trail:
+                    panel += (_hdr('<b>Boss path</b> — the boss\'s settled spot at each tab so far, connected in '
+                                   'time order (big dot = this tab). No players — just where each raid moved the boss.')
+                              + _dual(_trail_one_svg(o_trail, OURS_TRAIL, win_frame),
+                                      _trail_one_svg(t_trail, THEIRS_TRAIL, win_frame),
+                                      o_name, t_name, ""))
                 tlab, replant_n = _moment_tab_label(r["label"], replant_n)
                 tabs.append('<button class="postab{}" data-pos="{}" type="button" title="{}">{}</button>'.format(
                     " active" if idx == 0 else "", idx, esc(r["label"]), esc(tlab)))
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
                     "block" if idx == 0 else "none", panel))
             note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, and every boss '
-                    '<b>re-plant</b> — times approximate, cross-check the Timeline. The two raids share <b>one '
-                    'fixed map window at real positions</b> (the perspective never changes across tabs), so a '
-                    'difference in where or how your raid stood vs the benchmark shows as a real offset — '
-                    'that\'s the positioning gap. Below each formation, the <b>Boss path</b> trail grows tab by '
-                    'tab so you can compare how the two raids moved the boss. A moment only one raid reached is '
+                    '<b>re-plant</b> — times approximate, cross-check the Timeline. Real positions throughout '
+                    '(not aligned), so a difference in where/how your raid stood vs the benchmark is a real '
+                    'offset — the positioning gap. The top map uses <b>one fixed window</b> (constant across '
+                    'tabs); below it the same stand is also shown <b>zoomed to this moment</b> and in the '
+                    '<b>full room</b>, and the <b>Boss path</b> trail (ours and benchmark in separate windows) '
+                    'grows tab by tab to show how each raid moved the boss. A moment only one raid reached is '
                     'shown alone. Arrows are each actor\'s (and the boss\'s) facing where captured; tanks are '
                     'painted on top; white squares are enemy adds.')
             maps_html = ('<div class="posblock"><div class="postabs">' + "".join(tabs) + '</div>'

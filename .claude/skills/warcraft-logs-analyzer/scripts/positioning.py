@@ -451,23 +451,6 @@ def _window_frame(specs, pad_frac=0.06):
     return (minx - pad, miny - pad, maxx + pad, maxy + pad)
 
 
-def _full_room_frame(o_pos, t_pos):
-    """The whole-room frame: the UNION of both raids' fight bounding boxes (`positions['frame']`, the WCL
-    boundingBox = the fight's full data extent for that boss's room). Shared, so both panels show real
-    positions within the whole area the fight used. None if neither side has a boundingBox."""
-    boxes = [p.get("frame") for p in (o_pos, t_pos) if p and p.get("frame")]
-    boxes = [b for b in boxes if b and all(k in b for k in ("minX", "maxX", "minY", "maxY"))]
-    if not boxes:
-        return None
-    minx = min(b["minX"] for b in boxes)
-    maxx = max(b["maxX"] for b in boxes)
-    miny = min(b["minY"] for b in boxes)
-    maxy = max(b["maxY"] for b in boxes)
-    if maxx - minx < 1 or maxy - miny < 1:
-        return None
-    return (minx, miny, maxx, maxy)
-
-
 def _moment_tab_label(label, replant_n):
     """Tab label for a snapshot moment: the opening is 'Opener'; a phase start shows the PHASE'S NAME when the
     encounter has named phases (e.g. 'P2: The Weapons') and 'Phase N' otherwise; a boss re-plant is a running
@@ -884,8 +867,6 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                         + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
             win_frame = _window_frame(allspecs, pad_frac=0.10) or frame
 
-            room_frame = _full_room_frame(o_pos, t_pos)   # the whole room (boundingBox union)
-
             def _panel_at(ow, tw, fr, label):
                 if ow and tw:
                     om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
@@ -915,10 +896,7 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                 if moment_frame:
                     panel += _hdr('<b>Zoomed to this moment</b> — the same stand, framed tight to just this '
                                   'moment\'s positions (not boss-centered).') + _panel_at(ow, tw, moment_frame, "zoomed to this moment")
-                # 3) the same moment in the FULL ROOM (the whole fight area)
-                if room_frame:
-                    panel += _hdr('<b>Full room</b> — the same stand within the whole fight area.') + _panel_at(ow, tw, room_frame, "full room")
-                # 4) Boss MOVEMENT TRAIL — cumulative boss spot per tab, ours and benchmark in SEPARATE windows
+                # 3) Boss MOVEMENT TRAIL — cumulative boss spot per tab, ours and benchmark in SEPARATE windows
                 #    (same fixed frame, so the two paths still line up positionally).
                 o_trail = [rows_m[j]["o"]["bossXY"] for j in range(idx + 1)
                            if rows_m[j]["o"] and rows_m[j]["o"].get("bossXY")]
@@ -939,9 +917,9 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                     '<b>re-plant</b> — times approximate, cross-check the Timeline. Real positions throughout '
                     '(not aligned), so a difference in where/how your raid stood vs the benchmark is a real '
                     'offset — the positioning gap. The top map uses <b>one fixed window</b> (constant across '
-                    'tabs); below it the same stand is also shown <b>zoomed to this moment</b> and in the '
-                    '<b>full room</b>, and the <b>Boss path</b> trail (ours and benchmark in separate windows) '
-                    'grows tab by tab to show how each raid moved the boss. A moment only one raid reached is '
+                    'tabs); below it the same stand is also shown <b>zoomed to this moment</b>, and the '
+                    '<b>Boss path</b> trail (ours and benchmark in separate windows) grows tab by tab to show '
+                    'how each raid moved the boss. A moment only one raid reached is '
                     'shown alone. Arrows are each actor\'s (and the boss\'s) facing where captured; tanks are '
                     'painted on top; white squares are enemy adds.')
             maps_html = ('<div class="posblock"><div class="postabs">' + "".join(tabs) + '</div>'

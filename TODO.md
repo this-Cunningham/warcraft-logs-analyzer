@@ -8,40 +8,26 @@ Near-term items for the Warcraft Logs analyzer. Longer-term ideas go in [`BACKLO
 
 ---
 
-## TODO: Positioning snapshots — fetch add positions + per-actor facing
+## SHIPPED: Positioning snapshots — add positions + per-actor facing (2026-06-06, commit b680c60)
 
 > the remaining half of the formation-snapshot reframe — adds shown too, and the direction each is facing
 
-**Status of the reframe so far:** the phase-anchored snapshot half shipped — the Positioning sub-tab now
-shows the raid's *settled formation at the opening + each phase* (ours vs benchmark per moment) instead of
-one whole-fight median smear, with a graceful fallback to the single map on single-phase bosses. What's
-left is the half the **fetch pipeline can't yet feed**: the cached `positions-<enc>.json` carries only
-roster actor x/y bins + the single boss anchor track — **no `facing` field and no non-boss hostile (add)
-actors**. So facing arrows and add dots can't be drawn without first capturing that data.
+**Done.** Both halves of the reframe shipped:
+- **Phase-anchored snapshots** — the Positioning sub-tab shows the raid's *settled formation at the opening
+  + each phase* (ours vs benchmark per moment), with a graceful fallback to a single map on single-phase
+  bosses. (Mobile bosses, e.g. Al'ar, DO render — their plant-window snapshots, shown as labelled tabs with
+  the benchmark aligned to ours at the opener. See the "mobile bosses snapshot their plant windows" SHIPPED
+  note below.)
+- **Per-actor facing — captured + rendered.** `_page_resourced` (`fetch_report.py`) now yields each event's
+  `facing` (centiradians; `heading = -facing/100`, see the positioning skill's `coordinate-system.md`) and
+  stores a per-bin median heading per actor; `positioning.py` draws facing arrows (`_arrow_svg`, a
+  line + barbed polygon) on player + add markers, only when `facing` is present for that actor at that moment.
+- **Add (non-boss hostile) positions — captured + rendered.** `_fetch_positions` keeps every resourced NPC
+  actor (id→name via `masterData`) as its own track under `adds`; `positioning.py` draws them as rose
+  squares (`_add_marker`).
 
-**Investigation — DONE (verified live against report `pkHqfrBbhQK9GP1a`, 2026-06-06). Both pieces are
-already in the events stream we fetch; no new query type, only plumbing + a re-fetch:**
-
-- **Per-actor facing — available NOW, not captured.** Every resourced event (`includeResources:true`)
-  already carries a `facing` field right next to `x`/`y` (`mapID` too). It's **centiradians** (radians ×
-  100); decode `heading = -facing / 100.0` (confirmed in the positioning skill's `coordinate-system.md`).
-  `_page_resourced` in `fetch_report.py` simply drops it on the floor — it yields `(ts, aid, x, y, tid,
-  gid)` and never reads `e["facing"]`. **Fix:** yield `facing` too, and store a per-bin median *heading*
-  per actor in `positions-<enc>.json`.
-- **Add (non-boss hostile) positions — already in the sweep, just discarded.** The boss track is built by
-  the `DamageDone` resourced sweep, keeping only the event whose resourced actor *is the boss* (`targetID`
-  pinned to the boss id). Dropping that restriction surfaces **every enemy NPC as a resourced actor** —
-  verified on the Solarian fight, the same sweep returned the boss (`High Astromancer Solarian`, 1598
-  position samples) **and** the add (`Solarium Agent`, 322 samples), each with `facing`. **Fix:** in
-  `_fetch_positions`, bucket every resourced **NPC** actor (id → name via `masterData.actors type:NPC`),
-  store each non-boss NPC as its own track (bins + facing) in `positions-<enc>.json` under e.g. `adds`.
-  Cost note: removing `targetID:boss` widens the sweep (more pages); cap pages or add a dedicated enemy
-  sweep if it gets heavy.
-
-**Then build (render):** add facing arrows to player + add dots in `_formation_at`/`_formation_panel`
-(`positioning.py`) — **only when `facing` is present** for that actor at that moment, never inferred — and
-draw adds as distinct shapes/colours (add facing = cleave/cone-threat arcs). Extend the snapshot caption.
-Requires regenerating the cached `positions-<enc>.json` (a live re-fetch) before the render half can show.
+**Possible follow-up (not done):** add *facing* could be drawn as a cleave/cone-threat ARC rather than the
+plain arrow that shipped (richer cone geometry). Spin out as a separate item if wanted.
 
 ---
 
@@ -202,38 +188,32 @@ clipping by the recomputed `killSec` will update automatically — no additional
 
 ---
 
-## TODO: BUG — mobile bosses hide ALL positioning; should snapshot their plant windows
+## SHIPPED: mobile bosses snapshot their plant windows (don't hide positioning)
 
 > No why are we hiding positioning if labelled mobile, "BUG", it is still possible for mobile bosses to plant and for us to find relatively stable positioning states
 
-**The bug:** `boss_positioning()` (`positioning.py:468-474`) classifies a boss by **whole-fight** boss travel
-(`boss_travel_yd`) and bails entirely when `bclass == "mobile"`. Al'ar's flight between platforms smears to
-~1448yd, so it's tagged mobile and gets **no Positioning tab at all** — even though Al'ar (and other "mobile"
-bosses) repeatedly **plant** on a platform, and during those windows the raid's formation around the planted
-boss is exactly as meaningful as on any stationary boss. Whole-fight travel is the wrong grain: a boss that
-teleports/flies between stable stands is mobile *between* plants but stationary *during* them.
+**Done.** A boss labelled `mobile` (Al'ar's flight between platforms smears whole-fight travel to ~1448yd) no
+longer bails out of the Positioning tab. `boss_positioning` renders its **planted-window snapshots** — the
+formation at each stand the boss settles on — and skips only the whole-fight single-panel map (the one that
+really would smear across the arena). Per the brainstorm's prior: a boss that teleports between stable stands
+is mobile *between* plants but stationary *during* them, so the per-stand formation is as meaningful as on any
+stationary boss.
 
-**The fix — per-window classification, not whole-fight:** the phase-anchored snapshot machinery already
-exists and already solves this — it's just gated out by the early `return None`. `_snapshot_windows()` +
-`_formation_at()` (`positioning.py`) detect settled windows and render a per-moment formation map. The change:
+Presentation (the snapshots are shown as labelled **tabs** — `Opener` / numbered re-plants / phase tags —
+switched by a delegated `.postab` handler, not a vertical wall of maps):
+- **Real positions, one shared frame** (`_window_frame`): the two raids are drawn in the SAME absolute map
+  window at their actual room positions — NOT aligned or boss-centered — so a positioning GAP (a different
+  tank spot, a looser spread, the wrong side of the boss) shows as a real offset you can point at. (The two
+  raids do often anchor the boss at different spots — verified Void Reaver ~30yd apart, Solarian ~44yd,
+  constant from the pull, real different tank spots, not a coordinate bug since Al'ar matches to 0.4yd — and
+  seeing that gap is the point. Boss-centering and opener-alignment were both tried and rejected: they hid the
+  gap.) A non-mobile boss uses one frame across all moments (read drift as the raid moves within a stable
+  window); a mobile boss uses a tight per-moment frame.
+- **Icons**: bigger boss diamond + bigger **white** add squares, both drawn ON TOP of the player dots.
 
-1. **Don't bail on mobile.** Instead of returning None for `bclass == "mobile"`, detect the **stable
-   sub-windows** within the fight — bins where the boss anchor is locally stationary (low travel over a
-   short rolling window), i.e. the plant phases. Phase boundaries (`o_phases`/`t_phases`) are a strong prior
-   for where plants begin.
-2. **Anchor each snapshot's frame to that window's planted boss position**, not a whole-fight frame (which is
-   what makes the mobile smear meaningless). Per-plant frame = relative geometry is honest again.
-3. **Render only the planted windows** as phase-anchored snapshots; skip the flight gaps. If no stable window
-   is found (truly always-moving boss), fall back to the current suppression with the honest one-liner.
-
-**Why it matters (soul):** Al'ar is a real shared boss; hiding positioning entirely is a coverage hole, not a
-clean omission. Plant-phase formation surfaces the same lever as any stationary boss (spread/stack vs the
-benchmark when it actually counts). Magnitude gate: only worth it if the plant windows hold enough position
-samples to compute a stable spread radius — verify on the live Al'ar fight before building.
-
-**Verify the data:** confirm the cached `positions-<enc>.json` for Al'ar has enough per-bin boss anchor +
-roster samples *during* the plant windows to compute spread (it should — the suppression happens after fetch,
-on classification, so the data is already there).
+The melee-uptime view and the whole-fight single map remain non-mobile (on a mobile boss they'd measure the
+boss's path). Boss class is computed from the **max** of both raids' travel, so a boss mobile on either pull
+is treated as mobile. Falls back to one boss-aligned whole-fight map if no stand is long enough.
 
 ---
 

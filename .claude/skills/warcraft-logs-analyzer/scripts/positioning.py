@@ -29,6 +29,7 @@ Honesty rules baked in (see references/coordinate-system.md + the brainstorm's K
 
 import math
 import os
+import re
 
 from report_common import read_json
 
@@ -37,7 +38,10 @@ SCALE = 52.8  # WCL units per yard — a FLOOR (UiMap 334 bounds fit); yard figu
 # Role palette (matches references/rendering.md): red is reserved for melee, so the boss is neutral silver.
 COLORS = {"tank": "#f59e0b", "melee": "#ef4444", "healer": "#a3e635", "ranged": "#a855f7"}
 BOSS_COLOR = "#e5e7eb"
-ADD_COLOR = "#fb7185"  # enemy NPC (add) — a hostile rose, distinct from melee red and the silver boss
+ADD_COLOR = "#ffffff"  # enemy NPC (add) — a WHITE square; the boss is a (slightly off-white) diamond, so the
+#                        two read distinctly by SHAPE (square vs diamond) and the boss's dashed melee ring
+OURS_TRAIL = "#4ea1ff"    # boss-path trail colour for ours (matches the report's --ours blue)
+THEIRS_TRAIL = "#e268a8"  # boss-path trail colour for the benchmark (matches --theirs pink)
 MELEE_CLASSES = {"Warrior", "Rogue", "DeathKnight"}
 RANGED_CLASSES = {"Mage", "Warlock", "Hunter", "Priest"}
 
@@ -336,10 +340,12 @@ def spread_series(pos, roles, cohort="squishies", buckets=20):
 
 def melee_uptime(pos, roles):
     """Melee in-range share vs the boss, time-anchored (feature 3). For each bin we fill every melee actor's
-    position + the boss's, and score the distance with a SOFT band: <=8yd counts 1.0, 8-12yd 0.5, else 0.0
-    (so a melee hovering at the ring edge isn't a hard miss). The mean over all (melee,bin) samples is the
-    in-ring %. Returns {pct, inPct, edgePct, outPct, samples, meleeCount} or None when there's no boss anchor
-    or no melee. The CALLER gates this to non-mobile bosses (on a mobile boss it measures the boss's path)."""
+    position + the boss's, and score the distance with a SOFT band in COMPUTED yards: <=_RING_YD (12yd) counts
+    1.0, 12-_EDGE_YD (17yd) 0.5, else 0.0 (so a melee hovering at the ring edge isn't a hard miss). The 12yd
+    ring is the SCALE-floor-corrected stand-in for true ~8yd melee range — computed yd run ~1.3x true (see the
+    _RING_YD note), which is why the user-facing legend says "~8 yd". The mean over all (melee,bin) samples is
+    the in-ring %. Returns {pct, inPct, edgePct, outPct, samples, meleeCount} or None when there's no boss
+    anchor or no melee. The CALLER gates this to non-mobile bosses (on a mobile boss it measures the boss's path)."""
     boss = (pos.get("boss") or {}).get("bins") if pos.get("boss") else None
     if not boss:
         return None
@@ -415,9 +421,8 @@ def _robust_frame(sides, pad_frac=0.06):
 def _window_frame(specs, pad_frac=0.06):
     """Shared frame (minx,miny,maxx,maxy) for SNAPSHOT panels, built from the actual positions being plotted —
     each actor's median over its window [lo,hi) plus the boss's — across every (pos, lo, hi) in `specs` (both
-    raids, all shown moments). Full min/max (no clipping), so every dot drawn lands inside the frame: no
-    clamping, and one frame for all snapshots → ours/theirs and every moment share the same perspective.
-    Fixes the prior bug of reusing the whole-fight median frame for a specific-window snapshot."""
+    raids share one frame, so a position is the same screen point in both panels and a gap reads as an offset).
+    Full min/max (no clipping), so every drawn dot lands inside the frame."""
     xs, ys = [], []
     for pos, lo, hi in specs:
         for a in pos["actors"].values():
@@ -426,7 +431,7 @@ def _window_frame(specs, pad_frac=0.06):
                 xs.append(_median([p[0] for p in pts]))
                 ys.append(_median([p[1] for p in pts]))
         for a in (pos.get("adds") or {}).values():
-            pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+            pts = [p for p in a["bins"][lo:hi] if p]  # raw — a despawned add must not inflate the frame
             if pts:
                 xs.append(_median([p[0] for p in pts]))
                 ys.append(_median([p[1] for p in pts]))
@@ -444,6 +449,26 @@ def _window_frame(specs, pad_frac=0.06):
         return None
     pad = pad_frac * max(maxx - minx, maxy - miny)
     return (minx - pad, miny - pad, maxx + pad, maxy + pad)
+
+
+def _moment_tab_label(label, replant_n):
+    """Tab label for a snapshot moment: the opening is 'Opener'; a phase start shows the PHASE'S NAME when the
+    encounter has named phases (e.g. 'P2: The Weapons') and 'Phase N' otherwise; a boss re-plant is a running
+    number ('1','2',…), prefixed with its phase NAME when it falls inside one ('P5: Gravity Lapse · re-plant 2').
+    Returns (tab_label, new_replant_n). (`label` is already the phase name / 'Re-plant' from `_plant_windows`.)"""
+    label = label or ""
+    low = label.lower()
+    if low == "opening":
+        return "Opener", replant_n
+    if "re-plant" in low or "replant" in low:
+        replant_n += 1
+        # A re-plant with no named phase (label exactly "Re-plant") shows the bare running number; one inside a
+        # named phase keeps that phase name so the tab still names its phase.
+        if re.match(r'\s*re-?plant\s*$', label, flags=re.I):
+            return str(replant_n), replant_n
+        return "{} {}".format(label, replant_n), replant_n
+    # phase start — `label` is already the phase name ("P2: The Weapons") or a "Phase N" fallback.
+    return label, replant_n
 
 
 def _projector(frame, W):
@@ -486,44 +511,51 @@ def _boss_marker(parts, bm, sx, sy, scale, W, H, heading=None):
 
 
 def _add_marker(parts, c, heading, sx, sy, W, H):
-    """An enemy NPC (add): a small hostile-rose square + its facing arrow (cleave/cone), clamped into frame.
-    The arrow starts at the square's edge (r0=6) so it reads outside the glyph."""
+    """An enemy NPC (add): a WHITE square (still a square, distinct from the boss diamond) + its facing arrow
+    (cleave/cone), clamped into frame. The arrow starts at the square's edge (r0=8) so it reads outside the glyph."""
     if not c:
         return
     ax, ay = sx(c[0]), sy(c[1])
-    ax = min(max(ax, 5), W - 5)
-    ay = min(max(ay, 5), H - 5)
-    parts.append('<rect x="{:.1f}" y="{:.1f}" width="9" height="9" fill="{}" stroke="#0f1420" '
-                 'stroke-width="1.2"/>'.format(ax - 4.5, ay - 4.5, ADD_COLOR))
-    parts.append(_arrow_svg(ax, ay, heading, ADD_COLOR, ln=13.0, r0=6.0))
+    ax = min(max(ax, 6), W - 6)
+    ay = min(max(ay, 6), H - 6)
+    parts.append('<rect x="{:.1f}" y="{:.1f}" width="12" height="12" fill="{}" stroke="#0f1420" '
+                 'stroke-width="1.3"/>'.format(ax - 6, ay - 6, ADD_COLOR))
+    parts.append(_arrow_svg(ax, ay, heading, ADD_COLOR, ln=14.0, r0=8.0))
+
+
+def _player_dot(parts, role, c, hd, sx, sy, frame, W, H):
+    """One role-coloured player marker (facing arrow + dot; hollow + smaller when it clamps to the border)."""
+    col = COLORS.get(role, "#9ca3af")
+    px, py = sx(c[0]), sy(c[1])
+    inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
+    px = min(max(px, 5), W - 5)
+    py = min(max(py, 5), H - 5)
+    parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
+    if inframe:
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
+    else:
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
 
 
 def _formation_panel(pos, roles, frame, W=300):
     """A faithful top-down panel: each actor at its whole-fight median position (role-coloured), the boss as
-    a neutral diamond + dashed ~8yd ring. Outliers clamp to the border (hollow) so the core stays readable."""
+    a neutral diamond + dashed ~8yd ring. Outliers clamp to the border (hollow) so the core stays readable.
+    Z-order: non-tank players → adds → boss → TANKS on top."""
     scale, H, sx, sy = _projector(frame, W)
     parts = _grid_and_border(W, H, scale)
-    bd = pos.get("boss") or {}
-    _boss_marker(parts, boss_median(pos), sx, sy, scale, W, H, heading=_heading_all(bd) if bd else None)
-    # Enemy NPCs (adds) under the raid dots, each at its whole-fight median + facing arrow.
-    for a in (pos.get("adds") or {}).values():
-        _add_marker(parts, _actor_median(a), _heading_all(a), sx, sy, W, H)
     items = []
     for aid, a in pos["actors"].items():
         c = _actor_median(a)
         if c:
             items.append((roles.get(aid, "ranged"), c, _heading_all(a)))
-    for role, c, hd in sorted(items, key=lambda z: z[0]):
-        col = COLORS.get(role, "#9ca3af")
-        px, py = sx(c[0]), sy(c[1])
-        inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
-        px = min(max(px, 5), W - 5)
-        py = min(max(py, 5), H - 5)
-        parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
-        if inframe:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
-        else:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
+    for role, c, hd in sorted([it for it in items if it[0] != "tank"], key=lambda z: z[0]):
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
+    for a in (pos.get("adds") or {}).values():
+        _add_marker(parts, _actor_median(a), _heading_all(a), sx, sy, W, H)
+    bd = pos.get("boss") or {}
+    _boss_marker(parts, boss_median(pos), sx, sy, scale, W, H, heading=_heading_all(bd) if bd else None)
+    for role, c, hd in [it for it in items if it[0] == "tank"]:
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
     return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
         W, H, "".join(parts))
 
@@ -578,10 +610,18 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         bpts = [p for p in _fill(bb)[lo:hi] if p]
         if bpts:
             bm = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
-    # Boss heading: fill from the nearest captured sample (the boss persists all fight, so a short window that
-    # misses a sparse facing reading still gets the right arrow).
-    _boss_marker(parts, bm, sx, sy, scale, W, H,
-                 heading=_heading_at(bd, lo, hi, fill=True) if bd else None)
+    # Z-order: NON-TANK players (bottom) → adds → boss → TANKS (very top). Tanks sit on the boss they hold, so
+    # they're painted last; the boss diamond + add squares sit above the dps/healer dots so the anchors a
+    # leader reads against are never hidden behind a dot.
+    items = []
+    for aid, a in pos["actors"].items():
+        pts = [p for p in _fill(a["bins"])[lo:hi] if p]
+        if pts:
+            items.append((roles.get(aid, "ranged"),
+                          (_median([p[0] for p in pts]), _median([p[1] for p in pts])),
+                          _heading_at(a, lo, hi, fill=True)))
+    for role, c, hd in sorted([it for it in items if it[0] != "tank"], key=lambda z: z[0]):
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
     # Enemy NPCs (adds) present in this window. Use RAW (un-filled) bins: an add that despawned earlier must
     # NOT carry-forward its last position into later snapshots (that ghosted dead adds into every panel). It's
     # shown only where it actually has samples in [lo,hi); its facing needs ≥2 real samples (no inference).
@@ -590,24 +630,32 @@ def _formation_at(pos, roles, frame, lo, hi, W=260):
         if pts:
             ac = (_median([p[0] for p in pts]), _median([p[1] for p in pts]))
             _add_marker(parts, ac, _heading_at(a, lo, hi, min_n=2), sx, sy, W, H)
-    items = []
-    for aid, a in pos["actors"].items():
-        pts = [p for p in _fill(a["bins"])[lo:hi] if p]
-        if pts:
-            items.append((roles.get(aid, "ranged"),
-                          (_median([p[0] for p in pts]), _median([p[1] for p in pts])),
-                          _heading_at(a, lo, hi, fill=True)))
-    for role, c, hd in sorted(items, key=lambda z: z[0]):
-        col = COLORS.get(role, "#9ca3af")
-        px, py = sx(c[0]), sy(c[1])
-        inframe = (frame[0] <= c[0] <= frame[2] and frame[1] <= c[1] <= frame[3])
-        px = min(max(px, 5), W - 5)
-        py = min(max(py, 5), H - 5)
-        parts.append(_arrow_svg(px, py, hd, col, ln=10.0, r0=5.0))
-        if inframe:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="5" fill="{}" stroke="#0f1420" stroke-width="1.2"/>'.format(px, py, col))
-        else:
-            parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="4" fill="none" stroke="{}" stroke-width="1.8"/>'.format(px, py, col))
+    # Boss heading: fill from the nearest captured sample (the boss persists all fight, so a short window that
+    # misses a sparse facing reading still gets the right arrow).
+    _boss_marker(parts, bm, sx, sy, scale, W, H,
+                 heading=_heading_at(bd, lo, hi, fill=True) if bd else None)
+    for role, c, hd in [it for it in items if it[0] == "tank"]:   # tanks ON TOP of the boss/adds
+        _player_dot(parts, role, c, hd, sx, sy, frame, W, H)
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
+        W, H, "".join(parts))
+
+
+def _trail_one_svg(xys, col, frame, W=260):
+    """ONE raid's boss MOVEMENT TRAIL: its settled boss spot at each snapshot up to this tab, in time order,
+    connected into a path. NO players. The latest point (this tab's stand) is drawn larger. Rendered in the
+    shared constant frame, so ours and the benchmark (drawn in separate side-by-side panels) stay positionally
+    comparable. `xys` are the boss (x,y) per moment up to the current tab."""
+    scale, H, sx, sy = _projector(frame, W)
+    parts = _grid_and_border(W, H, scale)
+    pts = [(min(max(sx(x), 4), W - 4), min(max(sy(y), 4), H - 4)) for (x, y) in (xys or []) if x is not None]
+    if len(pts) >= 2:
+        parts.append('<polyline points="{}" fill="none" stroke="{}" stroke-width="2.4" '
+                     'stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>'.format(
+                         " ".join("{:.1f},{:.1f}".format(px, py) for px, py in pts), col))
+    for i, (px, py) in enumerate(pts):
+        r = 6.0 if i == len(pts) - 1 else 3.2   # the most recent stand (this tab) is the big dot
+        parts.append('<circle cx="{:.1f}" cy="{:.1f}" r="{:.1f}" fill="{}" stroke="#0f1420" '
+                     'stroke-width="1.4"/>'.format(px, py, r, col))
     return '<svg xmlns="http://www.w3.org/2000/svg" width="{0:.0f}" height="{1:.0f}" viewBox="0 0 {0:.0f} {1:.0f}">{2}</svg>'.format(
         W, H, "".join(parts))
 
@@ -699,7 +747,14 @@ def _plant_windows(pos, phases, phase_names):
         win_end = min(nxt, win_start + _PLANT_WINDOW_SEC, dur_sec)
         lo, hi = to_bin(win_start), to_bin(win_end)
         if hi - lo >= 2:
-            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec)})
+            # The boss's median position over this window — lets _match_moments tell whether ours and theirs
+            # re-planted at the SAME stand (a fair side-by-side) or at different platforms (must not be paired).
+            bxy = None
+            if bb:
+                bpts = [p for p in _fill(bb)[lo:hi] if p]
+                if bpts:
+                    bxy = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
+            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy})
         if len(wins) >= _MAX_MOMENTS:
             break
     return wins
@@ -709,6 +764,8 @@ def _match_moments(o_wins, t_wins):
     """Pair ours/theirs snapshot windows into render rows. Windows are grouped by LABEL and paired in
     chronological order within each label; a window with no counterpart on the other side becomes an UNMATCHED
     row (shown as a single panel) rather than being dropped — so a re-plant only one raid did is still shown.
+    The two panels share one absolute frame (real positions, not aligned or centered), so a positioning gap
+    between the raids reads as a real offset.
     Returns a list of {label, sec, o, t} sorted by time (o or t may be None)."""
     o_by, t_by = {}, {}
     for w in o_wins:
@@ -743,13 +800,18 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
     sub-view whose data is missing is silently omitted."""
     if not o_pos or not t_pos:
         return None
+    # Classify the boss from BOTH sides' travel (max), so the class is a property of the ENCOUNTER, not of
+    # one raid's pull — a boss mobile on either side is treated as mobile (never wrongly fed to the
+    # plantable melee view when the two raids disagree on class).
     travel_o = boss_travel_yd(o_pos)
-    bclass = boss_class(travel_o)
+    travel_t = boss_travel_yd(t_pos)
+    bclass = boss_class(max(travel_o or 0, travel_t or 0))
     # A MOBILE boss (e.g. Al'ar flying between platforms) is mobile BETWEEN plants but stationary DURING them.
-    # We no longer suppress it outright; instead we render only its PLANTED windows (phase-anchored snapshots
-    # where the boss is locally stationary) and skip the whole-fight single-panel map (that one really would
-    # smear across the arena). The spread RADIUS verdict below is frame-independent (within-cohort spacing) and
-    # stays valid on every class. If a mobile boss has no detectable plant window, we fall through to None.
+    # We render only its PLANTED windows (phase/re-plant snapshots where the boss is locally stationary) and
+    # skip the whole-fight single-panel map (that one really would smear across the arena). Each tab is framed
+    # to its own moment (its stands are different platforms) and both raids share that frame at real positions,
+    # so a teleporting boss reads as a sequence of formations with any gap visible. The spread RADIUS verdict
+    # is frame-independent (valid on every class).
     is_mobile = (bclass == "mobile")
     frame = _robust_frame([o_pos, t_pos])
     if not frame and not is_mobile:
@@ -786,54 +848,102 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
             verdict = ('Ranged + healer spread radius: ~{o}yd vs the benchmark\'s ~{t}yd '
                        '(descriptive — no curated spread/stack call on this boss).').format(o=o_sr, t=t_sr)
         # Snapshot moments: the opening, each phase start, AND every boss RE-PLANT (the boss moving and
-        # settling into a new stand, even mid-phase). Each side is detected independently, then paired by
-        # _match_moments — a moment only one raid has (a re-plant the other didn't do) is still shown, as a
-        # single panel.
+        # settling into a new stand). Each side is detected independently and paired by _match_moments (a
+        # moment only one raid reached is shown alone). The two raids share ONE absolute frame at REAL room
+        # positions — NOT aligned or boss-centered — so a positioning GAP between your raid and the benchmark
+        # (a different tank spot, a looser spread, standing on the wrong side of the boss) shows as a real
+        # offset you can point at. A non-mobile boss uses one frame across all moments (read drift as the raid
+        # moves within a stable window); a MOBILE boss uses a tight per-moment frame (its stands are different
+        # platforms, so one arena-wide frame would shrink every snapshot to a corner clump). Moments render as
+        # labelled TABS (Opener / numbered re-plants / phase tags) in chronological order, not a wall of maps.
         o_wins = _plant_windows(o_pos, o_phases, phase_names)
         t_wins = _plant_windows(t_pos, t_phases, phase_names)
         rows_m = _match_moments(o_wins, t_wins)
-        if len(rows_m) >= (1 if is_mobile else 2):
-            # ONE frame for all snapshots, built from every window actually drawn (both raids, all moments) —
-            # so ours/theirs and each moment share one perspective with nothing clamped.
-            specs = ([(o_pos, r["o"]["lo"], r["o"]["hi"]) for r in rows_m if r["o"]]
-                     + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
-            win_frame = _window_frame(specs) or frame
-            if not win_frame:
-                return None
-            rows = []
-            for r in rows_m:
-                ow, tw = r["o"], r["t"]
+        if rows_m:
+            # ONE CONSTANT frame for the whole boss (used by every tab) — the tightest box that still contains
+            # every snapshot position across all moments + both raids (with a little padding), so we zoom in as
+            # far as we can from the full room WITHOUT the perspective ever changing as you click through tabs.
+            allspecs = ([(o_pos, r["o"]["lo"], r["o"]["hi"]) for r in rows_m if r["o"]]
+                        + [(t_pos, r["t"]["lo"], r["t"]["hi"]) for r in rows_m if r["t"]])
+            win_frame = _window_frame(allspecs, pad_frac=0.10) or frame
+
+            def _panel_at(ow, tw, fr, label):
                 if ow and tw:
-                    o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
-                    t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
-                    sub = "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
-                    panel = _dual(o_map, t_map, o_name, t_name, sub)
-                elif ow:
-                    o_map = _formation_at(o_pos, o_roles, win_frame, ow["lo"], ow["hi"])
-                    panel = _single(o_map, o_name, "ours",
-                                    "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
+                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
+                    tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"])
+                    sub = label or "ours @ {} &middot; benchmark @ {} into the fight".format(_mmss(ow["sec"]), _mmss(tw["sec"]))
+                    return _dual(om, tm, o_name, t_name, sub)
+                if ow:
+                    om = _formation_at(o_pos, o_roles, fr, ow["lo"], ow["hi"])
+                    return _single(om, o_name, "ours", label or
+                                   "ours @ {} into the fight &middot; benchmark had no matching stand here".format(_mmss(ow["sec"])))
+                tm = _formation_at(t_pos, t_roles, fr, tw["lo"], tw["hi"])
+                return _single(tm, t_name, "theirs", label or
+                               "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
+
+            def _hdr(text):
+                return '<div class="posnote" style="margin:12px 0 2px;opacity:.75">{}</div>'.format(text)
+
+            tabs, panels, replant_n = [], [], 0
+            for idx, r in enumerate(rows_m):
+                ow, tw = r["o"], r["t"]
+                # The formation in the ONE FIXED frame (constant across tabs) AND the same stand ZOOMED tight
+                # to just this moment's positions (NOT boss-centered) — shown via a "Fixed frame / Zoom" TOGGLE
+                # (one at a time, switched by the delegated .poszoombtn handler), not stacked vertically.
+                fixed_panel = _panel_at(ow, tw, win_frame, None)
+                mspecs = (([(o_pos, ow["lo"], ow["hi"])] if ow else [])
+                          + ([(t_pos, tw["lo"], tw["hi"])] if tw else []))
+                moment_frame = _window_frame(mspecs)
+                if moment_frame:
+                    zoom_panel = _panel_at(ow, tw, moment_frame, "zoomed to this stand")
+                    panel = ('<div class="poszoomgroup"><div class="poszoomtabs">'
+                             '<button class="poszoombtn active" data-zoom="0" type="button">Fixed frame</button>'
+                             '<button class="poszoombtn" data-zoom="1" type="button">Zoom</button></div>'
+                             '<div class="poszoompane" style="display:block">' + fixed_panel + '</div>'
+                             '<div class="poszoompane" style="display:none">' + zoom_panel + '</div></div>')
                 else:
-                    t_map = _formation_at(t_pos, t_roles, win_frame, tw["lo"], tw["hi"])
-                    panel = _single(t_map, t_name, "theirs",
-                                    "benchmark @ {} into the fight &middot; we had no matching stand here".format(_mmss(tw["sec"])))
-                rows.append('<div style="margin:10px 0 4px"><div class="posnote" style="margin:0 0 4px">'
-                            '<b>{}</b></div>{}</div>'.format(esc(r["label"]), panel))
-            maps_html = ("".join(rows)
-                         + '<p class="posnote" style="opacity:.8">Snapshots freeze the settled formation at the '
-                           'opening, each phase, and <b>every time the boss re-plants</b> (moves then settles) — '
-                           'times approximate, cross-check the Timeline. A moment only one raid reached is shown '
-                           'alone. Arrows are each actor\'s (and the boss\'s) facing where captured; rose squares '
-                           'are enemy adds.</p>')
+                    panel = fixed_panel
+                # Boss MOVEMENT TRAIL — cumulative boss spot per tab, ours and benchmark in SEPARATE windows
+                #    (same fixed frame, so the two paths still line up positionally).
+                o_trail = [rows_m[j]["o"]["bossXY"] for j in range(idx + 1)
+                           if rows_m[j]["o"] and rows_m[j]["o"].get("bossXY")]
+                t_trail = [rows_m[j]["t"]["bossXY"] for j in range(idx + 1)
+                           if rows_m[j]["t"] and rows_m[j]["t"].get("bossXY")]
+                if o_trail or t_trail:
+                    panel += (_hdr('<b>Boss path</b> — the boss\'s settled spot at each tab so far, connected in '
+                                   'time order (big dot = this tab). No players — just where each raid moved the boss.')
+                              + _dual(_trail_one_svg(o_trail, OURS_TRAIL, win_frame),
+                                      _trail_one_svg(t_trail, THEIRS_TRAIL, win_frame),
+                                      o_name, t_name, ""))
+                tlab, replant_n = _moment_tab_label(r["label"], replant_n)
+                tabs.append('<button class="postab{}" data-pos="{}" type="button" title="{}">{}</button>'.format(
+                    " active" if idx == 0 else "", idx, esc(r["label"]), esc(tlab)))
+                panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
+                    "block" if idx == 0 else "none", panel))
+            note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, and every boss '
+                    '<b>re-plant</b> — times approximate, cross-check the Timeline. Real positions throughout '
+                    '(not aligned), so a difference in where/how your raid stood vs the benchmark is a real '
+                    'offset — the positioning gap. The top map uses <b>one fixed window</b> (constant across '
+                    'tabs); below it the same stand is also shown <b>zoomed to this moment</b>, and the '
+                    '<b>Boss path</b> trail (ours and benchmark in separate windows) grows tab by tab to show '
+                    'how each raid moved the boss. A moment only one raid reached is '
+                    'shown alone. Arrows are each actor\'s (and the boss\'s) facing where captured; tanks are '
+                    'painted on top; white squares are enemy adds.')
+            maps_html = ('<div class="posblock"><div class="postabs">' + "".join(tabs) + '</div>'
+                         + '<div class="pospanels">' + "".join(panels) + '</div>'
+                         + '<p class="posnote" style="opacity:.8">' + note + '</p></div>')
         elif is_mobile:
             # mobile boss with no detectable plant window → no honest map; keep the (frame-independent) verdict
             maps_html = ('<p class="posnote" style="opacity:.8">This is a <b>mobile</b> boss with no settled '
                          'plant window long enough to snapshot a formation; the spread radius below is still '
                          'valid (it measures cohort spacing, independent of the boss\'s path).</p>')
         else:
+            # No plant window detected (very short / no boss track) — one whole-fight map per side in the same
+            # shared frame, real positions (so a positioning gap still shows).
             o_map = _formation_panel(o_pos, o_roles, frame)
             t_map = _formation_panel(t_pos, t_roles, frame)
             maps_html = _dual(o_map, t_map, o_name, t_name,
-                              "median position per player &middot; one shared frame &amp; zoom")
+                              "median position per player &middot; one shared frame, real positions")
         has_adds = bool((o_pos.get("adds") or {}) or (t_pos.get("adds") or {}))
         spread_html = (
             '<h4 style="margin:14px 0 4px">Raid formation &amp; spread'

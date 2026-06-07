@@ -53,8 +53,11 @@ theirs is framed `"Benchmark (Guildname)"`). Output lands in `reports/` (gitigno
 named after the guilds (`imminent-vs-squawk.html`, slugified). Re-running the same
 inputs produces the same report.
 
-Flags: `--ours-name` / `--theirs-name` (override guild names), `--zone-name`,
-`--out-file`, `--no-open`.
+Flags: `--ours-name` / `--theirs-name` (override guild names), `--out-file`,
+`--no-open`, `--refresh` / `--refresh-worldbest` (force a re-fetch of report /
+world-best data), `--worldbest-ttl-hours`. (Zone auto-derives from each report's
+own metadata — there is no `--zone-name` on `compare_raids.py`; that flag lives on
+the manual `build_deepdive.py` path, see `references/pipeline.md`.)
 
 ## The report IS the deliverable — don't analyze in chat
 

@@ -12,13 +12,13 @@ After the change is on `main`, run:
 
 ```
 # 1. rebuild the pinned comparison report from cached data
-python .claude/skills/warcraft-logs-analyzer/scripts/compare_raids.py \
+python3 .claude/skills/warcraft-logs-analyzer/scripts/compare_raids.py \
   --ours-url   https://fresh.warcraftlogs.com/reports/pkHqfrBbhQK9GP1a \
   --theirs-url https://fresh.warcraftlogs.com/reports/BxZPrhXYDfL1VKm8 \
   --no-open
 
 # 2. publish the freshly built HTML to docs/ on main (self-contained; pushes itself)
-python scripts/publish_report.py reports/imminent-vs-pneumonoultramicroscopic.html
+python3 scripts/publish_report.py reports/imminent-vs-pneumonoultramicroscopic.html
 ```
 
 `publish_report.py` builds the publish commit off a freshly-fetched `origin/main`

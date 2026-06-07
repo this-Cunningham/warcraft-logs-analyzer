@@ -47,12 +47,18 @@ def our_faction(code):
 
 
 def _best_in_rankings(cr, want_faction):
-    """The highest-ranked entry in a characterRankings payload whose faction == want_faction, tagged with
-    its 1-based GLOBAL rank in the full (all-faction) leaderboard. None if no same-faction entry is on the
-    top page. (Extraction is identical to the old per-call path — only how we FETCH the payload changed.)"""
-    for i, r in enumerate((cr or {}).get("rankings") or []):
+    """The highest-ranked entry in a characterRankings payload whose faction == want_faction, tagged with its
+    1-based GLOBAL rank in the full (all-faction) leaderboard and sameFaction=True. If NO same-faction entry
+    is on the top page — which happens when WCL returns faction=-1 (unknown) for every entry on an encounter
+    (observed on Kael'thas, which otherwise silently dropped that boss from Optimize for ~13 of 15 specs) —
+    fall back to the GLOBAL top entry so the boss still gets a world-best rotation reference, flagged
+    sameFaction=False so the UI doesn't claim it's same-faction. None only when the leaderboard is empty."""
+    rankings = (cr or {}).get("rankings") or []
+    for i, r in enumerate(rankings):
         if r.get("faction") == want_faction:
-            return {"entry": r, "globalRank": i + 1}
+            return {"entry": r, "globalRank": i + 1, "sameFaction": True}
+    if rankings:
+        return {"entry": rankings[0], "globalRank": 1, "sameFaction": False}
     return None
 
 
@@ -164,6 +170,7 @@ def fetch(ours_code, specs, shared_encs, enc_names, out_path):
                 "region": (e.get("server") or {}).get("region"),
                 "amount": e.get("amount"),
                 "globalRank": hit["globalRank"],
+                "sameFaction": hit.get("sameFaction", True),
                 "reportCode": rep.get("code"), "fightID": rep.get("fightID"),
             },
             "abilities": abilities,
@@ -187,7 +194,11 @@ def fetch(ours_code, specs, shared_encs, enc_names, out_path):
             print("  [worldbest] {} {}: no same-faction ranking on any shared boss".format(spec, cls))
         out_specs.append({"class": cls, "spec": spec, "role": role, "metric": metric_for(sp), "bosses": bosses_out})
 
-    payload = {"present": True, "factionId": fid, "factionName": fname, "region": region, "specs": out_specs}
+    # Stamp the shared-boss set this file was fetched for, so the cache can detect a re-pairing against a
+    # DIFFERENT benchmark (different shared bosses) and re-fetch instead of reusing per-boss rotations that
+    # belong to the old pairing (the worldbest TTL otherwise only checks file age, not the boss set).
+    payload = {"present": True, "factionId": fid, "factionName": fname, "region": region,
+               "shared": sorted(int(e) for e in shared_encs), "specs": out_specs}
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2, ensure_ascii=False)
     print("  [worldbest] wrote {} ({} specs)".format(out_path, len(out_specs)))

@@ -144,6 +144,17 @@
   .btabs.ospecs{margin:2px 0 14px}
   .btabs.ospecs .btab.on{background:var(--theirs);color:#06101f}
   .btabs.obosses{margin:2px 0 12px}
+  /* Positioning snapshot tabs (server-rendered fragment; switched by a delegated handler) */
+  .posblock{margin:4px 0}
+  .postabs{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 10px}
+  .postab{padding:3px 11px;border-radius:7px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .postab:hover{color:var(--txt)}
+  .postab.active{background:var(--accent,#7c83ff);color:#06101f;border-color:transparent}
+  /* Fixed-frame / Zoom toggle inside a snapshot tab */
+  .poszoomtabs{display:inline-flex;gap:4px;margin:2px 0 8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px}
+  .poszoombtn{padding:2px 12px;border-radius:6px;background:transparent;color:var(--muted);border:none;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .poszoombtn:hover{color:var(--txt)}
+  .poszoombtn.active{background:var(--accent,#7c83ff);color:#06101f}
   .optbench{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 14px;font-size:13px;color:var(--muted)}
   .optbench b{color:var(--txt)}
   .optlabel{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;color:var(--muted);margin-right:4px}
@@ -275,6 +286,32 @@
 
 <script>
 const DATA = /*__DATA__*/null;
+
+// Positioning snapshot tabs: the maps are a server-rendered fragment injected as innerHTML, so a single
+// DELEGATED click handler switches the visible snapshot panel (no per-fragment wiring). Each .posblock holds
+// one .postabs bar of .postab buttons (data-pos=index) and a .pospanels list of .pospanel divs; clicking a
+// tab shows that panel and hides the rest, scoped to the clicked button's own .posblock.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  // Fixed-frame / Zoom toggle within a snapshot (scoped to its own .poszoomgroup)
+  const zb = e.target.closest(".poszoombtn");
+  if (zb) {
+    const grp = zb.closest(".poszoomgroup");
+    if (grp) {
+      const zi = parseInt(zb.getAttribute("data-zoom"), 10) || 0;
+      grp.querySelectorAll(".poszoompane").forEach((p, i) => { p.style.display = (i === zi ? "block" : "none"); });
+      zb.parentNode.querySelectorAll(".poszoombtn").forEach((b) => b.classList.toggle("active", b === zb));
+    }
+    return;
+  }
+  const tab = e.target.closest(".postab");
+  if (!tab) return;
+  const block = tab.closest(".posblock");
+  if (!block) return;
+  const idx = parseInt(tab.getAttribute("data-pos"), 10) || 0;
+  block.querySelectorAll(".pospanel").forEach((p, i) => { p.style.display = (i === idx ? "block" : "none"); });
+  tab.parentNode.querySelectorAll(".postab").forEach((t) => t.classList.toggle("active", t === tab));
+});
 
 const CLASS_COLORS = {Warrior:"#C79C6E",Paladin:"#F58CBA",Hunter:"#ABD473",Rogue:"#FFF569",Priest:"#FFFFFF",
   Shaman:"#0070DE",Mage:"#69CCF0",Warlock:"#9482C9",Druid:"#FF7D0A","Death Knight":"#C41F3B"};
@@ -660,26 +697,35 @@ function hitCapView(d){
     `<span class="vcol"><span class="v ours">${ov}</span><span class="vlab ours">${oT}</span></span>`+
     `<span class="vcol"><span class="v theirs">${tv}</span><span class="vlab theirs">${tT}</span></span>`+
     (dl?`<span class="delta ${dl.cls}">${dl.txt}</span>`:"")+`</div></div>`;
-  // One avg-hit card per hit type present (caster spell / melee / ranged) — EFFECTIVE hit, ours vs bench.
+  // One avg-hit card per hit type present (caster spell / melee / ranged). The cards compare GEAR+TALENT
+  // hit (the itemization lever the raid controls), NOT effective hit — otherwise the asymmetric raid Imp-FF
+  // buff (boomkins on one side only) would paint a false better/worse delta. Melee/ranged have no raid hit
+  // component, so gear+talent == effective there. The per-side Imp FF is shown in the note below.
   const tcard=(label,o)=> (o&&o.ours!=null)?
     acard(label,o.ours+"%",(o.theirs!=null?o.theirs+"%":"—"),(o.theirs!=null?deltaHigh(o.ours,o.theirs):null)):"";
-  let cards=tcard("Avg Caster Spell Hit",s.spell)+tcard("Avg Melee Hit",s.melee)+tcard("Avg Ranged Hit",s.ranged);
+  let cards=tcard("Avg Caster Hit (gear+talent)",s.spell)+tcard("Avg Melee Hit (gear+talent)",s.melee)+tcard("Avg Ranged Hit (gear+talent)",s.ranged);
   cards+=`<div class="card"><div class="label">Raiders Under Hit Target</div><div class="vals"><span class="v ${s.oursUnder>0?'theirs':'ours'}">${s.oursUnder}</span><span class="num">/ ${s.playerCount}</span></div></div>`;
   // Effective hit is gear + talent + raid; note the per-side raid spell-hit so the breakdown is transparent.
   const env=s.spellEnv||{ours:0,theirs:0};
   const envTxt=p=>p>0?`+${p}% Imp. Faerie Fire`:"none";
-  const envNote=`<p class="srcs" style="margin:8px 0 0"><b>Effective hit = gear + talent + raid.</b> <b>Talent</b> is the spec's standard PvE build, assumed in full (e.g. Shadow Focus +10%, Balance of Power +4%, Precision +5%). <b>Raid</b> spell-hit (Imp. Faerie Fire) — <span class="cours">${oT}</span>: ${envTxt(env.ours)} · <span class="cthe">${tT}</span>: ${envTxt(env.theirs)}. Not modeled (party-scoped / partial, and they cancel between similar raids): Totem of Wrath, Heroic Presence, Warlock Suppression.</p>`;
-  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> = <b>gear + talent + raid</b> vs the benchmark. Gear from <code>combatantInfo</code>; talent assumed taken; raid = Improved Faerie Fire (+3% with a Balance Druid). Under-hit = missed casts, fixable with gems/enchants/gear. <b>Target</b> = benchmark hit, capped (spell 16% · melee/ranged 9%). Healers excluded. <b>Experimental</b> — talent assumed; treat borderline rows as a prompt.</span></h2>
+  const envNote=`<p class="srcs" style="margin:8px 0 0">The cards above compare <b>gear + talent</b> hit — the itemization lever you actually control; the raid spell-hit buff (Imp. Faerie Fire) is listed here, not baked into the card delta, so a comp difference (boomkins on one side) can't fake a better/worse read. <b>Effective hit = gear + talent + raid</b> (the table's Effective column). <b>Talent</b> is the spec's standard PvE build, assumed in full (e.g. Shadow Focus +10%, Balance of Power +4%, Precision +5%). <b>Raid</b> spell-hit — <span class="cours">${oT}</span>: ${envTxt(env.ours)} · <span class="cthe">${tT}</span>: ${envTxt(env.theirs)}. Not modeled (party-scoped / partial, and they cancel between similar raids): Totem of Wrath, Heroic Presence, Warlock Suppression.</p>`;
+  let h=`<h2 class="section">Hit &amp; Expertise<span class="xp">Experimental</span><span class="hint">Per-raider <b>effective hit</b> = <b>gear + talent + raid</b> vs the benchmark. Gear from <code>combatantInfo</code>; talent assumed taken; raid = Improved Faerie Fire (+3% with a Balance Druid). The summary cards compare <b>gear+talent only</b> (the controllable lever). Under-hit = missed casts, fixable with gems/enchants/gear. <b>Target</b> = benchmark hit, capped (spell 16% · melee/ranged 9%). A bear/role-fluid Feral reads low on gear hit by design (they don't itemize for it) and isn't flagged. Healers excluded. <b>Experimental</b> — talent assumed; treat borderline rows as a prompt.</span></h2>
   <div class="cards">${cards}</div>${envNote}
   <h4 class="ours">${oT} — hit &amp; expertise by raider</h4>
-  <table><thead><tr><th>Player</th><th>Spec</th><th>Gear</th><th>Talent</th><th>Raid</th><th>Effective</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
+  <table><thead><tr><th>Player</th><th>Spec</th><th>Role</th><th>Gear</th><th>Talent</th><th>Raid</th><th>Effective</th><th>Target</th><th>Expertise</th></tr></thead><tbody>`;
   for(const p of pls){
     const pct=v=>v>0?v+"%":'<span class="cna">—</span>';   // 0 sources read as a muted dash
     const hitCell=`<b style="color:${p.under?'var(--bad)':'var(--txt)'}">${p.effPct}%</b> <span class="num">${p.hitRating} rtg</span>`;
-    const tgtCell=`${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
+    // Ungraded (a role-fluid Feral / tank with no same-spec benchmark): the bare cat/melee cap isn't a real
+    // target for them, so show "—" + the reason instead of a number they appear to "fail".
+    const ungReason = (p.spec==='Feral'?'tank-fluid Feral':'tank')+' — not graded (no same-spec benchmark)';
+    const tgtCell=p.ungraded
+      ? `<span class="cna">—</span> <span class="num" style="opacity:.7">${ungReason}</span>`
+      : `${p.target}%`+(p.under?` <span class="tag2 gap">−${p.gap}%</span>`:"");
     const expCell=p.physical?(`${p.expertise}`+(p.benchExp!=null?` <span class="num">(bench ${p.benchExp})</span>`:"")):'<span class="cna">—</span>';
+    const roleCell=(p.role==='tank'||p.ungraded)?'<b>tank</b>':esc(p.role||'');
     h+=`<tr class="${p.under?'isgap':''}"><td class="pname" style="color:${cc(p.class)}">${esc(p.name)}</td>
-      <td class="num">${esc(p.spec)}</td>
+      <td class="num">${esc(p.spec)}</td><td class="num">${roleCell}</td>
       <td class="num">${p.gearPct}%</td><td class="num">${pct(p.talentPct)}</td><td class="num">${pct(p.raidPct)}</td>
       <td>${hitCell}</td><td>${tgtCell}</td><td class="num">${expCell}</td></tr>`;
   }
@@ -799,9 +845,10 @@ function execPanel(b){
     {k:"disp",label:"Dispels"},
     {k:"phases",label:"Phases"}
   );
-  // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (the formation map and spread-vs-demand
-  // verdict). Only present on non-mobile bosses with a positions file; shown last because it's the
-  // newest/most-experimental lens.
+  // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (tabbed formation snapshots + spread-vs-demand
+  // verdict; the .postab tabs are switched by the delegated handler near the top of this script). Present on
+  // any boss with a positions file, including mobile bosses (which render their plant-window snapshots — only
+  // the whole-fight single map is skipped); shown last because it's the newest/most-experimental lens.
   if(b.positioning) subs.push({k:"pos",label:"Positioning"});
   const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
   const body={
@@ -1002,44 +1049,6 @@ function tierSpecGapView(d){
   }
   return h;
 }
-// Healing efficiency by spec (EXPERIMENTAL): each healer spec's overheal %, ours vs benchmark same spec —
-// the per-spec decomposition of the raid-wide Overheal figure. Same-spec cancels HoT-vs-direct structure.
-function healEfficiencyView(d){
-  const all=rowsOf(d.deep&&d.deep.healEffGap);
-  const both=all.filter(r=>r.both);
-  const oneSide=all.filter(r=>!r.both&&r.ours!=null); // our healer specs with no benchmark same-spec
-  if(!both.length&&!oneSide.length) return "";
-  let h=`<h2 class="section">Healing Efficiency by Spec<span class="xp">Experimental</span><span class="hint">Each healer spec's <b>overheal %</b> — the share of its healing landing on already-full bars, vs the benchmark's same spec. Overheal is wasted; a spec wasting more than its counterpart (red) is coachable on spell choice. <b>Same-spec</b>, so a HoT class's higher baseline doesn't skew it. <b>Experimental.</b> Lower is better.</span></h2>`;
-  if(both.length){
-    h+=mirrorGrid(both,{label:"Overheal %, by spec (all bosses)", max:Math.max(1,...both.map(r=>Math.max(r.ours,r.theirs))),
-      ours:r=>r.ours, theirs:r=>r.theirs,
-      name:r=>`<span style="color:${cc(r.class)}">${esc(r.spec)} ${esc(r.class)}</span>`,
-      delta:r=>dDelta(r.ours,r.theirs,v=>Math.round(v*10)/10,"%",true)});
-  }
-  if(oneSide.length){
-    // First-party absolute read where the benchmark fielded no same-spec healer (overheal% is a valid
-    // absolute signal — lower is tighter — even without a comparison).
-    const items=oneSide.map(r=>`${esc(r.spec)} ${esc(r.class)} <b style="color:var(--ours)">${r.ours}%</b>`);
-    h+=`<p class="srcs" style="margin-top:8px">No benchmark same-spec to compare (first-party overheal, lower is tighter): ${items.join(" &nbsp;·&nbsp; ")}</p>`;
-  }
-  return h;
-}
-// DPS ramp (EXPERIMENTAL): per boss, seconds to reach 90% of the fight's median (cruising) DPS.
-function dpsRampView(d){
-  const rows=rowsOf(d.deep&&d.deep.dpsRamp);
-  if(!rows.length) return "";
-  const sec=s=>s==null?"—":(s+"s");
-  let h=`<h2 class="section">DPS Ramp<span class="xp">Experimental</span><span class="hint">Seconds to reach <b>90% of the fight's cruising DPS</b> (its median) — how fast the raid got up to pace after the pull. A slow ramp leaves opener damage on the table; the benchmark is the bar. Coarse (binned to the timeline). <b>Experimental.</b> Lower is better.</span></h2>
-  <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th></tr></thead><tbody>`;
-  for(const r of rows){
-    const dl=(r.ours!=null&&r.theirs!=null)?deltaLow(r.ours,r.theirs):null;
-    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
-      <td class="num" style="color:var(--ours)">${sec(r.ours)}</td>
-      <td class="num" style="color:var(--theirs)">${sec(r.theirs)}</td>
-      <td>${dl?`<span class="delta ${dl.cls}">${dl.txt}s</span>`:""}</td></tr>`;
-  }
-  return h+`</tbody></table>`;
-}
 // Debuff ramp & continuity (EXPERIMENTAL): WHEN key debuffs first land + their longest continuous drop,
 // tier-wide ours vs benchmark — the two time dimensions a flat uptime % hides.
 function debuffTimingView(d){
@@ -1180,22 +1189,6 @@ function threatPullsView(d){
     sub:r=>{const bs=rowsOf(r.oursBySpec); if(!bs.length) return "";
       const chips=bs.map(s=>`<span style="color:${cc(s.class)};font-weight:600">${esc(s.spec)} ${esc(s.class)}</span> ×${s.count}${s.openerCount?` <span style="color:var(--bad)">(${s.openerCount} opener)</span>`:""}`).join(' &nbsp;·&nbsp; ');
       return `<div style="font-size:11px;color:var(--muted);padding:0 0 0 2px">${esc(d.ours.title)} pulls: ${chips}</div>`;}});
-}
-// Focus-fire — on multi-target fights, avg share of raid damage on the most-focused enemy, ours vs benchmark.
-function focusFireView(d){
-  const rows=rowsOf(d.deep&&d.deep.focusFire);
-  if(!rows.length) return "";
-  let h=`<h2 class="section">Target Focus — Multi-Target Fights<span class="hint">On fights where damage is split across enemies, the average share of raid damage on the most-focused enemy, ours vs the benchmark. Higher = concentrated fire, lower = spread. Only multi-target fights appear.</span></h2>
-    <table><thead><tr><th>Boss</th><th>${esc(d.ours.title)}</th><th>${esc(d.theirs.title)}</th><th>Δ</th><th class="role">enemies hit</th></tr></thead><tbody>`;
-  for(const r of rows){
-    const dl=deltaHigh(r.ours,r.theirs);
-    h+=`<tr><td style="font-weight:600">${esc(r.boss)}</td>
-      <td class="num" style="color:var(--ours);font-weight:600">${r.ours}%</td>
-      <td class="num" style="color:var(--theirs);font-weight:600">${r.theirs}%</td>
-      <td class="delta ${dl.cls}">${dl.txt}</td>
-      <td class="num role">${r.oursTargets} vs ${r.theirsTargets}</td></tr>`;
-  }
-  return h+`</tbody></table>`;
 }
 // Add Control — Kill Speed. For each non-boss add EITHER raid engaged on a multi-target fight, how long it
 // survived (median first-hit→last) ours vs benchmark, ranked by how much slower we are. A slower add kill
@@ -1436,15 +1429,17 @@ function timelineChart(b){
     const label=s.agg?s.spec:`${s.spec} ${s.class}`;
     tabs+=tabBtn(k,label,color,on);
     const unit=s.metric==="hps"?"HPS":"DPS";
+    const pnote=(!s.agg&&s.oursPlayers&&s.theirsPlayers)
+      ? ` <span class="num" style="font-size:11px;opacity:.65">(per player${s.oursPlayers!==s.theirsPlayers?` — ours ${s.oursPlayers}p vs benchmark ${s.theirsPlayers}p`:""})</span>` : "";
     const title=s.agg
       ? `${esc(s.spec)} over time <span class="role" style="text-transform:none;letter-spacing:0">· ${s.specCount} spec${s.specCount>1?"s":""} combined, ours vs benchmark</span>`
-      : `<span style="color:${cc(s.class)}">${esc(s.spec)} ${esc(s.class)}</span> <span class="role" style="text-transform:none;letter-spacing:0">— ${unit} over time, ours vs benchmark</span>`;
+      : `<span style="color:${cc(s.class)}">${esc(s.spec)} ${esc(s.class)}</span> <span class="role" style="text-transform:none;letter-spacing:0">— ${unit} over time, ours vs benchmark</span>${pnote}`;
     panes+=pane(k,`<h4 style="margin:8px 0 2px">${title}</h4>${tlChart(s.ours,s.theirs,tl.ours,tl.theirs)}`,on);
   });
 
   const tabBar=specs.length?`<div class="btabs tltabs">${tabs}</div>`:"";
   const specNote=specs.length?` Use the tabs below for <b>Melee DPS</b> / <b>Ranged DPS</b> aggregates or an individual spec — each compares ours vs the benchmark's same spec, restricted to specs both raids fielded.`:"";
-  return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Both fights share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line just <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are exact (event-binned into ${tl.n} slices), so they agree with the Raid DPS elsewhere. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.${specNote}</p>
+  return `<p class="srcs">Raid DPS and HPS across the fight, ours vs the benchmark, on an <b>absolute-seconds</b> axis (m:ss). Both fights share one real-time axis, so you can place events directly ("we lost DPS at 2:30") and the shorter kill's line just <b>ends earlier</b> — that gap is the benchmark finishing sooner. Curves are event-binned into ${tl.n} slices from every damage/heal event (not WCL's smoothed graph), so they track the Raid DPS shown elsewhere — they include all-target damage, so on add fights the curve can read a few percent above or below the boss-scoped Raid DPS number. Your kill ${fmtTime(tl.oursDurMs)} · benchmark ${fmtTime(tl.theirsDurMs)}.${specNote}</p>
     ${legend}
     ${opLine}
     ${tabBar}
@@ -1603,9 +1598,18 @@ function optBossBody(d,cls,s,b){
   }
   const amt=bm.amount!=null?` · ${fmtR(bm.amount)} ${optMetricLbl(bm.metric)}`:"";
   const guild=bm.guild?` · ${esc(bm.guild)}`:"", reg=bm.region?` (${esc(bm.region)})`:"";
-  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — top ${fac} ${esc(s.spec)} ${esc(cls)} (World #${bm.globalRank} overall) on <b>${esc(b.name||"")}</b>${amt}</div>`;
+  // When WCL gave no faction on this encounter (e.g. Kael'thas returns faction=-1 for all entries), the
+  // benchmark falls back to the global #1 — say "top" (not "top Horde") and flag it as faction-unverified.
+  const facLbl=(bm.sameFaction===false)?"top":("top "+fac);
+  const facNote=(bm.sameFaction===false)?` <span class="num" style="opacity:.7">· faction unverified on this boss</span>`:"";
+  let h=`<div class="optbench"><span class="optlabel">Benchmark</span><b style="color:${col}">${esc(bm.name)}</b>${guild}${reg} — ${facLbl} ${esc(s.spec)} ${esc(cls)} (World #${bm.globalRank} overall) on <b>${esc(b.name||"")}</b>${amt}${facNote}</div>`;
   const players=rowsOf(b.players);
-  if(!players.length) return h+`<p class="num" style="padding:6px 2px">None of your ${esc(s.spec)} ${esc(cls)} raiders played that role/form on ${esc(b.name||"this boss")} — nobody to compare like-for-like (e.g. a Feral who tanked in bear isn't matched to a cat-DPS best).</p>`;
+  if(!players.length){
+    // Distinguish the two reasons players can be empty: a genuine role/form mismatch vs the benchmark's
+    // own cast table failing to fetch (b.benchHasCasts===false) — the latter is not a "nobody played it".
+    if(b.benchHasCasts===false) return h+`<p class="num" style="padding:6px 2px">Benchmark rotation unavailable — ${esc(bm.name)}'s cast table couldn't be fetched, so there's nothing to compare against on ${esc(b.name||"this boss")}.</p>`;
+    return h+`<p class="num" style="padding:6px 2px">None of your ${esc(s.spec)} ${esc(cls)} raiders played that role/form on ${esc(b.name||"this boss")} — nobody to compare like-for-like (e.g. a Feral who tanked in bear isn't matched to a cat-DPS best).</p>`;
+  }
   const parseTag=p=>p.parse!=null?` <span class="parse" style="background:${parseColor(p.parse)}">${p.parse}</span>`:"";
   const match=players.filter(p=>p.matches), diverge=players.filter(p=>!p.matches);
   if(match.length){
@@ -1618,8 +1622,11 @@ function optBossBody(d,cls,s,b){
     // Prep cross-link (EXPERIMENTAL): when this raider is under their effective-hit cap, note that part of
     // the rotation divergence may be a GEAR fix (missed casts), not sequencing. Coach-not-blame; absolute.
     const hitNote=p.hit?`<div class="srcs" style="margin:-2px 0 8px;color:#e8c34a"><span class="xp" style="background:#3a2f12;color:#e8c34a;border-color:#5a4a1a">Prep flag</span> Effective hit ${p.hit.effPct}% vs the ${p.hit.cap}% ${esc(p.hit.hitType)} cap (−${p.hit.gap}pp) — missed casts can distort this mix; closing it is a gem/enchant fix, not a rotation change.</div>`:"";
+    // Large HEALER gaps often reflect a single-spell throughput parse at the top of the HPS board
+    // (e.g. Regrowth-spam, Circle-of-Healing-spam) — not a transferable rotation. Flag, don't coach toward it.
+    const healNote=(bm.metric==="hps"&&p.maxDiff>=40)?`<div class="srcs" style="margin:-2px 0 8px;opacity:.8">Large healer gap — the #1 HPS parse on this boss may be a single-spell throughput strategy, not a transferable rotation. Compare for ideas, don't chase the exact mix.</div>`:"";
     h+=`<div style="margin:0 0 18px"><div class="optpname"><span style="color:${col}">${esc(p.name)}</span>${parseTag(p)}</div>
-      ${hitNote}`
+      ${hitNote}${healNote}`
       +mirrorGrid(abil,{label:"Cast share by ability", oTitle:p.name, tTitle:bm.name,
         ours:a=>a.ours, theirs:a=>a.theirs, name:a=>esc(a.name),
         delta:a=>({cls:"flat",txt:(a.diff>0?"+":"")+a.diff+" pts"})})  // neutral — rotation is descriptive
@@ -1910,6 +1917,10 @@ function renderWipes(d){
       </div>`;
     if(b.wall&&b.wall.phase){
       h+=`<p class="srcs" style="margin:10px 0 4px"><b>The wall:</b> ${b.wall.wipes} of ${b.wall.ofTotal} wipe${b.wall.ofTotal!==1?"s":""} ended in <b style="color:var(--ours)">${esc(b.wall.phase)}</b>${b.wall.medPct!=null?` around <b>${pct(b.wall.medPct)}</b> boss HP`:""} — the phase to drill.</p>`;
+    } else if(b.wall&&b.wall.medPct!=null){
+      h+=`<p class="srcs" style="margin:10px 0 4px"><b>The wall:</b> ${b.wall.wipes} of ${b.wall.ofTotal} wipe${b.wall.ofTotal!==1?"s":""} ended around <b>${pct(b.wall.medPct)}</b> boss HP.</p>`;
+    } else if(b.bestPct==null){
+      h+=`<p class="srcs" style="margin:10px 0 4px"><b>Wipe depth not reliable here</b> — this boss resets its HP across a phase transition, so WCL reports ~0% on a non-kill wipe (not a real near-kill). Read the wipe deaths below for what actually ended the attempts.</p>`;
     }
     if(b.trend){
       const seq=asArr(b.trendSeq).filter(v=>v!=null);

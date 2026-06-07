@@ -125,6 +125,24 @@ def class_counts(roster):
     return out
 
 
+# WCL emits feral-tree druid builds under variant spec names — a bear-tank build reads "Warden",
+# a feral-tank "Guardian" — that do NOT contain the substring "feral". A naive substring match for
+# the Leader-of-the-Pack provider check (and its count) therefore reads 0 for a real Feral druid who
+# genuinely provides the buff, flipping the Composition row to a false "your edge" and inflating the
+# Overview "buffs the benchmark lacks" count. Canonicalize those variants to Feral for PROVIDER
+# MATCHING only (the displayed roster spec is untouched). Verified on the pinned benchmark: its
+# bear-tank Ancler reads Warden/Guardian across the shared bosses yet maintains Leader of the Pack at
+# 93-100% uptime. Balance variants (e.g. "Dreamstate") are deliberately NOT mapped: a Dreamstate druid
+# is often a resto HEALER (no Improved Faerie Fire), so aliasing it would wrongly credit an Imp-FF
+# provider — verified on this benchmark (its only Dreamstate druid is a healer; Imp FF theirs=0 is right).
+SPEC_ALIASES = {("druid", "warden"): "Feral", ("druid", "guardian"): "Feral"}
+
+
+def _canon_spec(cls, spec):
+    """Normalize a player's primary spec to a canonical provider spec (variant tank builds → Feral)."""
+    return SPEC_ALIASES.get((str(cls).lower(), str(spec or "").lower()), spec)
+
+
 def has_provider(pairs, cls, spec):
     """Does any (class, primary-spec) pair satisfy this provider check? `pairs` is one
     (class, primary-spec) entry per player, taken from the roster."""
@@ -132,6 +150,7 @@ def has_provider(pairs, cls, spec):
         if c == cls:
             if not spec:
                 return True
+            s = _canon_spec(c, s)
             if s and spec.lower() in s.lower():
                 return True
     return False
@@ -144,7 +163,8 @@ def count_providers(pairs, cls, spec):
     raid-wide buff carried by exactly one provider). Same matching logic as has_provider."""
     n = 0
     for c, s in pairs:
-        if c == cls and (not spec or (s and spec.lower() in s.lower())):
+        cs = _canon_spec(c, s)
+        if c == cls and (not spec or (cs and spec.lower() in cs.lower())):
             n += 1
     return n
 
@@ -456,22 +476,36 @@ def stat_audit_compare(ours, theirs):
         else:
             target, margin = p["cap"], 3.0
         under = p["effPct"] < target - margin
+        # Don't grade a role-fluid Feral druid (bear/cat) or a tank against the BARE CAP when the benchmark
+        # fielded no same-spec player to compare against. A bear legitimately deprioritizes gear hit, so the
+        # 9% cat-DPS cap is the wrong yardstick — judging 3% hit against it would put a half-night tank atop
+        # the per-player gear-fix list. Mark the row UNGRADED so the UI shows "—" for the target (no false
+        # red, and no misleading number to "fail"), with the reason, instead of silently leaving it unflagged.
+        ungraded = bench_hit is None and (p.get("role") == "tank" or (p["class"] == "Druid" and p["spec"] == "Feral"))
+        if ungraded:
+            under = False
         n_under += 1 if under else 0
-        rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp,
+        rows.append({**p, "benchHit": bench_hit, "benchExp": bench_exp, "ungraded": ungraded,
                      "target": round(target, 1), "under": under, "gap": round(target - p["effPct"], 1)})
     rows.sort(key=lambda r: (not r["under"], -r["gap"]))
 
-    def _avg_type(rs, t):
-        v = [r["effPct"] for r in rs if r["hitType"] == t]  # effective (gear + raid Imp FF)
+    def _avg_gt(rs, t):
+        # gear + talent only — the controllable ITEMIZATION lever, EXCLUDING the raid Imp FF component.
+        v = [round(r["gearPct"] + r["talentPct"], 1) for r in rs if r["hitType"] == t]
         return round(sum(v) / len(v), 1) if v else None
 
     def _env(rs):  # the side's spell-hit environment (Imp FF), read off any spell caster
         return next((r["raidPct"] for r in rs if r["hitType"] == "spell"), 0.0)
+    # The summary cards compare gear+talent (the lever the raid actually itemizes), NOT effective hit.
+    # If the spell card compared EFFECTIVE hit, an asymmetric raid buff (we field boomkins for +3% Imp FF,
+    # the benchmark doesn't) would paint a green "we hit better" delta while our casters' own gear+talent
+    # hit is actually WORSE — exactly the lever a leader would want flagged. Melee/ranged carry no raid hit
+    # component, so gear+talent == effective there (unchanged). The per-side Imp FF is shown in spellEnv.
     summary = {
         "oursUnder": n_under, "playerCount": len(rows),
-        "spell": {"ours": _avg_type(ours, "spell"), "theirs": _avg_type(theirs, "spell")},
-        "melee": {"ours": _avg_type(ours, "melee"), "theirs": _avg_type(theirs, "melee")},
-        "ranged": {"ours": _avg_type(ours, "ranged"), "theirs": _avg_type(theirs, "ranged")},
+        "spell": {"ours": _avg_gt(ours, "spell"), "theirs": _avg_gt(theirs, "spell")},
+        "melee": {"ours": _avg_gt(ours, "melee"), "theirs": _avg_gt(theirs, "melee")},
+        "ranged": {"ours": _avg_gt(ours, "ranged"), "theirs": _avg_gt(theirs, "ranged")},
         "spellEnv": {"ours": _env(ours), "theirs": _env(theirs)},
     }
     return {"players": rows, "summary": summary}
@@ -488,6 +522,12 @@ def stat_audit_compare(ours, theirs):
 # — a top guild — carries the full set), with a name fallback for "Flask of …"/"Elixir of …" buffs.
 # Combat-potion buff spell ids (verified present in data: Haste/Destruction/Ironshield potions).
 POTION_IDS = {28507, 28508, 28515}
+# THROUGHPUT (offensive DPS) combat potions only — Haste (28507) and Destruction (28508). Ironshield
+# (28515) is a tank DEFENSIVE damage-absorb potion: it shares the combat-potion cooldown so it belongs
+# in the usage POTION_IDS, but it is NOT a "free DPS opener" — so the Prepot view (whose whole premise
+# is "the throughput potion on the pull is free DPS") must scan only these, or a tank's defensive
+# Ironshield on the pull fabricates a green "prepotted" cell and halves the real DPS-prepot gap.
+THROUGHPUT_POTION_IDS = {28507, 28508}
 # IN-COMBAT instant consumables (health/mana potion, healthstone) leave NO buff aura — verified live,
 # they don't appear in the Buffs table at all. They DO log in the **Casts** table under their effect name:
 # a mana potion casts "Restore Mana", a healthstone "Master Healthstone" (+ rank names containing
@@ -513,11 +553,13 @@ ELIXIR_BATTLE_IDS = {
     28491,  # Elixir of Healing Power — buff "Healing Power" (+50 healing)
     28503,  # Elixir of Major Shadow Power — buff "Major Shadow Power" (+55 shadow)
     28497,  # Elixir of Major Agility — buff "Major Agility" (+35 agi, +20 crit)
+    28490,  # Elixir of Major Strength — buff "Major Strength" (+35 str); WCL effect-renamed (no "Elixir")
 }
 ELIXIR_GUARDIAN_IDS = {
     39627,  # Elixir of Draenic Wisdom (+30 int/spi)
     39625,  # Elixir of Major Fortitude (+250 hp, +10 hp/5)
     11371,  # Gift of Arthas (+10 shadow resist + disease proc) — tooltip says "Guardian Elixir"
+    28509,  # Elixir of Major Mageblood — buff "Greater Versatility" (+16 mp5); WCL effect-renamed
 }
 ELIXIR_IDS = ELIXIR_BATTLE_IDS | ELIXIR_GUARDIAN_IDS
 # Name hints, used only as a fallback to type an "Elixir of X" buff whose spell id isn't mapped yet.
@@ -673,9 +715,10 @@ def _cell_for(auras, role=None):
             food = True
         elif c == "potion":
             potions += int(a.get("uses", 0))
-    total_elixirs = battle + guardian + other
-    # Consumed = a flask, OR a battle+guardian pair (two distinct elixirs == the pair in TBC).
-    consumed = flask or (battle >= 1 and guardian >= 1) or total_elixirs >= 2
+    # Consumed = a flask, OR a battle+guardian PAIR (one of each — TBC allows one of each type at once).
+    # (The old `total_elixirs >= 2` shortcut wrongly counted two same-type elixirs — only possible via a
+    # WCL logging quirk — as a pair; the explicit one-of-each test matches the documented semantics.)
+    consumed = flask or (battle >= 1 and guardian >= 1)
     # A DPS is prepared on throughput with just a battle elixir — guardian is optional for them.
     if role == "dps" and battle >= 1:
         consumed = True
@@ -982,12 +1025,20 @@ def uptime_pct(auras, name, dur_ms):
     return min(100, round(float(a["totalUptime"]) / dur_ms * 100))
 
 
+# Real shaman Bloodlust (2825) / Heroism (32182). Matched by SPELL ID, not name: the benchmark's logs
+# carry a DIFFERENT aura literally named "Heroism" (guid 39200, a non-shaman effect) whose band starts
+# ~60s in — name-matching would pick it up and read the wrong lust window. (Same spell-id-over-name
+# principle the consumable classifier uses.) Across all matches take the EARLIEST band, so iteration
+# order can't change the answer.
+LUST_GUIDS = {2825, 32182}
+
+
 def lust_sec(auras, fight_start):
-    a = next((x for x in auras if x.get("name") in ("Bloodlust", "Heroism")), None)
-    if not a or not a.get("bands"):
+    starts = [min(int(b["startTime"]) for b in x["bands"])
+              for x in auras if x.get("guid") in LUST_GUIDS and x.get("bands")]
+    if not starts:
         return None
-    first = min(a["bands"], key=lambda b: b["startTime"])["startTime"]
-    return round((int(first) - int(fight_start)) / 1000)
+    return round((min(starts) - int(fight_start)) / 1000)
 
 
 def lust_window_mult(tl, lust, window=40):
@@ -1036,26 +1087,6 @@ def cooldown_lust_alignment(buff_auras, lust_sec_val, fight_start, window=40):
     if not used:
         return None
     return {"aligned": aligned, "used": used, "pct": round(100 * aligned / used)}
-
-
-def dps_ramp(tl, frac=0.9):
-    """Seconds to first reach `frac` of the fight's MEDIAN bucket DPS — how fast the raid got up to its
-    cruising pace (a slow opener leaves damage on the table). Median is robust to the opener and any
-    execute spike. Coarse (binned to the timeline buckets). EXPERIMENTAL. None without a timeline."""
-    if not tl:
-        return None
-    dps = tl.get("dps") or []
-    n = len(dps)
-    dur = (tl.get("durMs") or 0) / 1000.0
-    if not n or dur <= 0:
-        return None
-    med = sorted(dps)[n // 2]
-    if med <= 0:
-        return None
-    tgt = frac * med
-    w = dur / n
-    idx = next((i for i, v in enumerate(dps) if v >= tgt), None)
-    return round(idx * w) if idx is not None else None
 
 
 def debuff_timing(auras, fight_start, dur_ms, names):
@@ -1110,10 +1141,13 @@ def pet_owner_map(directory):
 
 
 def _spec_curves(by_source, n, secs, id_to_name, spec_map, role_map, class_map, pet_owner):
-    """Fold one fight's per-source RAW bins (sourceID -> [amount per bin]) into per (class, spec) RATE
-    curves. Each source is first resolved to a player (a pet folds into its owner), then attributed to
-    that player's primary spec and pooled; the summed bins are divided by the bin width (`secs`) to get a
-    DPS/HPS-over-time curve for the whole spec. Returns {"class|spec": {class, spec, role, curve:[rates]}}."""
+    """Fold one fight's per-source RAW bins (sourceID -> [amount per bin]) into per (class, spec) PER-PLAYER
+    RATE curves. Each source is first resolved to a player (a pet folds into its owner), then attributed to
+    that player's primary spec and pooled; the summed bins are divided by the bin width (`secs`) AND by the
+    spec's distinct player count, so the curve is avg DPS/HPS PER PLAYER — matching the sibling DPS-by-Spec
+    table (avg/player). Pooling totals instead would make the side with more players of a spec draw ~Nx
+    taller even when each of its players is worse, flipping the read. Returns {"class|spec": {class, spec,
+    role, players:int, curve:[rates]}}."""
     if not by_source or n <= 0 or secs <= 0:
         return {}
     folded = {}  # owner player id -> [raw sum per bin]
@@ -1132,11 +1166,13 @@ def _spec_curves(by_source, n, secs, id_to_name, spec_map, role_map, class_map, 
             continue  # only roster players with a known primary spec
         cls = class_map.get(nm) or "Unknown"
         key = "{}|{}".format(cls, spec)
-        p = pools.setdefault(key, {"class": cls, "spec": spec, "role": role_map.get(nm), "sum": [0.0] * n})
+        p = pools.setdefault(key, {"class": cls, "spec": spec, "role": role_map.get(nm),
+                                   "sum": [0.0] * n, "players": set()})
+        p["players"].add(owner)
         for i, v in enumerate(arr):
             p["sum"][i] += v
-    return {key: {"class": p["class"], "spec": p["spec"], "role": p["role"],
-                  "curve": [round(x / secs) for x in p["sum"]]}
+    return {key: {"class": p["class"], "spec": p["spec"], "role": p["role"], "players": len(p["players"]),
+                  "curve": [round(x / secs / max(1, len(p["players"]))) for x in p["sum"]]}
             for key, p in pools.items()}
 
 
@@ -1171,6 +1207,7 @@ def spec_timelines(o_tl, t_tl, o_args, t_args):
     for key in sorted(set(o) & set(t), key=repr):  # overlap only — both raids fielded this spec
         oc, tc = o[key], t[key]
         rows.append({"class": oc["class"], "spec": oc["spec"], "role": oc["role"], "metric": oc["metric"],
+                     "oursPlayers": oc.get("players"), "theirsPlayers": tc.get("players"),
                      "ours": oc["curve"], "theirs": tc["curve"]})
     rows.sort(key=lambda r: (r["metric"] != "dps", r["class"], r["spec"]))  # DPS specs first, stable order
 
@@ -1229,28 +1266,6 @@ def timeline_view(o_curves, t_curves, o_deaths, t_deaths, o_lust, t_lust, o_dur,
         "ours": _side_timeline(o_curves, o_deaths, o_lust, o_dur, o_info),
         "theirs": _side_timeline(t_curves, t_deaths, t_lust, t_dur, t_info),
     }
-
-
-def focus_view(o_tl, t_tl):
-    """Focus-fire concentration for a MULTI-TARGET boss: average share of raid damage on the single
-    most-focused enemy per time slice, ours vs the benchmark (from the timeline's per-slice `focus`
-    data — computed off the same event pull, no extra cost). Higher = the raid concentrates fire;
-    lower = damage split across targets. Returns None unless BOTH sides register as multi-target — a
-    single-target fight is ~100% by definition and carries no signal, so there's nothing to compare."""
-    of = (o_tl or {}).get("focus") or {}
-    tf = (t_tl or {}).get("focus") or {}
-    if not of.get("multiTarget") or not tf.get("multiTarget"):
-        return None
-
-    def avg_conc(f):
-        vals = [c for c in (f.get("conc") or []) if c is not None]
-        return round(sum(vals) / len(vals)) if vals else None
-
-    oc, tc = avg_conc(of), avg_conc(tf)
-    if oc is None or tc is None:
-        return None
-    return {"oursConc": oc, "theirsConc": tc,
-            "oursTargets": of.get("distinctTargets"), "theirsTargets": tf.get("distinctTargets")}
 
 
 def _targets_by_name(tl, npc_map, boss_name):
@@ -1531,7 +1546,7 @@ def ghost_run_for_boss(deaths, dur_ms, raid_dps, avg_dps):
             "deaths": sum(1 for d in deaths if avg_dps.get(d.get("name")) and (d.get("tSec") or 0) > 0),
             "durSec": round(dur_sec), "raidDps": round(raid_dps),
             "raiders": [{"name": r["name"], "class": r["class"], "dmg": round(r["dmg"]),
-                         "sec": round(r["sec"]), "rate": r["rate"]} for r in raiders[:5]]}
+                         "sec": round(r["sec"]), "rate": r["rate"]} for r in raiders]}
 
 
 def avoidable_damage_gap(o_acc, t_acc, o_dur_ms, t_dur_ms, n=12):
@@ -1744,20 +1759,30 @@ def per_target_debuffs(o_dir, t_dir, enc):
     om, tm = by_name(o), by_name(t)
 
     def upt(tg, ability):
+        """(value, ok): uptime % over the enemy's engaged window, or 0 when the debuff was never applied /
+        the enemy is absent on this side. ok=False when the raw debuff ms is implausibly larger than that
+        enemy's active window — a multi-instance pooling / fight-end force-close artifact (seen at 600-1500%
+        on reused phased-add NPC ids) that would otherwise CLAMP to a fake clean 100% and manufacture a
+        false 'they held it, you didn't' assignment lever. Such cells are dropped, not laundered."""
         if not tg:
-            return None
+            return 0, True  # enemy not present on this side -> an honest 0%
         active = tg.get("activeMs") or 0
         ms = (tg.get("debuffs") or {}).get(ability)
         if not active or ms is None:
-            return None
-        return min(100, round(ms / active * 100))
+            return 0, True  # debuff never landed on this enemy -> 0%
+        if ms > active * 1.1:
+            return None, False  # raw uptime far exceeds the engaged window -> data artifact, unmeasurable
+        return min(100, round(ms / active * 100)), True
 
     groups = []
     for nm in sorted(set(om) | set(tm)):
         o_tg, t_tg = om.get(nm), tm.get(nm)
         rows = []
         for ability in KEY_DEBUFFS:
-            o_u, t_u = upt(o_tg, ability), upt(t_tg, ability)
+            o_u, o_ok = upt(o_tg, ability)
+            t_u, t_ok = upt(t_tg, ability)
+            if not o_ok or not t_ok:
+                continue  # unmeasurable on at least one side -> not a valid comparison, drop the row
             if (o_u or 0) < 5 and (t_u or 0) < 5:
                 continue  # neither raid meaningfully held this debuff on this enemy
             rows.append({"name": ability, "ours": o_u or 0, "theirs": t_u or 0,
@@ -2018,8 +2043,13 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
         metric = sp.get("metric")
         slot = by_class.setdefault(cls, [])
         spec_bosses = []
+        shared_set = {int(e) for e in (shared_encs or [])}
         for bn in (sp.get("bosses") or []):
             enc = bn.get("encounterID")
+            # Defensive: never render a boss outside the CURRENT shared set even if a stale worldbest.json
+            # from a prior benchmark pairing lingered (the cache key now guards this, but belt-and-suspenders).
+            if shared_set and int(enc) not in shared_set:
+                continue
             player = bn.get("player") or {}
             w_abil = bn.get("abilities") or {}
             casts = _casts_for(str(enc))
@@ -2056,7 +2086,13 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
                 "benchmark": {"name": player.get("name"), "guild": player.get("guild"),
                               "server": player.get("server"), "region": player.get("region"),
                               "amount": player.get("amount"), "globalRank": player.get("globalRank"),
+                              "sameFaction": player.get("sameFaction", True),
                               "metric": metric} if player.get("name") else None,
+                # Did the world-best player's CAST table actually fetch? When it didn't (empty abilities),
+                # every raider is dropped and players==[], which would otherwise render the "no raider
+                # played that role/form" empty-state — a wrong reason (the raiders DID play; the benchmark
+                # rotation just couldn't be fetched). The renderer uses this to pick the honest message.
+                "benchHasCasts": bool(w_abil),
                 "players": players,
                 "worstDiff": max((p["maxDiff"] for p in players), default=0.0),
             })
@@ -2247,15 +2283,23 @@ def opener_gap(o_tl, t_tl, secs=30):
 
 
 def disp_list(report):
-    """Dispels: which enemy auras the raid dispelled, with counts."""
+    """Dispels: which ENEMY auras the raid removed (purges off a hostile target), with counts. Counts
+    only removals whose TARGET actor is hostile (type Boss/NPC). The WCL Dispels table also lists FRIENDLY
+    cleanses — a Mind-Control break off a raider, an ally poison-cure — whose target actor is a player
+    class; those are defensive plays, not "enemy auras the raid chose to remove", so including them
+    mislabels the view (its header says "enemy auras") and inflates the dispel-priority read with
+    cleanse activity. `details[].actors[]` are the dispel TARGETS; filter to the hostile ones."""
     m = {}
     for a in _inner_entries(report, "disp"):
         if not a or not a.get("name"):
             continue
-        cnt = sum(int(d.get("total", 0)) for d in (a.get("details") or []))
-        if not cnt:
-            cnt = int(a.get("spellsInterrupted", 0))
-        m[str(a["name"])] = int(cnt)
+        cnt = 0
+        for det in (a.get("details") or []):
+            for act in (det.get("actors") or []):
+                if act.get("type") in ("Boss", "NPC"):
+                    cnt += int(act.get("total", 0))
+        if cnt:
+            m[str(a["name"])] = int(cnt)
     return m
 
 
@@ -2894,13 +2938,19 @@ def _death_source_mob(death, npc_map):
     return None
 
 
-def trash_death_causes(o, t, n=15, o_npc=None, t_npc=None):
+def trash_death_causes(o, t, n=None, o_npc=None, t_npc=None):
     """Player trash deaths aggregated by killing blow, ranked by the biggest IMPROVABLE delta
     (our deaths − theirs), ours vs benchmark. Each NAMED killing blow now carries the SOURCE MOB in
     parens ("Fragmentation Bomb (Tempest-Smith)") — the mob is the actionable half (CC/kite/position
     that mob), resolved from the death's killing-blow event. "Melee" is kept as one aggregate row here
     (mob varies) and broken out by mob in `trash_melee_by_mob`. Ability+mob align across guilds, so the
-    comparison stays clean; ranking by delta floats the blows the benchmark has solved and we haven't."""
+    comparison stays clean; ranking by delta floats the blows the benchmark has solved and we haven't.
+
+    NOT truncated by default (n=None): trash mob/ability cardinality is small, and the sort pushes
+    theirs-only rows (a death the benchmark took and we avoided) to the bottom — an earlier `rows[:15]`
+    cap silently dropped exactly those, so the table's `theirs` column under-summed vs the Trash-Deaths
+    glance card sitting directly above it (a visible contradiction) and hid the benchmark's worst named
+    trash mechanic. Both columns now always reconcile with the glance totals."""
     o_npc = o_npc if o_npc is not None else o["npc"]
     t_npc = t_npc if t_npc is not None else t["npc"]
 
@@ -2919,7 +2969,7 @@ def trash_death_causes(o, t, n=15, o_npc=None, t_npc=None):
     rows = [{"cause": c, "ours": oa.get(c, 0), "theirs": ta.get(c, 0)} for c in sorted(set(oa) | set(ta), key=repr)]
     # Biggest improvable delta first (a death the benchmark avoids); ties → raw ours, then theirs.
     rows.sort(key=lambda r: (-(r["ours"] - r["theirs"]), -r["ours"], -r["theirs"]))
-    return rows[:n]
+    return rows if n is None else rows[:n]
 
 
 def trash_melee_by_mob(o, t):
@@ -3275,7 +3325,8 @@ def prepot_timing(directory, idx, enc_ids):
         start = int(fi["start"])
         earliest = None
         for a in _auras(rep, "buffs"):
-            if _consumable_cat(a.get("name"), a.get("guid")) != "potion":
+            # Throughput potions only — a tank's defensive Ironshield on the pull is not a DPS prepot.
+            if a.get("guid") not in THROUGHPUT_POTION_IDS:
                 continue
             for b in (a.get("bands") or []):
                 st = int(b["startTime"])
@@ -3294,50 +3345,6 @@ def prepot_timing(directory, idx, enc_ids):
 
 
 # --- Execution: the raid Overheal% number, decomposed by HEALER SPEC ---
-def heal_eff_buckets(report, spec_map, role_map, class_map):
-    """Bucket the Healing table by (class, primary-spec), HEALER-role players only: sum effective healing +
-    overhealing per spec. Overheal % = overheal / (overheal + effective) is throughput spent on full health
-    bars — a clean better/worse signal for a healer spec (lower = tighter). Compared SAME-spec downstream,
-    which cancels the structural difference between HoT specs (high baseline overheal) and direct healers,
-    leaving the real coaching signal. Mirrors spec_dps_buckets. EXPERIMENTAL."""
-    buckets = {}
-    for e in _entries(report, "heal"):
-        nm = e.get("name")
-        spec = spec_map.get(nm)
-        if not spec or role_map.get(nm) != "healer":
-            continue
-        cls = class_map.get(nm) or e.get("type") or "Unknown"
-        b = buckets.setdefault("{}|{}".format(cls, spec),
-                               {"class": cls, "spec": spec, "role": "healer", "eff": 0.0, "over": 0.0,
-                                "players": set()})
-        b["eff"] += float(e.get("total", 0))
-        b["over"] += float(e.get("overheal", 0))
-        b["players"].add(nm)
-    return buckets
-
-
-def tier_heal_eff_gap(o_pool, t_pool):
-    """Per healer spec, overheal % pooled across shared bosses, ours vs the benchmark's same spec, ranked by
-    the biggest EXCESS overheal (we waste most vs same spec). The per-spec decomposition of the raid-wide
-    Overheal figure — names which healer spec is splashing/sniping inefficiently. `both` flags same-spec
-    overlap (the clean comparison); one-side specs ride along as a first-party absolute note. EXPERIMENTAL."""
-    def pct(x):
-        den = (x["eff"] + x["over"]) if x else 0
-        return round(100 * x["over"] / den, 1) if den > 0 else 0
-    rows = []
-    for key in sorted(set(o_pool) | set(t_pool), key=repr):
-        o, t = o_pool.get(key), t_pool.get(key)
-        ref = o or t
-        rows.append({"class": ref["class"], "spec": ref["spec"], "role": "healer",
-                     "ours": pct(o) if o else None, "theirs": pct(t) if t else None,
-                     "deficit": round(pct(o) - pct(t), 1) if (o and t) else 0,
-                     "oursSamples": len(o["players"]) if o else 0,
-                     "theirsSamples": len(t["players"]) if t else 0,
-                     "both": bool(o) and bool(t)})
-    rows.sort(key=lambda r: (not r["both"], -r["deficit"]))
-    return rows
-
-
 # --- Trash: the flat trash-deaths count, decomposed by PULL SIZE (death-rate per pull) ---
 PULL_SIZE_BUCKETS = [(1, 3, "1–3"), (4, 7, "4–7"), (8, 12, "8–12"), (13, 9999, "13+")]
 
@@ -3390,17 +3397,27 @@ def _load_attempt_fights(directory):
 
 def _wipe_trend(seq, downed):
     """A one-line read of the wipe %-remaining sequence (lower = closer to a kill): converging, plateaued,
-    or regressing. None when there are too few wipes (<3) to call a trend honestly."""
+    or regressing. None when there are too few wipes (<3) to call a trend honestly. When `downed` is True
+    the boss was eventually KILLED, so the read is retrospective (past tense, no "keep pushing"/"reset"
+    coaching — that would be stale advice on a dead boss)."""
     vals = [(i, v) for i, v in enumerate(seq) if v is not None]
     if len(vals) < 3:
         return None
     n = len(seq)
     best_i, best_v = min(vals, key=lambda iv: iv[1])
-    if best_i >= n - max(1, n // 3):
-        return "Converging — the closest attempt was among the most recent pulls; keep pushing."
+    converging = best_i >= n - max(1, n // 3)
     early_best = min(v for i, v in vals if i < max(1, n // 2))
     late_best = min(v for i, v in vals if i >= n // 2)
-    if late_best > early_best + 5:
+    regressing = late_best > early_best + 5
+    if downed:
+        if converging:
+            return "Converged — the closest pulls were the most recent, then the kill landed."
+        if regressing:
+            return "Killed despite drift — pulls got further from the kill mid-progression before it came together."
+        return "Killed off a plateau — attempts clustered at one depth, then the kill came."
+    if converging:
+        return "Converging — the closest attempt was among the most recent pulls; keep pushing."
+    if regressing:
         return ("Regressing — pulls got further from the kill after the early attempts "
                 "(fatigue/tilt; a short reset may help).")
     return ("Plateaued — attempts cluster at the same depth without getting closer; change something "
@@ -3409,6 +3426,12 @@ def _wipe_trend(seq, downed):
 
 # Auto-attack names — "sustained" damage, as opposed to a discrete avoidable mechanic.
 _AUTO_DMG_NAMES = {"Melee", "Auto Attack", "Auto Shot", "Shoot", "Attack"}
+
+# Friendly / self-sacrifice abilities WCL can attribute as a death's "killing blow" that are NOT a hostile
+# wipe cause (a Paladin's Divine Intervention sacrifices the caster). Excluded from the killing-blow /
+# first-death tallies and the mechanic/sustained split so they don't pose as a hostile mechanic that ends
+# attempts. (A self-sacrifice has damage.total 0 / no abilities, so it would otherwise fall to "sustained".)
+_FRIENDLY_KB_NAMES = {"Divine Intervention"}
 
 
 def _classify_wipe_death(d):
@@ -3460,9 +3483,24 @@ def wipe_analysis(directory, enc_names, phase_names):
             by_enc.setdefault(enc, []).append(f)
 
     def pname(enc, pid):
+        # Only return a label for a REAL named phase. The synthetic "Phase N" fallback carries no signal
+        # (lastPhase is 0 on short/non-phased fights — wcl-api.md) yet renders as a drillable "the phase to
+        # drill", so return None and let the renderer omit the phase clause.
         if pid is None:
             return None
-        return (phase_names.get(enc) or {}).get(pid) or "Phase {}".format(pid)
+        return (phase_names.get(enc) or {}).get(pid)
+
+    def depth_reliable(enc, f):
+        """Is this wipe's fightPercentage a real boss-HP% depth? NO when it reports sub-1% on a boss whose
+        lastPhase has no NAMED phase — that's the phase-reset artifact (WCL emits ~0% HP during a phase
+        transition, e.g. Al'ar's P1→P2), a false near-kill rather than a genuine doorstep wipe. (wcl-api.md:
+        only trust lastPhase / sub-1% depth where named phases exist.)"""
+        fp = f.get("fightPercentage")
+        if fp is None:
+            return False
+        if float(fp) < 1 and not (phase_names.get(enc) or {}).get(f.get("lastPhase")):
+            return False
+        return True
 
     def dsec(f):
         return max(0, int(f.get("endTime", 0)) - int(f.get("startTime", 0))) / 1000.0
@@ -3474,14 +3512,16 @@ def wipe_analysis(directory, enc_names, phase_names):
         if not wipes:
             continue  # only bosses the raid actually wiped on
         kills = [f for f in fl if f.get("kill")]
-        depth = [f for f in wipes if f.get("fightPercentage") is not None]
+        # Only wipes with a TRUSTWORTHY depth feed the near-kill numbers — a phase-reset boss reporting ~0%
+        # is not a real near-kill (see depth_reliable), so it must not become the "closest attempt".
+        depth = [f for f in wipes if depth_reliable(enc, f)]
         best = min(depth, key=lambda f: float(f["fightPercentage"])) if depth else None
         # THE WALL — which phase do wipes end in most, and the typical %-remaining there.
         phase_ct, phase_pcts = {}, {}
         for f in wipes:
             ph = f.get("lastPhase")
             phase_ct[ph] = phase_ct.get(ph, 0) + 1
-            if f.get("fightPercentage") is not None:
+            if depth_reliable(enc, f):
                 phase_pcts.setdefault(ph, []).append(float(f["fightPercentage"]))
         wall = None
         if phase_ct:
@@ -3489,13 +3529,16 @@ def wipe_analysis(directory, enc_names, phase_names):
             pcts = sorted(phase_pcts.get(wp) or [])
             wall = {"phase": pname(enc, wp), "wipes": phase_ct[wp], "ofTotal": len(wipes),
                     "medPct": round(pcts[len(pcts) // 2], 1) if pcts else None}
-        seq = [round(float(f["fightPercentage"]), 1) if f.get("fightPercentage") is not None else None
-               for f in wipes]
+        # Trend sequence: only trustworthy depths (a phase-reset ~0% would otherwise read as a near-kill
+        # spike in the progression bars).
+        seq = [round(float(f["fightPercentage"]), 1) if depth_reliable(enc, f) else None for f in wipes]
         # WHAT ENDS ATTEMPTS — first death + killing blows on the wipe pulls (when wipe deaths present).
         first_causes, blow_causes, tracked = {}, {}, 0
         cause_mech, cause_sust, mech_names = 0, 0, {}  # death-cause disambiguation: mechanics vs sustained
         for f in wipes:
             ds = sorted(deaths_by_fight.get(f.get("id"), []), key=lambda d: d.get("timestamp", 0))
+            # Drop friendly/self-sacrifice "killing blows" (e.g. Divine Intervention) — not a hostile cause.
+            ds = [d for d in ds if (d.get("killingBlow") or {}).get("name") not in _FRIENDLY_KB_NAMES]
             if not ds:
                 continue
             tracked += 1
@@ -3693,7 +3736,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     o_raid_dmg_sum = t_raid_dmg_sum = o_raid_heal_sum = t_raid_heal_sum = 0
     # Tier-wide gap rollups: per-spec DPS pools (across all bosses) + buff/debuff uptime samples.
     tier_o_spec, tier_t_spec = {}, {}
-    tier_o_heff, tier_t_heff = {}, {}  # per healer-spec overheal pools (eff/over sums) — EXPERIMENTAL
     tier_o_dmg, tier_t_dmg = {}, {}  # avoidable damage by ability (ex-tanks), pooled tier-wide — EXPERIMENTAL
     ours_player_dps = {}  # name -> [per-boss DPS] → night-average DPS per raider, for the Ghost Run
     tier_upt = {}  # aura name -> {"kind": buff|debuff, "o": [uptimes], "t": [uptimes]}
@@ -3775,16 +3817,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             for key, bucket in spec_dps_buckets(rep, sp, ro, cl, dur).items():
                 ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"], "dps": []})
                 ent["dps"].extend(p["dps"] for p in bucket["players"])
-        # Pool per healer-spec overheal (effective + overheal sums) across bosses — the per-spec
-        # decomposition of the raid Overheal figure (EXPERIMENTAL).
-        for pool, rep, sp, ro, cl in ((tier_o_heff, o_b, ours_spec, ours_role, ours_cls),
-                                      (tier_t_heff, t_b, theirs_spec, theirs_role, theirs_cls)):
-            for key, bucket in heal_eff_buckets(rep, sp, ro, cl).items():
-                ent = pool.setdefault(key, {"class": bucket["class"], "spec": bucket["spec"],
-                                            "role": "healer", "eff": 0.0, "over": 0.0, "players": set()})
-                ent["eff"] += bucket["eff"]
-                ent["over"] += bucket["over"]
-                ent["players"] |= bucket["players"]
         # Sample buff/debuff uptimes for the tier-wide coverage rollup.
         for kind, rows_ in (("buff", buff_rows), ("debuff", debuff_rows)):
             for r in rows_:
@@ -3808,9 +3840,10 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 o_tl, t_tl,
                 (o_id_to_name, ours_spec, ours_role, ours_cls, o_pet),
                 (t_id_to_name, theirs_spec, theirs_role, theirs_cls, t_pet))
-        # Positioning (feature 2 — formation map + spread-vs-demand verdict) — one per-boss sub-tab fragment
-        # + the scalars the Overview headline (spread gap) and Execution melee view consume. Graceful None
-        # when this boss has no positions file (older data folder) or is a mobile boss (auto-suppressed).
+        # Positioning (feature 2 — tabbed formation snapshots + spread-vs-demand verdict) — one per-boss sub-tab
+        # fragment + the scalars the Overview headline (spread gap) and Execution melee view consume. Mobile
+        # bosses DO render (their plant-window snapshots); pos_html is None only when there's no positions file
+        # (older data folder) or no settled plant window long enough to snapshot.
         pos_html = None
         o_pos = positioning.load_positions(ours_dir, enc)
         t_pos = positioning.load_positions(theirs_dir, enc)
@@ -3846,8 +3879,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
             # Cooldown↔lust alignment (EXPERIMENTAL): share of major cooldowns that fired in the lust window.
             "oursLustCd": cooldown_lust_alignment(_auras(o_b, "buffs"), o_lust, ours_fights[enc]["start"]),
             "theirsLustCd": cooldown_lust_alignment(_auras(t_b, "buffs"), t_lust, theirs_fights[enc]["start"]),
-            # DPS ramp (EXPERIMENTAL): seconds to reach 90% of the fight's median (cruising) DPS.
-            "oursRamp": dps_ramp(o_tl), "theirsRamp": dps_ramp(t_tl),
             "oursRaidDps": rate(o_raid_dmg, o_dur), "theirsRaidDps": rate(t_raid_dmg, t_dur),
             "oursRaidHps": rate(o_raid_heal, o_dur), "theirsRaidHps": rate(t_raid_heal, t_dur),
             "specGap": spec_gap(o_b, t_b, ours_spec, ours_role, ours_cls,
@@ -3874,7 +3905,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                                             spec_map=ours_spec, class_map=ours_cls),
                        "theirs": threat_pulls(t_b, theirs_fights[enc], theirs_role, b["name"],
                                               spec_map=theirs_spec, class_map=theirs_cls)},
-            "focus": focus_view(o_tl, t_tl),
             "targetEngagement": target_engagement(o_tl, t_tl, ours_npc, theirs_npc, b["name"]),
             "timeline": tl_payload,
         })
@@ -3920,8 +3950,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
     # Tier-wide comprehensive gap rollups (stitched from the per-boss data above).
     tier_spec = tier_spec_gap(tier_o_spec, tier_t_spec)
     tier_uptime = tier_uptime_gap(tier_upt)
-    # Healing efficiency by spec (EXPERIMENTAL) — the per-healer-spec decomposition of the raid Overheal%.
-    tier_heal_eff = tier_heal_eff_gap(tier_o_heff, tier_t_heff)
     # Hit / Expertise itemization audit (combatantInfo.stats) — EXPERIMENTAL. The snapshot is GEAR hit;
     # we fold in each side's detectable raid spell-hit (Improved Faerie Fire, +3% when a Balance Druid is
     # in the roster) → effective hit, and compare effective-to-effective so a buff asymmetry (we run
@@ -3959,9 +3987,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                            "oursCdPct": _cdpct(p.get("oursLustCd")), "theirsCdPct": _cdpct(p.get("theirsLustCd"))}
                           for p in per_boss
                           if p["oursLustSec"] is not None or p["theirsLustSec"] is not None]}
-    # DPS ramp (EXPERIMENTAL): per-boss seconds to reach 90% of the fight's median (cruising) DPS.
-    dps_ramp_rows = [{"boss": p["name"], "ours": p.get("oursRamp"), "theirs": p.get("theirsRamp")}
-                     for p in per_boss if p.get("oursRamp") is not None or p.get("theirsRamp") is not None]
     # Debuff ramp + continuity (EXPERIMENTAL): tier-wide establish-time + longest gap per key debuff.
     debuff_timing_rows = tier_debuff_timing(tier_dtime)
     # Wipe recovery (EXPERIMENTAL): wall-clock reset time between a wipe and the next pull, per boss.
@@ -3999,9 +4024,6 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                       "theirsTotal": ssum([r["theirsTotal"] for r in threat_rows]),
                       "oursOpener": ssum([r["oursOpener"] for r in threat_rows]),
                       "theirsOpener": ssum([r["theirsOpener"] for r in threat_rows])}
-    focus_rows = [{"boss": p["name"], "ours": p["focus"]["oursConc"], "theirs": p["focus"]["theirsConc"],
-                   "oursTargets": p["focus"].get("oursTargets"), "theirsTargets": p["focus"].get("theirsTargets")}
-                  for p in per_boss if p.get("focus")]
     # Per-boss target engagement (boss + named adds: when each first appeared + how long it was engaged).
     target_eng_rows = [{"boss": p["name"], "targets": p["targetEngagement"]}
                        for p in per_boss if p.get("targetEngagement")]
@@ -4048,15 +4070,15 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
         "summary": summary, "bosses": bosses_slim, "gapsScorecard": gaps_scorecard, "didWell": did_well,
         "deep": {"composition": composition, "audit": audit, "consumables": consumables,
                  "perPlayerConsumes": per_player_consumes, "perPlayerInCombat": per_player_incombat_ours,
-                 "potionGap": potion_spec_gap, "prepot": prepot, "healEffGap": tier_heal_eff,
+                 "potionGap": potion_spec_gap, "prepot": prepot,
                  "outputBreakdown": output_breakdown,
                  "deathCauses": death_causes_rows, "avoidableDamage": avoidable_damage,
                  "tierSpecGap": tier_spec, "tierUptimeGap": tier_uptime,
                  "statAudit": stat_audit_payload,
                  "deathTime": death_time, "ghostRun": ghost_run, "bloodlust": bloodlust,
-                 "dpsRamp": dps_ramp_rows, "debuffTiming": debuff_timing_rows, "wipeRecovery": wipe_rec,
+                 "debuffTiming": debuff_timing_rows, "wipeRecovery": wipe_rec,
                  "leakedInterrupts": leaked_rows, "tierCdUsage": tier_cd,
-                 "threatPulls": threat_summary, "focusFire": focus_rows, "targetEngagement": target_eng_rows,
+                 "threatPulls": threat_summary, "targetEngagement": target_eng_rows,
                  "quality": quality, "perBoss": per_boss, "efficiency": eff, "trash": trash,
                  "wipes": wipes, "optimize": optimize, "positioning": positioning_payload},
     }

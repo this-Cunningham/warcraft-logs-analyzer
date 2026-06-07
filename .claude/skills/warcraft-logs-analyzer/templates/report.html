@@ -345,9 +345,8 @@ const dDelta=(o,t,fmt,unit,lower)=>{if(o==null||t==null)return{cls:"flat",txt:""
   const diff=o-t; if(Math.round(diff*100)/100===0)return{cls:"flat",txt:"even"};
   const better=lower?diff<0:diff>0; return{cls:better?"good":"bad",txt:(diff>0?"+":"−")+fmt(Math.abs(diff))+(unit||"")};};
 let dmgMode="persec"; // "persec" | "total" — toggled in the Output Quality section, drives all damage-taken displays
-const bossTab={};      // per-boss sub-tab state, keyed by encounterID -> "buffs" | "dmg" (survives re-render)
-let bossSel=null;      // Bosses-tab selected boss (encounterID as string); null -> first boss
-let execSub="output";  // Execution-tab inner sub-tab ("output"|"survival"|"buffs"|"threat") — survives the dmgMode re-render
+let combatScope="all"; // Combat-tab scope: "all" (raid-wide) | "<encounterID>" (one boss) — survives the dmgMode re-render
+let combatDim="output";// Combat-tab dimension: "output"|"survival"|"buffs"|"mech" — survives re-render & re-scope
 const tlTab={};        // per-boss Timeline inner-tab state, keyed by encounterID -> "raid" | "s<i>"
 
 function consumeMatrix(ppc){
@@ -757,14 +756,13 @@ function hitCapView(d){
   return h+`</tbody></table>`;
 }
 
-/* ---------- EXECUTION (raid-wide gaps) ---------- */
-// Raid-wide execution gaps across the whole shared clear. The per-boss drill-down moved to the Bosses tab.
-function renderExecution(d){
-  const dp=d.deep; if(!dp) return "<p>No execution data.</p>";
-  // Four inner sub-tabs by raid-leader concern (Output | Survival | Buffs & Cooldowns | Threat & Adds),
-  // built into separate buffers then assembled below — turns the old flat 14-section wall into scannable
-  // groups. Output stays FIRST and holds the dmgMode toggle, so the existing toggle wiring is unchanged.
-  let output="", survival="", buffs="", threat="";
+/* ---------- COMBAT — raid-wide ("All bosses") dimension bodies ---------- */
+// The raid-wide aggregate for each Combat dimension (Output | Survival | Buffs & Cooldowns | Mechanics),
+// built into separate buffers and returned for renderCombat to slot under the "All bosses" scope. The Output
+// buffer holds the dmgMode toggle. (Was renderExecution; the per-boss bodies are combatBossDims below.)
+function combatAllDims(d){
+  const dp=d.deep; if(!dp) return null;
+  let output="", survival="", buffs="", mech="";
 
   /* 0a. Output quality (activity / overheal / damage taken / raid output) — the macro "are we winning?"
      read leads the tab, before the drill-down below (consistent with the Overview's summary-first order). */
@@ -828,90 +826,75 @@ function renderExecution(d){
   buffs+=tierUptimeGapView(d);
   /* Debuff ramp & continuity (EXPERIMENTAL) — WHEN debuffs land + their longest drop. */
   buffs+=debuffTimingView(d);
-  /* Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
-  buffs+=leakedInterruptsView(d);
   /* Cooldown usage (clean better/worse), from Casts + buffs. */
   buffs+=cdUsageView(d);
   /* Bloodlust timing + window payoff (EXPERIMENTAL) — when you burst and how much you got. */
   buffs+=bloodlustView(d);
 
-  /* ----- THREAT & ADDS pane: early aggro (threat pulls) + per-target add engagement ----- */
-  threat+=threatPullsView(d);
-  threat+=targetEngagementView(d);
+  /* ----- MECHANICS: leaked interrupts + early aggro (threat pulls) + per-target add engagement ----- */
+  /* Interrupts leaked — proven-interruptible casts (kicked ≥1) that went off, tier-wide. */
+  mech+=leakedInterruptsView(d);
+  mech+=threatPullsView(d);
+  mech+=targetEngagementView(d);
 
   /* (Wipe Recovery moved to the Wipes tab; Healing Efficiency & DPS Ramp cut in the /audit pass.) */
-
-  // Assemble the four sub-tabs (reusing the .btab/.bsub idiom the Bosses/Trash tabs use). Empty groups are
-  // dropped so no sub-tab leads to a blank pane. execSub persists the active pane across the dmgMode re-render.
-  const panes=[
-    {k:"output",label:"Output",html:output},
-    {k:"survival",label:"Survival",html:survival},
-    {k:"buffs",label:"Buffs &amp; Cooldowns",html:buffs},
-    {k:"threat",label:"Threat &amp; Adds",html:threat}
-  ].filter(p=>p.html.trim());
-  if(!panes.length) return `<p class="num" style="padding:8px 2px">No raid-wide execution data.</p>`;
-  const at=panes.some(p=>p.k===execSub)?execSub:panes[0].k;
-  let h=`<div class="btabs">`+panes.map(p=>`<button class="btab ${at===p.k?'on':''}" data-esub="${p.k}">${p.label}</button>`).join("")+`</div>`;
-  h+=panes.map(p=>`<div class="bsub ${at===p.k?'active':''}" data-esub="${p.k}">${p.html}</div>`).join("");
-  return h;
+  return {output, survival, buffs, mech};
 }
 
-/* ---------- BOSSES (per-boss drill-down: execution panel + kill summary) ---------- */
-// One boss's execution panel: an output strip + eight analysis sub-tabs (Timeline default when present).
-function execPanel(b){
-  const lust=(s)=>s==null?'<span class="no">none</span>':fmtTime(s*1000)+" in";
-  // Timeline leads when present — the clearest "where in the fight did the gap open" view.
-  const at=bossTab[b.encounterID]||(b.timeline?"timeline":"buffs");
-  const subs=[];
-  if(b.timeline) subs.push({k:"timeline",label:"Timeline"});
-  subs.push(
-    {k:"buffs",label:"Buff Uptime"},
-    {k:"specdps",label:"DPS by Spec"},
-    {k:"dmg",label:"Damage Taken"},
-    {k:"deaths",label:"Deaths"},
-    {k:"intr",label:"Interrupts"},
-    {k:"disp",label:"Dispels"},
-    {k:"phases",label:"Phases"}
-  );
-  // Positioning (EXPERIMENTAL) — a server-rendered SVG fragment (tabbed formation snapshots + spread-vs-demand
-  // verdict; the .postab tabs are switched by the delegated handler near the top of this script). Present on
-  // any boss with a positions file, including mobile bosses (which render their plant-window snapshots — only
-  // the whole-fight single map is skipped); shown last because it's the newest/most-experimental lens.
-  if(b.positioning) subs.push({k:"pos",label:"Positioning"});
-  const btabs=subs.map(s=>`<button class="btab ${at===s.k?'on':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${s.label}</button>`).join("");
-  const body={
-    timeline:b.timeline?timelineChart(b):"",
-    buffs:`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}${targetDebuffsView(b)}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`,
-    specdps:specDpsView(b),
-    dmg:topSources(b),
-    deaths:deathsView(b),
-    intr:interruptView(b),
-    disp:dispelsView(b),
-    phases:phasesView(b),
-    pos:b.positioning||""
-  };
-  return `<div class="boss"><h3>${esc(b.name)}<span class="badge">Bloodlust: <span style="color:var(--ours)">${lust(b.oursLustSec)}</span> vs <span style="color:var(--theirs)">${lust(b.theirsLustSec)}</span></span></h3>
-    ${statStrip(b)}
-    <div class="btabs">${btabs}</div>
-    ${subs.map(s=>`<div class="bsub ${at===s.k?'active':''}" data-boss="${b.encounterID}" data-bp="${s.k}">${body[s.k]}</div>`).join("")}
-    </div>`;
+/* ---------- COMBAT — per-boss dimension bodies ---------- */
+// One boss's content for each Combat dimension, reusing the existing per-boss renderers verbatim. The boss
+// header (name + bloodlust + output strip) is emitted separately by renderCombat so it shows across dims.
+function combatBossDims(b){
+  const output=(b.timeline?timelineChart(b):"")+specDpsView(b);
+  const survival=topSources(b)+deathsView(b);
+  const buffs=`<div><h4>Boss Debuffs</h4>${uptimeCompare(b.debuffs,"Debuff uptime %")}${targetDebuffsView(b)}</div><div style="margin-top:16px"><h4>Raid Buffs</h4>${uptimeCompare(b.buffs,"Buff uptime %")}</div>`;
+  // Positioning (EXPERIMENTAL) — server-rendered SVG fragment; .postab tabs are switched by the delegated
+  // handler near the top of this script. Present on any boss with a positions file (incl. mobile bosses).
+  const mech=interruptView(b)+dispelsView(b)+phasesView(b)+(b.positioning||"");
+  return {output, survival, buffs, mech};
 }
-// The Bosses tab: one sub-tab per boss, each pairing that boss's execution panel with its kill summary.
-function renderBossPanels(d){
-  const dp=d.deep; if(!dp) return "<p>No boss data.</p>";
+// The Combat tab — merges the old Execution (raid-wide) and Bosses (per-boss) tabs into ONE view with two
+// axes: a DIMENSION (Output | Survival | Buffs & Cooldowns | Mechanics) crossed with a SCOPE switch (All
+// shared bosses = the raid-wide aggregate, or a single boss to drill in). Pick a dimension once and toggle
+// scope to re-scope it, so each dimension is defined in one place instead of split across two tabs. Layout-
+// only: every section reuses its existing renderer. combatScope/combatDim/tlTab persist across re-renders.
+function renderCombat(d){
+  const dp=d.deep; if(!dp) return "<p>No combat data.</p>";
   const bosses=asArr(d.bosses);
-  if(!bosses.length) return `<p class="num" style="padding:8px 2px">No shared bosses to break down.</p>`;
+  if(!bosses.length&&!dp.quality) return `<p class="num" style="padding:8px 2px">No combat data.</p>`;
   const pbById={}; for(const p of asArr(dp.perBoss)) pbById[p.encounterID]=p;
-  const active=bosses.some(b=>String(b.encounterID)===bossSel)?bossSel:String(bosses[0].encounterID);
-  let h=`<h2 class="section">Per-Boss Breakdown<span class="hint">Pick a boss: its execution panel — timeline, buff/debuff uptime, DPS by spec, damage taken, deaths, interrupts, dispels, phases — sits above its kill-time, parse and roster summary.</span></h2>
-  <p class="srcs" style="margin:-6px 0 16px;line-height:1.5">
-    <b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss, <b>not</b> how many raiders had it. "Blessing of Kings 30%" means Kings was up for 30% of the fight, not on 30% of players. Persistent raid buffs and key debuffs (Curse of the Elements, Misery, Faerie Fire, Sunder Armor, Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums read low because they last only seconds — expected, not a problem. Higher is better; a red bar means you trailed the benchmark.
-  </p>`;
-  h+=`<div class="btabs">`+bosses.map(b=>`<button class="btab ${String(b.encounterID)===active?'on':''}" data-bossel="${b.encounterID}">${esc(b.name)}</button>`).join("")+`</div>`;
+  const DIMS=[{k:"output",label:"Output"},{k:"survival",label:"Survival"},{k:"buffs",label:"Buffs &amp; Cooldowns"},{k:"mech",label:"Mechanics"}];
+  const buffNote=`<p class="srcs" style="margin:0 0 12px;line-height:1.5"><b>How to read buff &amp; debuff uptime %:</b> it's <b>time coverage</b> — the share of the fight a <b>buff</b> was active on the raid (at least one player had it) or a <b>debuff</b> was on the boss, <b>not</b> how many raiders had it. "Blessing of Kings 30%" means Kings was up for 30% of the fight, not on 30% of players. Persistent raid buffs and key debuffs (Curse of the Elements, Misery, Faerie Fire, Sunder Armor, Expose Armor) should sit near <b>100%</b>; short cooldowns like Bloodlust or Drums read low because they last only seconds — expected, not a problem. Higher is better; a red bar means you trailed the benchmark.</p>`;
+  const lust=(s)=>s==null?'<span class="no">none</span>':fmtTime(s*1000)+" in";
+  // Scope list: All shared bosses (raid-wide aggregate) + each shared boss.
+  const scopes=[{k:"all",label:"All shared bosses",header:"",dims:combatAllDims(d)}];
   for(const b of bosses){
-    const p=pbById[b.encounterID];
-    const panel=p?execPanel(p):`<div class="boss"><h3>${esc(b.name)}</h3><p class="num" style="padding:6px 2px">No execution tables fetched for this boss.</p></div>`;
-    h+=`<div class="bsub ${String(b.encounterID)===active?'active':''}" data-bossel="${b.encounterID}">${panel}</div>`;
+    const p=pbById[b.encounterID], src=p||b;
+    const header=`<div class="boss" style="background:none;border:0;padding:0;margin:0 0 14px">`+
+      `<h3>${esc(b.name)}<span class="badge">Bloodlust: <span style="color:var(--ours)">${lust(src.oursLustSec)}</span> vs <span style="color:var(--theirs)">${lust(src.theirsLustSec)}</span></span></h3>`+
+      `${p?statStrip(p):""}</div>`;
+    scopes.push({k:String(b.encounterID),label:esc(b.name),header,dims:p?combatBossDims(p):null});
+  }
+  const sc=scopes.some(s=>s.k===combatScope)?combatScope:"all";
+  const dm=DIMS.some(x=>x.k===combatDim)?combatDim:"output";
+  let h=`<h2 class="section">Combat<span class="hint">How the raid actually played the fights. Pick a <b>dimension</b> (Output · Survival · Buffs &amp; Cooldowns · Mechanics), then a <b>scope</b> — <b>All shared bosses</b> for the raid-wide aggregate, or a single boss to drill in. The dimension stays put as you switch scope.</span></h2>`;
+  // Scope switch (which fight) then dimension tabs (which lens).
+  h+=`<div class="segwrap" style="margin-bottom:12px"><span class="lbl">Scope</span><div class="btabs" style="margin:0">`+scopes.map(s=>`<button class="btab ${s.k===sc?'on':''}" data-cscope="${s.k}">${s.label}</button>`).join("")+`</div></div>`;
+  h+=`<div class="btabs">`+DIMS.map(x=>`<button class="btab ${x.k===dm?'on':''}" data-cdim="${x.k}">${x.label}</button>`).join("")+`</div>`;
+  for(const s of scopes){
+    h+=`<div class="bsub ${s.k===sc?'active':''}" data-cscope="${s.k}">`;
+    if(s.header) h+=s.header;
+    if(!s.dims){
+      h+=`<p class="num" style="padding:6px 2px">No execution tables fetched for this boss.</p>`;
+    }else{
+      for(const x of DIMS){
+        let body=s.dims[x.k]||"";
+        if(x.k==="buffs"&&body.trim()) body=buffNote+body;
+        if(!body.trim()) body=`<p class="num" style="padding:6px 2px">No ${x.label.replace("&amp;","&")} data at this scope.</p>`;
+        h+=`<div class="bsub ${x.k===dm?'active':''}" data-cdim="${x.k}">${body}</div>`;
+      }
+    }
+    h+=`</div>`;
   }
   return h;
 }
@@ -1569,36 +1552,27 @@ function wrapTables(root){
     t.parentNode.insertBefore(w,t); w.appendChild(t);
   });
 }
-function renderExecPanel(){ const el=document.getElementById("p-execution"); el.innerHTML=renderExecution(DATA); wrapTables(el); }
-function renderBossesPanel(){ const el=document.getElementById("p-bosses"); el.innerHTML=renderBossPanels(DATA); wrapTables(el); }
-function mountExecution(){ renderExecPanel(); wireExecution(); }
-function mountBosses(){ renderBossesPanel(); wireBosses(); }
-function wireExecution(){
-  const el=document.getElementById("p-execution");
+function renderCombatPanel(){ const el=document.getElementById("p-execution"); el.innerHTML=renderCombat(DATA); wrapTables(el); }
+function mountCombat(){ renderCombatPanel(); wireCombat(); }
+function wireCombat(){
+  const el=document.getElementById("p-execution"); if(!el) return;
+  // Scope switch (All bosses | each boss) and dimension tabs (Output | Survival | Buffs & Cooldowns |
+  // Mechanics). The two axes are independent: toggling one keeps the other's selection. A content cell shows
+  // only when BOTH its scope wrap and its dimension pane are active (nested .bsub display:none cascade).
+  el.querySelectorAll(".btab[data-cscope]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.cscope; combatScope=k;
+    el.querySelectorAll(".btab[data-cscope]").forEach(x=>x.classList.toggle("on",x.dataset.cscope===k));
+    el.querySelectorAll(".bsub[data-cscope]").forEach(x=>x.classList.toggle("active",x.dataset.cscope===k));
+  }));
+  el.querySelectorAll(".btab[data-cdim]").forEach(t=>t.addEventListener("click",()=>{
+    const k=t.dataset.cdim; combatDim=k;
+    el.querySelectorAll(".btab[data-cdim]").forEach(x=>x.classList.toggle("on",x.dataset.cdim===k));
+    el.querySelectorAll(".bsub[data-cdim]").forEach(x=>x.classList.toggle("active",x.dataset.cdim===k));
+  }));
+  // dmgMode toggle lives in Output Quality (All scope) and is honored by the per-boss Damage Taken too, so
+  // it re-renders the whole Combat panel; combatScope/combatDim/tlTab persist the user's place across it.
   el.querySelectorAll(".dmgbtn").forEach(b=>b.addEventListener("click",()=>{
-    if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; renderExecPanel(); wireExecution(); renderBossesPanel(); wireBosses(); }
-  }));
-  // Inner sub-tabs (Output | Survival | Buffs & Cooldowns | Threat & Adds). Re-bound on every re-render
-  // (the dmgMode toggle re-renders this panel); execSub remembers the active pane across that re-render.
-  el.querySelectorAll(".btab[data-esub]").forEach(t=>t.addEventListener("click",()=>{
-    const k=t.dataset.esub; execSub=k;
-    el.querySelectorAll(".btab[data-esub]").forEach(x=>x.classList.toggle("on",x.dataset.esub===k));
-    el.querySelectorAll(".bsub[data-esub]").forEach(x=>x.classList.toggle("active",x.dataset.esub===k));
-  }));
-}
-function wireBosses(){
-  const el=document.getElementById("p-bosses");
-  // Boss selector (which boss): toggles the per-boss panels.
-  el.querySelectorAll(".btab[data-bossel]").forEach(t=>t.addEventListener("click",()=>{
-    const id=t.dataset.bossel; bossSel=id;
-    el.querySelectorAll(".btab[data-bossel]").forEach(x=>x.classList.toggle("on",x.dataset.bossel===id));
-    el.querySelectorAll(".bsub[data-bossel]").forEach(x=>x.classList.toggle("active",x.dataset.bossel===id));
-  }));
-  // Per-boss execution sub-tabs (scoped by data-boss so distinct bosses don't collide).
-  el.querySelectorAll(".btab[data-boss]").forEach(t=>t.addEventListener("click",()=>{
-    const boss=t.dataset.boss, bp=t.dataset.bp; bossTab[boss]=bp;
-    el.querySelectorAll(`.btab[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("on",x.dataset.bp===bp));
-    el.querySelectorAll(`.bsub[data-boss="${boss}"]`).forEach(x=>x.classList.toggle("active",x.dataset.bp===bp));
+    if(b.dataset.mode!==dmgMode){ dmgMode=b.dataset.mode; renderCombatPanel(); wireCombat(); }
   }));
   // Timeline inner tabs (Raid / Melee DPS / Ranged DPS / per-spec), scoped by data-tlboss.
   el.querySelectorAll(".btab[data-tlboss]").forEach(t=>t.addEventListener("click",()=>{
@@ -2012,19 +1986,17 @@ function render(){
     <div class="matchup"><span class="team ours">${esc(d.ours.title)}</span><span class="vs">vs</span><span class="team theirs">${benchName(d.theirs.title)}</span></div>
     <div class="sub"><span class="dot ours"></span>${esc(d.ours.title)} &nbsp; <span class="dot theirs"></span>${benchName(d.theirs.title)} &nbsp;·&nbsp; ${d.summary.bossCount} shared bosses</div>
   </header>
-  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="enchants">Readiness</div><div class="tab" data-t="execution">Execution</div><div class="tab" data-t="bosses">Bosses</div><div class="tab" data-t="wipes">Wipes</div><div class="tab" data-t="optimize">Rotations</div><div class="tab" data-t="trash">Trash</div></div>
+  <div class="tabs"><div class="tab active" data-t="overview">Overview</div><div class="tab" data-t="enchants">Readiness</div><div class="tab" data-t="execution">Combat</div><div class="tab" data-t="wipes">Wipes</div><div class="tab" data-t="optimize">Rotations</div><div class="tab" data-t="trash">Trash</div></div>
   <div class="panel active" id="p-overview">${renderOverview(d)}</div>
   <div class="panel" id="p-enchants">${renderReadiness(d)}</div>
   <div class="panel" id="p-execution"></div>
-  <div class="panel" id="p-bosses"></div>
   <div class="panel" id="p-wipes">${renderWipes(d)}</div>
   <div class="panel" id="p-optimize">${renderOptimize(d)}</div>
   <div class="panel" id="p-trash">${renderTrash(d)}</div>
   <footer>Generated by warcraft-logs-analyzer · data via Warcraft Logs v2 API · parse colors are role-appropriate percentiles</footer>`;
   document.getElementById("app").innerHTML=h;
   mountReadiness();
-  mountExecution();
-  mountBosses();
+  mountCombat();
   mountOptimize();
   mountTrash();
   wrapTables(); // wrap tables in the statically-rendered panels (Overview, Readiness, Wipes, Rotations, Trash)

@@ -2,25 +2,27 @@
 
 `build_deepdive.py` (invoked by `compare_raids.py`) injects a `const DATA` blob into
 `templates/report.html` (inline CSS+JS, dark, offline, no CDN) by replacing the
-literal `/*__DATA__*/null`. Seven top-level tabs, a funnel:
+literal `/*__DATA__*/null`. Six top-level tabs, a funnel:
 
 | Tab | `data-t` | Question it answers |
 |---|---|---|
 | **Overview** | `overview` | Where's the gap, at a glance |
 | **Readiness** | `enchants` | Did we show up set up to win — roster, buffs, consumes, gear (sub-tabs: **Roster & Buffs** · **Consumables** · **Enchants & Gear**) |
-| **Execution** | `execution` | Raid-wide, how did we play the fights (sub-tabs: **Output** · **Survival** · **Buffs & Cooldowns** · **Threat & Adds**) |
-| **Bosses** | `bosses` | Per-boss execution drill-down |
+| **Combat** | `execution` | How the raid played the fights — a **dimension** (Output · Survival · Buffs & Cooldowns · Mechanics) × a **scope** switch (All shared bosses ⟷ each boss) |
 | **Wipes** | `wipes` | Why we wipe (the wall, the trend, the tax, what ends attempts) |
 | **Rotations** | `optimize` | How each raider's rotation compares to the world best |
 | **Trash** | `trash` | How we handle trash packs (sub-tabs: **Overview** · **Deaths** · **Coordination**) |
 
 The funnel was reorganized for legibility (layout only — no metric changed): the old
-**Composition** tab folded into **Readiness** (the old **Prep** tab) as its *Roster & Buffs*
-sub-tab; the 14-section **Execution** wall and the flat **Trash** tab gained inner sub-tabs;
-**Optimize** was renamed **Rotations**. Tab `data-t` ids and panel ids are unchanged (so the
-Execution `dmgMode` re-render and the dynamic mounts keep working); `enchants` now hosts
-Readiness, `optimize` now hosts Rotations. Sub-tabs reuse the `.btab`/`.bsub` idiom the
-Bosses tab already used; `execSub` persists the active Execution pane across the `dmgMode` re-render.
+**Composition** tab folded into **Readiness** (the old **Prep** tab); the old **Execution**
+(raid-wide) and **Bosses** (per-boss) tabs **merged into one Combat tab** with a scope switch,
+so each dimension is defined once and re-scopes between the raid-wide aggregate and any single
+boss instead of being duplicated across two tabs; the **Trash** tab gained inner sub-tabs;
+**Optimize** was renamed **Rotations**. Tab `data-t` ids and panel ids are unchanged where they
+survive (so the `dmgMode` re-render and the dynamic mounts keep working); the merged Combat tab
+keeps `data-t="execution"`/`p-execution` and the `bosses` tab/panel were removed. Sub-tabs reuse
+the `.btab`/`.bsub` idiom; `combatScope`/`combatDim` (module vars) persist the active scope and
+dimension across the `dmgMode` re-render.
 
 Most sections compare ours vs benchmark with a delta (B is whatever's loaded — a better
 guild or your own past raid; some checks are absolute, no B); weak/ambiguous or hard-to-read metrics are deliberately omitted (the soul's accuracy + legibility floors — see `PRODUCT_MANAGER_SOUL.md`). Symbols below are
@@ -171,20 +173,32 @@ Enchants & Gear) and `mountReadiness` toggles them via `data-rdy`.
 
 ---
 
-## Execution — raid-wide gaps
+## Combat — dimension × scope (was the Execution + Bosses tabs)
 
-`renderExecution` groups the 14 sections into four inner sub-tabs (`data-esub`, built into
-pane buffers then assembled; empty groups are dropped):
-- **Output** — Output Quality (holds the `dmgMode` Per-second/Overall toggle), Clear Efficiency,
-  DPS Gaps — By Spec, Melee Uptime on the Boss.
-- **Survival** — What's Killing Us, Time Lost to Deaths, Avoidable Damage by Mechanic.
-- **Buffs & Cooldowns** — Buff & Debuff Coverage Gaps, Debuff Ramp & Continuity, Interrupts Leaked,
-  Cooldown & Trinket Usage, Bloodlust.
-- **Threat & Adds** — Early Aggro — Threat Pulls, Add Control — Kill Speed.
+`renderCombat` is ONE dynamic panel (`p-execution`) with two axes: a **dimension** sub-tab
+(`data-cdim`: Output | Survival | Buffs & Cooldowns | Mechanics) crossed with a **scope** switch
+(`data-cscope`: `all` = the raid-wide aggregate, or one `<encounterID>` to drill into a boss).
+A content cell shows only when BOTH its scope wrap and its dimension pane are `.active` (nested
+`.bsub` cascade). The raid-wide bodies come from `combatAllDims(d)` (was `renderExecution`); the
+per-boss bodies from `combatBossDims(b)` (was `execPanel`), reusing every existing renderer verbatim.
+A boss scope also shows a header (name + Bloodlust badge + `statStrip`) above the dimension content.
 
-The tab stays ONE dynamic panel (`p-execution`), so the `dmgMode` toggle still re-renders both
-`p-execution` and `p-bosses` unchanged; `execSub` (module var) restores the active pane after that
-re-render, and `wireExecution` re-binds the `data-esub` handler each render.
+Each dimension, by scope:
+- **Output** — *All:* Output Quality (holds the `dmgMode` Per-second/Overall toggle), Clear Efficiency,
+  DPS Gaps — By Spec, Melee Uptime on the Boss. *Boss:* Timeline (curves + ghost overlay), DPS by Spec.
+- **Survival** — *All:* What's Killing Us, Time Lost to Deaths, Avoidable Damage by Mechanic.
+  *Boss:* Damage Taken (by source), Deaths.
+- **Buffs & Cooldowns** — *All:* Buff & Debuff Coverage Gaps, Debuff Ramp & Continuity, Cooldown & Trinket
+  Usage, Bloodlust. *Boss:* Buff Uptime (boss debuffs + per-target zoom + raid buffs).
+- **Mechanics** — *All:* Interrupts Leaked, Early Aggro — Threat Pulls, Add Control — Kill Speed.
+  *Boss:* Interrupts, Dispels, Phases, Positioning.
+
+The `dmgMode` toggle (in Output Quality, All scope) is honored by the per-boss Damage Taken and the
+boss `statStrip` too, so it re-renders the whole `p-execution` panel; `combatScope`/`combatDim`/`tlTab`
+persist the user's place across that re-render. Timeline inner tabs (`data-tlboss`), the ghost overlay
+(delegated on `.ghostwrap`), and positioning `.postab`/zoom (delegated on `document`) all survive.
+
+### Raid-wide ("All bosses") sections
 
 - **What's Killing Us** (`death_cause_compare` → `deathCausesView`) — killing-blow
   names across all shared bosses, ranked by **biggest avoidable delta** (ours−theirs;
@@ -278,9 +292,10 @@ re-render, and `wireExecution` re-binds the `data-esub` handler each render.
   The gap includes breaks/strategy, so it's **directional** (tighter = more attempts a night), not a pure
   reset. Largely **first-party** — a benchmark on farm wipes little, so its column is often "—".
 
-## Execution — per-boss drill-down
+### Per-boss ("single boss" scope) sections — `combatBossDims(b)`
 
-Each boss is a card (output strip + eight sub-tabs; **Timeline** is the default):
+When a boss scope is selected, the same four dimensions show that boss's detail (the views below were
+the old Bosses-tab sub-tabs, now distributed across Output / Survival / Buffs & Cooldowns / Mechanics):
 
 - **Timeline** (`timeline_view` → `timelineChart`/`tlChart`) — Raid DPS+HPS over the
   fight, ours vs benchmark, on a shared **absolute-seconds** x-axis: each curve point i

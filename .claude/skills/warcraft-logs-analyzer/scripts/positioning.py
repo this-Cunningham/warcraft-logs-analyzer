@@ -680,41 +680,45 @@ def _trail_one_svg(xys, col, frame, W=260):
         W, H, "".join(parts))
 
 
-def _raid_wander(tracks, lo, hi):
-    """How STILL the raid is over the window [lo,hi) — the mean (median-across-players) per-player wander:
-    for each player, the median distance of its real in-window samples from that player's OWN in-window
-    median spot. ~0 when everyone is parked (a settled formation); large while players are still moving.
-    Deliberately independent of how SPREAD the raid is — a wide but stationary formation scores as settled,
-    a tight but churning one does not — so this measures stillness, not stacking. Median across players
-    resists a single roamer (one player who ran out for a mechanic). None when too few players have data.
-    Raw tracks (not carry-forward-filled): a filled gap would fake stillness, so only real samples count."""
-    wanders = []
-    for t in tracks:
-        pts = [t[bi] for bi in range(lo, min(hi, len(t))) if t[bi]]
-        if len(pts) < 2:
-            continue
-        cx = _median([p[0] for p in pts])
-        cy = _median([p[1] for p in pts])
-        wanders.append(_median([math.hypot(p[0] - cx, p[1] - cy) for p in pts]))
-    if len(wanders) < 3:
+def _raid_drift(tracks, lo, hi):
+    """How much the raid RELOCATES over [lo,hi) — the dispersion of the per-bin raid CENTROID. Each bin's
+    centroid is the median position of the raiders actually SAMPLED that bin (raw tracks: dead players have no
+    samples and drop out; idle-but-alive players just miss the odd bin but the median over the rest is steady);
+    we then take the median distance of those per-bin centroids from the window's median centroid. ~0 when the
+    raid is parked as a body; large while it's still running in (e.g. sprinting to a re-planted boss). This is
+    the SETTLED signal the window search minimises.
+
+    It reads the CENTROID, not per-player wander, on purpose: on coarse/sparse bins most players have <2 real
+    samples in a short window, so a per-player metric collapses to a meaningless 0 and a clear run-in looks
+    'calm'. The centroid is built per-bin from whoever is sampled (NOT carry-forward-filled — filling lags a
+    runner's position and smears a run-in into the next, falsely-calm window). None when too few usable bins."""
+    cs = []
+    for bi in range(lo, min(hi, max((len(t) for t in tracks), default=0))):
+        pts = [t[bi] for t in tracks if bi < len(t) and t[bi]]
+        if len(pts) >= 3:
+            cs.append((_median([p[0] for p in pts]), _median([p[1] for p in pts])))
+    if len(cs) < 2:
         return None
-    return _median(wanders)
+    mx = _median([c[0] for c in cs])
+    my = _median([c[1] for c in cs])
+    return _median([math.hypot(c[0] - mx, c[1] - my) for c in cs])
 
 
 def _settled_window(tracks, search_lo, search_hi, win_len_bins, step_bins):
     """Within [search_lo, search_hi), slide a length-`win_len_bins` window by `step_bins` and return the
-    (lo, hi) where the RAID wanders least — its most settled formation in the search horizon. This is the
-    raid-stability refinement on top of boss-stability: the boss-stand already says the BOSS is planted; this
-    finds where, inside that, the PLAYERS are also most parked. Falls back to the whole span when it's shorter
-    than one window, or when no window has enough samples to score."""
+    (lo, hi) where the RAID drifts least (its centroid is most parked) — its most settled formation in the
+    search horizon. This is the raid-stability refinement on top of boss-stability: the boss-stand already
+    says the BOSS is planted; this finds where, inside that, the raid has stopped relocating (rather than e.g.
+    still sprinting to a re-planted boss). Falls back to the whole span when it's shorter than one window, or
+    when no window has a usable centroid."""
     if search_hi - search_lo <= win_len_bins:
         return search_lo, search_hi
-    best_lo, best_w = None, None
+    best_lo, best_d = None, None
     s = search_lo
     while s + win_len_bins <= search_hi:
-        w = _raid_wander(tracks, s, s + win_len_bins)
-        if w is not None and (best_w is None or w < best_w):
-            best_w, best_lo = w, s
+        d = _raid_drift(tracks, s, s + win_len_bins)
+        if d is not None and (best_d is None or d < best_d):
+            best_d, best_lo = d, s
         s += step_bins
     if best_lo is None:
         return search_lo, search_lo + win_len_bins

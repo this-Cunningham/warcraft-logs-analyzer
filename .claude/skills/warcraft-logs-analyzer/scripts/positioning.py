@@ -80,7 +80,8 @@ _PLANT_WINDOW_SEC = 10.0  # length of a snapshot window
 _PLANT_SEARCH_SEC = 25.0  # horizon AFTER a moment to hunt for the calmest (most raid-settled) window
 _PLANT_GAP_SEC = 2.0      # a boss-untargetable (None) gap up to this long is bridged within one stand
 _PLANT_MERGE_SEC = 6.0    # moments closer than this are the same moment (keep the earlier/phase-labelled one)
-_MAX_MOMENTS = 6          # cap snapshots per side so a long fight isn't a wall of maps (opener/phases kept first)
+_MAX_MOMENTS = 8          # cap snapshots per side so a long fight isn't a wall of maps (priority: opener/phases,
+                          # then add-accommodation moments, then boss re-plants)
 _ADD_REPLANT_SEC = 8.0    # an add SPAWN this long before a re-plant is a CANDIDATE trigger (temporal gate)
 _ADD_TOWARD_YD = 8.0      # ...and only a trigger if the new stand closes >= this much distance to that add
                           # vs the previous stand (the raid relocated in the add's direction — spatial gate
@@ -470,6 +471,8 @@ def _moment_tab_label(label, replant_n):
     low = label.lower()
     if low == "opening":
         return "Opener", replant_n
+    if low.startswith("add:"):
+        return label, replant_n   # "Add: Solarium Priest" — the trigger is the add, shown as-is
     if "re-plant" in low or "replant" in low:
         replant_n += 1
         # A re-plant with no named phase (label exactly "Re-plant") shows the bare running number; one inside a
@@ -757,6 +760,39 @@ def _add_cause(add_spawns, start_bin, lookback_bins, prev_xy, new_xy):
     return next(iter(distinct)) if len(distinct) == 1 else "adds"
 
 
+def _raid_centroid(tracks, lo, hi):
+    """Robust centroid (median x, median y) of all real cohort samples in [lo,hi); None when too sparse."""
+    xs, ys = [], []
+    for t in tracks:
+        for bi in range(max(0, lo), min(hi, len(t))):
+            if t[bi]:
+                xs.append(t[bi][0])
+                ys.append(t[bi][1])
+    return (_median(xs), _median(ys)) if len(xs) >= 3 else None
+
+
+def _accommodates(tracks, event_bin, add_xy, bin_ms):
+    """Did the raid MOVE TO ACCOMMODATE an add appearing/re-planting at `event_bin`? Compare the raid centroid
+    in a window just BEFORE the event to one just AFTER (past a short reaction delay): True when the raid both
+    actually relocated (centroid shifted >= _ADD_TOWARD_YD) AND ended up >= _ADD_TOWARD_YD closer to the add
+    (it moved in the add's direction, not elsewhere). This is what earns an add event a snapshot — a spawn the
+    raid ignored, or drifted past coincidentally, is not a positioning moment. False when either side is too
+    sparse to judge. The boss may be perfectly stationary throughout; this reads the RAID, not the boss."""
+    if not add_xy:
+        return False
+    w = max(2, int(round(6.0 * 1000.0 / bin_ms)))     # ~6s either side
+    delay = max(1, int(round(2.0 * 1000.0 / bin_ms)))  # raid takes a beat to react
+    before = _raid_centroid(tracks, event_bin - w, event_bin)
+    after = _raid_centroid(tracks, event_bin + delay, event_bin + delay + w)
+    if not before or not after:
+        return False
+    margin = _ADD_TOWARD_YD * SCALE
+    moved = math.hypot(after[0] - before[0], after[1] - before[1])
+    closing = (math.hypot(before[0] - add_xy[0], before[1] - add_xy[1])
+               - math.hypot(after[0] - add_xy[0], after[1] - add_xy[1]))
+    return moved >= margin and closing >= margin
+
+
 def _boss_stands(bb, bin_ms):
     """Maximal STATIONARY segments [start_bin, end_bin) of the boss anchor track `bb` — runs where the boss
     stays within `_PLANT_RADIUS_YD` of the segment's anchor. A SHORT run of None bins (boss briefly not being
@@ -801,15 +837,18 @@ def _plant_windows(pos, phases, phase_names, roles=None):
       * the OPENING (settled a few seconds after the pull),
       * the start of each named PHASE (`phases` = [{id, tSec}]), and
       * every boss RE-PLANT — anytime the boss moves and settles into a NEW stand, even mid-phase (so a boss
-        that hops between platforms or repositions within a phase gets a snapshot per stand, not just one).
-    Candidate moments from those three sources are merged (moments within `_PLANT_MERGE_SEC` collapse to one,
+        that hops between platforms or repositions within a phase gets a snapshot per stand, not just one), and
+      * every ADD SPAWN / add re-plant the RAID MOVED TO ACCOMMODATE — the add is the trigger (even with a
+        stationary boss), kept only when the raid actually relocated toward it (`_accommodates`); a spawn the
+        raid ignored is not a positioning moment.
+    Candidate moments from those sources are merged (moments within `_PLANT_MERGE_SEC` collapse to one,
     keeping the phase-labelled one). For each moment, the boss-stand says the BOSS is planted; we then search
     a `_PLANT_SEARCH_SEC` horizon after the moment (past a short arrival-scramble floor) for the
     `_PLANT_WINDOW_SEC` sub-window where the RAID is also most settled (`_settled_window`, when `roles` is
     given), so the frozen formation is one both boss and players had stopped moving in — not a blind fixed
-    offset. The list is then capped at `_MAX_MOMENTS`, PRIORITISING the opener + phase moments (always kept)
-    and filling the rest with the earliest re-plants. Returns dicts {label, lo, hi, sec, bossXY}; times are
-    labelled (approximate), never claimed exact."""
+    offset. The list is then capped at `_MAX_MOMENTS` in priority tiers: opener + phase moments (always kept),
+    then add-accommodation moments, then boss re-plants — each filled earliest-first. Returns dicts
+    {label, lo, hi, sec, bossXY, cause}; times are labelled (approximate), never claimed exact."""
     nb = pos.get("nBins") or 0
     bin_ms = pos.get("binMs") or 1
     dur_sec = (pos.get("durMs") or 0) / 1000.0
@@ -857,6 +896,24 @@ def _plant_windows(pos, phases, phase_names, roles=None):
             # just reads "Re-plant" rather than "Opening · re-plant".
             cands.append((ssec, "Re-plant" if ph_lab == "Opening" else ph_lab + " · re-plant"))
 
+    # Add SPAWN / add re-plant moments — triggered by the ADD (run the same stand detector on each add's own
+    # track: stand 0 = spawn, later stands = the add re-planting), kept ONLY when the raid moved to accommodate
+    # the add. Needs the raider cohort to read that move; without it we can't judge accommodation, so skip.
+    if settle_tracks:
+        for a in (pos.get("adds") or {}).values():
+            atrack = a.get("bins") or []
+            nm = a.get("name") or "add"
+            for sa, sb in _boss_stands(atrack, bin_ms):
+                if (sb - sa) * bin_ms / 1000.0 < _MIN_PLANT_SEC:
+                    continue
+                ev_sec = sa * bin_ms / 1000.0
+                if not (0 < ev_sec < dur_sec - 3):
+                    continue
+                apts = [p for p in atrack[sa:sb] if p]
+                add_xy = (_median([p[0] for p in apts]), _median([p[1] for p in apts])) if apts else None
+                if add_xy and _accommodates(settle_tracks, sa, add_xy, bin_ms):
+                    cands.append((ev_sec, "Add: " + nm))
+
     cands.sort(key=lambda c: c[0])
     merged = []
     for sec, lab in cands:
@@ -896,12 +953,20 @@ def _plant_windows(pos, phases, phase_names, roles=None):
                      if add_spawns and "re-plant" in lab.lower() else None)
             wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy, "cause": cause})
 
-    # Priority-aware cap: opener + phase moments (the cross-raid matchups that matter) are always kept; the
-    # remaining slots go to the EARLIEST re-plants. Chronological order is restored before returning.
+    # Priority-aware cap, three tiers: opener + phase moments (the cross-raid matchups that matter) are always
+    # kept; then ADD-ACCOMMODATION moments (each passed the raid-moved-toward-the-add gate, so higher-signal
+    # than a bare re-plant); then boss RE-PLANTS — each tier filled EARLIEST-first. Chronological order is
+    # restored before returning.
     if len(wins) > _MAX_MOMENTS:
-        anchors = [w for w in wins if "re-plant" not in w["label"].lower()]
-        replants = [w for w in wins if "re-plant" in w["label"].lower()]
-        keep = anchors[:_MAX_MOMENTS] + replants[:max(0, _MAX_MOMENTS - len(anchors))]
+        def _tier(lab):
+            low = lab.lower()
+            return 1 if low.startswith("add:") else (2 if "re-plant" in low else 0)
+        anchors = [w for w in wins if _tier(w["label"]) == 0]
+        addms = [w for w in wins if _tier(w["label"]) == 1]
+        replants = [w for w in wins if _tier(w["label"]) == 2]
+        keep = anchors[:_MAX_MOMENTS]
+        keep += addms[:max(0, _MAX_MOMENTS - len(keep))]
+        keep += replants[:max(0, _MAX_MOMENTS - len(keep))]
         wins = sorted(keep, key=lambda w: w["lo"])
     return wins
 
@@ -1067,7 +1132,11 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                 def _cause_phrase(c):
                     return "an add" if c == "adds" else "the <b>{}</b>".format(esc(c))
                 oc, tc = (ow.get("cause") if ow else None), (tw.get("cause") if tw else None)
-                if oc and tc and oc == tc:
+                if r["label"].lower().startswith("add:"):
+                    # Add-triggered moment: the snapshot exists BECAUSE the raid moved to accommodate this add.
+                    panel = _hdr("Triggered by the <b>{}</b> add — the raid relocated to accommodate it "
+                                 "(boss may be stationary).".format(esc(r["label"].split(":", 1)[1].strip())) ) + panel
+                elif oc and tc and oc == tc:
                     panel += _hdr("Both raids re-planted <b>toward</b> {} that spawned here.".format(_cause_phrase(oc)))
                 elif oc or tc:
                     bits = ([("ours", oc)] if oc else []) + ([("benchmark", tc)] if tc else [])
@@ -1080,8 +1149,9 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                     " active" if idx == 0 else "", idx, esc(ttl), esc(tlab)))
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
                     "block" if idx == 0 else "none", panel))
-            note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, and every boss '
-                    '<b>re-plant</b> — times approximate, cross-check the Timeline. Real positions throughout '
+            note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, every boss '
+                    '<b>re-plant</b>, and every <b>add</b> the raid moved to accommodate — times approximate, '
+                    'cross-check the Timeline. Real positions throughout '
                     '(not aligned), so a difference in where/how your raid stood vs the benchmark is a real '
                     'offset — the positioning gap. The top map uses <b>one fixed window</b> (constant across '
                     'tabs); below it the same stand is also shown <b>zoomed to this moment</b>, and the '

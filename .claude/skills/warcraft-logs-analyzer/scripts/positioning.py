@@ -81,6 +81,8 @@ _PLANT_SEARCH_SEC = 25.0  # horizon AFTER a moment to hunt for the calmest (most
 _PLANT_GAP_SEC = 2.0      # a boss-untargetable (None) gap up to this long is bridged within one stand
 _PLANT_MERGE_SEC = 6.0    # moments closer than this are the same moment (keep the earlier/phase-labelled one)
 _MAX_MOMENTS = 6          # cap snapshots per side so a long fight isn't a wall of maps (opener/phases kept first)
+_SETTLED_DRIFT_YD = 5.0   # if the calmest window a moment can offer still drifts more than this, the raid never
+                          # PLANTED there — the snapshot is flagged "still repositioning", not a set formation
 
 
 # ----------------------------------------------------------------------------- data loading + small geom
@@ -852,7 +854,13 @@ def _plant_windows(pos, phases, phase_names, roles=None):
                 bpts = [p for p in _fill(bb)[lo:hi] if p]
                 if bpts:
                     bxy = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
-            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy})
+            # Did the raid actually PLANT here? If even the calmest window the moment can offer still drifts
+            # past _SETTLED_DRIFT_YD, the raid was still repositioning — flag it so the snapshot isn't read as
+            # a set formation. None drift (no cohort to judge) is treated as not-flagged.
+            drift = _raid_drift(settle_tracks, lo, hi) if settle_tracks else None
+            unsettled = drift is not None and _yd(drift) > _SETTLED_DRIFT_YD
+            wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy,
+                         "unsettled": unsettled})
 
     # Priority-aware cap: opener + phase moments (the cross-raid matchups that matter) are always kept; the
     # remaining slots go to the EARLIEST re-plants. Chronological order is restored before returning.
@@ -1019,13 +1027,31 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                               + _dual(_trail_one_svg(o_trail, OURS_TRAIL, win_frame),
                                       _trail_one_svg(t_trail, THEIRS_TRAIL, win_frame),
                                       o_name, t_name, ""))
+                # "Still repositioning" flag — when a side's calmest window here STILL drifts past
+                # _SETTLED_DRIFT_YD, the raid never planted at this moment, so the panel isn't a set formation.
+                ou = bool(r["o"] and r["o"].get("unsettled"))
+                tu = bool(r["t"] and r["t"].get("unsettled"))
+                if ou and tu:
+                    flag = "<b>Neither raid had planted here</b> — both were still repositioning; read positions loosely, not as a set formation."
+                elif ou:
+                    flag = "<b>Your raid was still repositioning here</b> — not a settled formation (the benchmark had planted)."
+                elif tu:
+                    flag = "<b>The benchmark was still repositioning here</b> — your raid had planted."
+                else:
+                    flag = None
+                if flag:
+                    panel = ('<div class="posnote" style="margin:10px 0 2px;color:#e8b34a">⚠ ' + flag + '</div>') + panel
                 tlab, replant_n = _moment_tab_label(r["label"], replant_n)
+                tabmark = " ⚠" if (ou or tu) else ""
+                tabttl = r["label"] + (" — raid still repositioning (not settled)" if (ou or tu) else "")
                 tabs.append('<button class="postab{}" data-pos="{}" type="button" title="{}">{}</button>'.format(
-                    " active" if idx == 0 else "", idx, esc(r["label"]), esc(tlab)))
+                    " active" if idx == 0 else "", idx, esc(tabttl), esc(tlab + tabmark)))
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
                     "block" if idx == 0 else "none", panel))
             note = ('Each tab is one settled formation — the <b>Opener</b>, each phase, and every boss '
-                    '<b>re-plant</b> — times approximate, cross-check the Timeline. Real positions throughout '
+                    '<b>re-plant</b> — times approximate, cross-check the Timeline. A tab marked <b>⚠</b> is one '
+                    'where that raid was still repositioning (no planted window in the moment) — read it loosely. '
+                    'Real positions throughout '
                     '(not aligned), so a difference in where/how your raid stood vs the benchmark is a real '
                     'offset — the positioning gap. The top map uses <b>one fixed window</b> (constant across '
                     'tabs); below it the same stand is also shown <b>zoomed to this moment</b>, and the '

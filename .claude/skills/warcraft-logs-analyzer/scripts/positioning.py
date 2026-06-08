@@ -86,6 +86,8 @@ _ADD_REPLANT_SEC = 8.0    # an add SPAWN this long before a re-plant is a CANDID
 _ADD_TOWARD_YD = 8.0      # ...and only a trigger if the new stand closes >= this much distance to that add
                           # vs the previous stand (the raid relocated in the add's direction — spatial gate
                           # against coincidence; a re-plant that didn't head toward the add is left untagged)
+_ADD_RESPAWN_SEC = 20.0   # a gap longer than this between an add's stands = the add died/left and (re)SPAWNED
+                          # — a new engagement (advisors revive); a shorter gap is just the add re-planting
 
 
 # ----------------------------------------------------------------------------- data loading + small geom
@@ -896,23 +898,43 @@ def _plant_windows(pos, phases, phase_names, roles=None):
             # just reads "Re-plant" rather than "Opening · re-plant".
             cands.append((ssec, "Re-plant" if ph_lab == "Opening" else ph_lab + " · re-plant"))
 
-    # Add SPAWN / add re-plant moments — triggered by the ADD (run the same stand detector on each add's own
-    # track: stand 0 = spawn, later stands = the add re-planting), kept ONLY when the raid moved to accommodate
-    # the add. Needs the raider cohort to read that move; without it we can't judge accommodation, so skip.
+    # Add SPAWN / add re-plant moments — triggered by the ADD, kept ONLY when the raid moved to accommodate it
+    # (needs the raider cohort to read that move; without it we can't judge accommodation, so skip). Each add's
+    # stands are grouped into ENGAGEMENTS (a gap > _ADD_RESPAWN_SEC = the add died/left and respawned — e.g. an
+    # advisor reviving). The SPAWN adaptation (first accommodated stand of an engagement) is labelled by SPAWN
+    # ORDINAL ("Add: <name>:a", ":b", …) so spawns pair across raids by ordinal — robust even if a raid skipped
+    # one, and a re-plant can never shift it. Later accommodated stands in the same engagement are RE-PLANT
+    # adaptations in a SEPARATE label namespace ("Add: <name> · re-plant"): paired best-effort, never matched
+    # against (or able to reorder) the spawn groups.
     if settle_tracks:
+        add_respawn_bins = max(1, int(round(_ADD_RESPAWN_SEC * 1000.0 / bin_ms)))
+        by_name = {}
         for a in (pos.get("adds") or {}).values():
-            atrack = a.get("bins") or []
-            nm = a.get("name") or "add"
-            for sa, sb in _boss_stands(atrack, bin_ms):
-                if (sb - sa) * bin_ms / 1000.0 < _MIN_PLANT_SEC:
-                    continue
-                ev_sec = sa * bin_ms / 1000.0
-                if not (0 < ev_sec < dur_sec - 3):
-                    continue
-                apts = [p for p in atrack[sa:sb] if p]
-                add_xy = (_median([p[0] for p in apts]), _median([p[1] for p in apts])) if apts else None
-                if add_xy and _accommodates(settle_tracks, sa, add_xy, bin_ms):
-                    cands.append((ev_sec, "Add: " + nm))
+            by_name.setdefault(a.get("name") or "add", []).append(a)
+        for nm, npcs in by_name.items():
+            engs = []   # one per spawn: {"spawn": bin, "hits": [accommodated ev_sec, …]}
+            for a in npcs:
+                atrack = a.get("bins") or []
+                prev_end = None
+                for sa, sb in _boss_stands(atrack, bin_ms):
+                    if prev_end is None or (sa - prev_end) > add_respawn_bins:
+                        engs.append({"spawn": sa, "hits": []})
+                    prev_end = sb
+                    if (sb - sa) * bin_ms / 1000.0 < _MIN_PLANT_SEC:
+                        continue
+                    ev_sec = sa * bin_ms / 1000.0
+                    if not (0 < ev_sec < dur_sec - 3):
+                        continue
+                    apts = [p for p in atrack[sa:sb] if p]
+                    add_xy = (_median([p[0] for p in apts]), _median([p[1] for p in apts])) if apts else None
+                    if add_xy and _accommodates(settle_tracks, sa, add_xy, bin_ms):
+                        engs[-1]["hits"].append(ev_sec)
+            engs.sort(key=lambda e: e["spawn"])
+            for ei, eng in enumerate(engs):   # ei = spawn ordinal (kept even for un-adapted spawns → alignment)
+                letter = chr(ord('a') + ei) if ei < 26 else str(ei + 1)
+                for hi, ev_sec in enumerate(eng["hits"]):
+                    cands.append((ev_sec, "Add: {}:{}".format(nm, letter) if hi == 0
+                                  else "Add: {} · re-plant".format(nm)))
 
     cands.sort(key=lambda c: c[0])
     merged = []
@@ -953,20 +975,19 @@ def _plant_windows(pos, phases, phase_names, roles=None):
                      if add_spawns and "re-plant" in lab.lower() else None)
             wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy, "cause": cause})
 
-    # Priority-aware cap, three tiers: opener + phase moments (the cross-raid matchups that matter) are always
-    # kept; then ADD-ACCOMMODATION moments (each passed the raid-moved-toward-the-add gate, so higher-signal
-    # than a bare re-plant); then boss RE-PLANTS — each tier filled EARLIEST-first. Chronological order is
-    # restored before returning.
+    # Priority-aware cap, in tiers: opener + phase moments (the cross-raid matchups that matter) are always
+    # kept; then ADD-SPAWN adaptations (each passed the raid-moved-toward-the-add gate AND pairs by spawn
+    # ordinal); then RE-PLANTS (add re-plants + boss re-plants) — each tier filled EARLIEST-first.
+    # Chronological order is restored before returning.
     if len(wins) > _MAX_MOMENTS:
         def _tier(lab):
             low = lab.lower()
-            return 1 if low.startswith("add:") else (2 if "re-plant" in low else 0)
-        anchors = [w for w in wins if _tier(w["label"]) == 0]
-        addms = [w for w in wins if _tier(w["label"]) == 1]
-        replants = [w for w in wins if _tier(w["label"]) == 2]
-        keep = anchors[:_MAX_MOMENTS]
-        keep += addms[:max(0, _MAX_MOMENTS - len(keep))]
-        keep += replants[:max(0, _MAX_MOMENTS - len(keep))]
+            if low.startswith("add:"):
+                return 1 if "re-plant" not in low else 2   # add spawn vs add re-plant
+            return 2 if "re-plant" in low else 0           # boss re-plant vs anchor
+        keep = []
+        for t in (0, 1, 2):
+            keep += [w for w in wins if _tier(w["label"]) == t][:max(0, _MAX_MOMENTS - len(keep))]
         wins = sorted(keep, key=lambda w: w["lo"])
     return wins
 
@@ -1149,10 +1170,18 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                 oc, tc = (ow.get("cause") if ow else None), (tw.get("cause") if tw else None)
                 if r["label"].lower().startswith("add:"):
                     # Add-triggered moment: the snapshot exists BECAUSE the raid moved to accommodate this add.
-                    nm_only = r["label"].split(":", 1)[1].strip()
-                    sub = (" (adaptation <b>{}</b>)".format(add_sub[idx]) if idx in add_sub else "")
-                    panel = _hdr("Triggered by the <b>{}</b> add{} — the raid relocated to accommodate it "
-                                 "(boss may be stationary).".format(esc(nm_only), sub)) + panel
+                    # Label is "Add: <name>:<spawn letter>" (a spawn — paired by ordinal) or "Add: <name> ·
+                    # re-plant" (a later in-engagement re-plant — best-effort match).
+                    body = r["label"][len("Add: "):]
+                    if body.endswith("· re-plant"):
+                        nm_only = body[:-len("· re-plant")].strip().rstrip("·").strip()
+                        kind = "re-plant — the add moved again and the raid re-adapted"
+                    else:
+                        nm_only = body.rsplit(":", 1)[0].strip()
+                        letter = body.rsplit(":", 1)[1] if ":" in body else "a"
+                        kind = "spawn <b>{}</b>".format(letter)
+                    panel = _hdr("Triggered by the <b>{}</b> add ({}) — the raid relocated to accommodate it "
+                                 "(boss may be stationary).".format(esc(nm_only), kind)) + panel
                 elif oc and tc and oc == tc:
                     panel += _hdr("Both raids re-planted <b>toward</b> {} that spawned here.".format(_cause_phrase(oc)))
                 elif oc or tc:

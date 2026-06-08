@@ -35,10 +35,10 @@
                     "amount": 3.5140282059926,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~14352",
+                    "rank": "~14559",
                     "best": "-",
-                    "totalParses": 17940,
-                    "rankPercent": 20
+                    "totalParses": 18430,
+                    "rankPercent": 21
                   },
                   {
                     "id": 103883686,
@@ -53,10 +53,10 @@
                     "amount": 306.45272917648,
                     "bracketData": 125,
                     "bracket": 0,
-                    "rank": "~1557",
+                    "rank": "~1740",
                     "best": "-",
-                    "totalParses": 11984,
-                    "rankPercent": 87
+                    "totalParses": 12432,
+                    "rankPercent": 86
                   }
                 ]
               },
@@ -76,9 +76,9 @@
                     "amount": 533.75052185775,
                     "bracketData": 114,
                     "bracket": 0,
-                    "rank": "~815",
+                    "rank": "~838",
                     "best": "-",
-                    "totalParses": 16302,
+                    "totalParses": 16773,
                     "rankPercent": 58
                   },
                   {
@@ -94,10 +94,10 @@
                     "amount": 498.46958936772,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~815",
+                    "rank": "~838",
                     "best": "-",
-                    "totalParses": 16302,
-                    "rankPercent": 48
+                    "totalParses": 16773,
+                    "rankPercent": 49
                   },
                   {
                     "id": 105946422,
@@ -112,9 +112,9 @@
                     "amount": 580.58041744155,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~18698",
+                    "rank": "~19224",
                     "best": "-",
-                    "totalParses": 25615,
+                    "totalParses": 26335,
                     "rankPercent": 70
                   },
                   {
@@ -130,9 +130,9 @@
                     "amount": 349.00060055501,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~8196",
+                    "rank": "~8427",
                     "best": "-",
-                    "totalParses": 25615,
+                    "totalParses": 26335,
                     "rankPercent": 10
                   },
                   {
@@ -148,9 +148,9 @@
                     "amount": 471.46693933501,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~5604",
+                    "rank": "~5713",
                     "best": "-",
-                    "totalParses": 28024,
+                    "totalParses": 28569,
                     "rankPercent": 70
                   }
                 ]
@@ -171,10 +171,10 @@
                     "amount": 714.26976752493,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~7196",
+                    "rank": "~7683",
                     "best": "-",
-                    "totalParses": 13085,
-                    "rankPercent": 45
+                    "totalParses": 13479,
+                    "rankPercent": 43
                   },
                   {
                     "id": 109084221,
@@ -189,10 +189,10 @@
                     "amount": 742.08506448711,
                     "bracketData": 120,
                     "bracket": 0,
-                    "rank": "~6542",
+                    "rank": "~7009",
                     "best": "-",
-                    "totalParses": 13085,
-                    "rankPercent": 50
+                    "totalParses": 13479,
+                    "rankPercent": 48
                   },
                   {
                     "id": 105958808,
@@ -207,10 +207,10 @@
                     "amount": 256.49950102586,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~5937",
+                    "rank": "~6125",
                     "best": "-",
-                    "totalParses": 7068,
-                    "rankPercent": 16
+                    "totalParses": 7207,
+                    "rankPercent": 15
                   },
                   {
                     "id": 104146025,
@@ -225,10 +225,10 @@
                     "amount": 777.8973430464,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~22417",
+                    "rank": "~24330",
                     "best": "-",
-                    "totalParses": 37362,
-                    "rankPercent": 40
+                    "totalParses": 38620,
+                    "rankPercent": 37
                   },
                   {
                     "id": 109899037,
@@ -243,10 +243,10 @@
                     "amount": 891.18791567225,
                     "bracketData": 113,
                     "bracket": 0,
-                    "rank": "~16439",
+                    "rank": "~18151",
                     "best": "-",
-                    "totalParses": 37362,
-                    "rankPercent": 56
+                    "totalParses": 38620,
+                    "rankPercent": 53
                   },
                   {
                     "id": 109827601,
@@ -261,10 +261,10 @@
                     "amount": 601.13993824776,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~8729",
+                    "rank": "~9197",
                     "best": "-",
-                    "totalParses": 10517,
-                    "rankPercent": 17
+                    "totalParses": 10821,
+                    "rankPercent": 15
                   },
                   {
                     "id": 105958812,
@@ -279,10 +279,10 @@
                     "amount": 1255.7828535963,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~8764",
+                    "rank": "~10037",
                     "best": "-",
-                    "totalParses": 43823,
-                    "rankPercent": 80
+                    "totalParses": 45623,
+                    "rankPercent": 78
                   },
                   {
                     "id": 108538985,
@@ -297,10 +297,10 @@
                     "amount": 759.57929893575,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~33743",
+                    "rank": "~36042",
                     "best": "-",
-                    "totalParses": 43823,
-                    "rankPercent": 23
+                    "totalParses": 45623,
+                    "rankPercent": 21
                   },
                   {
                     "id": 105946414,
@@ -315,10 +315,10 @@
                     "amount": 296.51119956957,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~13546",
+                    "rank": "~14018",
                     "best": "-",
-                    "totalParses": 14566,
-                    "rankPercent": 7
+                    "totalParses": 14913,
+                    "rankPercent": 6
                   },
                   {
                     "id": 105946416,
@@ -333,10 +333,10 @@
                     "amount": 820.86939826174,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~9424",
+                    "rank": "~10117",
                     "best": "-",
-                    "totalParses": 17452,
-                    "rankPercent": 46
+                    "totalParses": 18067,
+                    "rankPercent": 44
                   },
                   {
                     "id": 105958809,
@@ -351,10 +351,10 @@
                     "amount": 672.63724021531,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~12077",
+                    "rank": "~12731",
                     "best": "-",
-                    "totalParses": 23226,
-                    "rankPercent": 48
+                    "totalParses": 24021,
+                    "rankPercent": 47
                   },
                   {
                     "id": 106105246,
@@ -369,10 +369,10 @@
                     "amount": 298.06505194019,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~21600",
+                    "rank": "~22579",
                     "best": "-",
-                    "totalParses": 23226,
-                    "rankPercent": 7
+                    "totalParses": 24021,
+                    "rankPercent": 6
                   },
                   {
                     "id": 105958811,
@@ -387,10 +387,10 @@
                     "amount": 760.59064250456,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~13230",
+                    "rank": "~14093",
                     "best": "-",
-                    "totalParses": 21689,
-                    "rankPercent": 39
+                    "totalParses": 22371,
+                    "rankPercent": 37
                   },
                   {
                     "id": 105946428,
@@ -405,10 +405,10 @@
                     "amount": 547.21947494971,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~20652",
+                    "rank": "~21428",
                     "best": "-",
-                    "totalParses": 26143,
-                    "rankPercent": 21
+                    "totalParses": 26786,
+                    "rankPercent": 20
                   },
                   {
                     "id": 106454912,
@@ -423,10 +423,10 @@
                     "amount": 777.06906829137,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~9411",
+                    "rank": "~10178",
                     "best": "-",
-                    "totalParses": 26143,
-                    "rankPercent": 64
+                    "totalParses": 26786,
+                    "rankPercent": 62
                   },
                   {
                     "id": 105946429,
@@ -441,10 +441,10 @@
                     "amount": 972.52405010727,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~25989",
+                    "rank": "~27581",
                     "best": "-",
-                    "totalParses": 43315,
-                    "rankPercent": 40
+                    "totalParses": 44486,
+                    "rankPercent": 38
                   },
                   {
                     "id": 106762872,
@@ -459,10 +459,10 @@
                     "amount": 1091.5768252742,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~19058",
+                    "rank": "~20018",
                     "best": "-",
-                    "totalParses": 43315,
-                    "rankPercent": 56
+                    "totalParses": 44486,
+                    "rankPercent": 55
                   },
                   {
                     "id": 105958807,
@@ -477,10 +477,10 @@
                     "amount": 598.53009137813,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~6892",
+                    "rank": "~7259",
                     "best": "-",
-                    "totalParses": 10288,
-                    "rankPercent": 33
+                    "totalParses": 10521,
+                    "rankPercent": 31
                   }
                 ]
               }
@@ -498,16 +498,16 @@
             },
             "reportsBlacklistForCharacters": [],
             "speed": {
-              "rank": "~22152",
-              "best": "~22152",
-              "totalParses": 34080,
-              "rankPercent": 35
+              "rank": "~23748",
+              "best": "~23748",
+              "totalParses": 34924,
+              "rankPercent": 32
             },
             "execution": {
-              "rank": "~28627",
-              "best": "~28627",
-              "totalParses": 34080,
-              "rankPercent": 16
+              "rank": "~30034",
+              "best": "~30034",
+              "totalParses": 34924,
+              "rankPercent": 14
             }
           },
           {
@@ -542,10 +542,10 @@
                     "amount": 767.26894000238,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~5019",
-                    "best": "~5019",
-                    "totalParses": 14764,
-                    "rankPercent": 66
+                    "rank": "~5319",
+                    "best": "~5319",
+                    "totalParses": 15198,
+                    "rankPercent": 65
                   },
                   {
                     "id": 105946420,
@@ -560,10 +560,10 @@
                     "amount": 359.59189806779,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~6730",
-                    "best": "~6730",
-                    "totalParses": 10517,
-                    "rankPercent": 36
+                    "rank": "~7012",
+                    "best": "~7012",
+                    "totalParses": 10789,
+                    "rankPercent": 35
                   },
                   {
                     "id": 103883686,
@@ -578,10 +578,10 @@
                     "amount": 558.52863605039,
                     "bracketData": 125,
                     "bracket": 0,
-                    "rank": "~1636",
-                    "best": "~1636",
-                    "totalParses": 5644,
-                    "rankPercent": 71
+                    "rank": "~1756",
+                    "best": "~1756",
+                    "totalParses": 5856,
+                    "rankPercent": 70
                   }
                 ]
               },
@@ -601,10 +601,10 @@
                     "amount": 1060.189335254,
                     "bracketData": 114,
                     "bracket": 0,
-                    "rank": "~3322",
+                    "rank": "~3420",
                     "best": "-",
-                    "totalParses": 16614,
-                    "rankPercent": 30
+                    "totalParses": 17103,
+                    "rankPercent": 31
                   },
                   {
                     "id": 108782668,
@@ -619,9 +619,9 @@
                     "amount": 990.13425496526,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~3322",
-                    "best": "~3322",
-                    "totalParses": 16614,
+                    "rank": "~3420",
+                    "best": "~3420",
+                    "totalParses": 17103,
                     "rankPercent": 22
                   },
                   {
@@ -637,9 +637,9 @@
                     "amount": 2456.2699815017,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~14214",
-                    "best": "~14214",
-                    "totalParses": 27335,
+                    "rank": "~14648",
+                    "best": "~14648",
+                    "totalParses": 28170,
                     "rankPercent": 77
                   },
                   {
@@ -655,9 +655,9 @@
                     "amount": 1946.3964640838,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~12847",
-                    "best": "~12847",
-                    "totalParses": 27335,
+                    "rank": "~13521",
+                    "best": "~13521",
+                    "totalParses": 28170,
                     "rankPercent": 41
                   },
                   {
@@ -673,10 +673,10 @@
                     "amount": 1710.0072024084,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~11608",
+                    "rank": "~11818",
                     "best": "-",
-                    "totalParses": 29021,
-                    "rankPercent": 86
+                    "totalParses": 29545,
+                    "rankPercent": 85
                   }
                 ]
               },
@@ -696,10 +696,10 @@
                     "amount": 896.47703778933,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~7611",
+                    "rank": "~7976",
                     "best": "-",
-                    "totalParses": 13124,
-                    "rankPercent": 42
+                    "totalParses": 13520,
+                    "rankPercent": 41
                   },
                   {
                     "id": 109084221,
@@ -714,10 +714,10 @@
                     "amount": 632.19528371789,
                     "bracketData": 120,
                     "bracket": 0,
-                    "rank": "~11549",
+                    "rank": "~12032",
                     "best": "-",
-                    "totalParses": 13124,
-                    "rankPercent": 12
+                    "totalParses": 13520,
+                    "rankPercent": 11
                   },
                   {
                     "id": 104146025,
@@ -732,10 +732,10 @@
                     "amount": 1442.0776098367,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~5269",
-                    "best": "~5269",
-                    "totalParses": 37640,
-                    "rankPercent": 86
+                    "rank": "~5833",
+                    "best": "~5833",
+                    "totalParses": 38889,
+                    "rankPercent": 85
                   },
                   {
                     "id": 109899037,
@@ -750,10 +750,10 @@
                     "amount": 1475.0117881145,
                     "bracketData": 113,
                     "bracket": 0,
-                    "rank": "~4893",
-                    "best": "~4893",
-                    "totalParses": 37640,
-                    "rankPercent": 87
+                    "rank": "~5444",
+                    "best": "~5444",
+                    "totalParses": 38889,
+                    "rankPercent": 86
                   },
                   {
                     "id": 109827601,
@@ -768,10 +768,10 @@
                     "amount": 759.73490991808,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~6665",
-                    "best": "~6665",
-                    "totalParses": 10751,
-                    "rankPercent": 38
+                    "rank": "~7088",
+                    "best": "~7088",
+                    "totalParses": 11076,
+                    "rankPercent": 36
                   },
                   {
                     "id": 105958812,
@@ -786,9 +786,9 @@
                     "amount": 1867.1337005353,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~4342",
-                    "best": "~4342",
-                    "totalParses": 43421,
+                    "rank": "~4520",
+                    "best": "~4520",
+                    "totalParses": 45205,
                     "rankPercent": 90
                   },
                   {
@@ -804,10 +804,10 @@
                     "amount": 1500.479296962,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~13026",
-                    "best": "~13026",
-                    "totalParses": 43421,
-                    "rankPercent": 70
+                    "rank": "~14465",
+                    "best": "~14465",
+                    "totalParses": 45205,
+                    "rankPercent": 68
                   },
                   {
                     "id": 105946414,
@@ -822,9 +822,9 @@
                     "amount": 1568.8037265986,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~3296",
-                    "best": "~3296",
-                    "totalParses": 15697,
+                    "rank": "~3375",
+                    "best": "~3375",
+                    "totalParses": 16072,
                     "rankPercent": 79
                   },
                   {
@@ -840,10 +840,10 @@
                     "amount": 1160.9764185895,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~5052",
-                    "best": "~5052",
-                    "totalParses": 17424,
-                    "rankPercent": 71
+                    "rank": "~5408",
+                    "best": "~5408",
+                    "totalParses": 18028,
+                    "rankPercent": 70
                   },
                   {
                     "id": 105958809,
@@ -858,10 +858,10 @@
                     "amount": 1175.9097574498,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~9911",
-                    "best": "~9911",
-                    "totalParses": 23599,
-                    "rankPercent": 58
+                    "rank": "~10495",
+                    "best": "~10495",
+                    "totalParses": 24409,
+                    "rankPercent": 57
                   },
                   {
                     "id": 106105246,
@@ -876,10 +876,10 @@
                     "amount": 1211.9943417051,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~8967",
-                    "best": "~8967",
-                    "totalParses": 23599,
-                    "rankPercent": 62
+                    "rank": "~9519",
+                    "best": "~9519",
+                    "totalParses": 24409,
+                    "rankPercent": 61
                   },
                   {
                     "id": 105958811,
@@ -894,10 +894,10 @@
                     "amount": 1191.8742324772,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~5777",
-                    "best": "~5777",
-                    "totalParses": 21397,
-                    "rankPercent": 73
+                    "rank": "~6177",
+                    "best": "~6177",
+                    "totalParses": 22064,
+                    "rankPercent": 72
                   },
                   {
                     "id": 105946428,
@@ -912,10 +912,10 @@
                     "amount": 1405.6147696007,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~8675",
-                    "best": "~8675",
-                    "totalParses": 26288,
-                    "rankPercent": 67
+                    "rank": "~9159",
+                    "best": "~9159",
+                    "totalParses": 26941,
+                    "rankPercent": 66
                   },
                   {
                     "id": 106454912,
@@ -930,10 +930,10 @@
                     "amount": 1431.2584524667,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~7886",
-                    "best": "~7886",
-                    "totalParses": 26288,
-                    "rankPercent": 70
+                    "rank": "~8351",
+                    "best": "~8351",
+                    "totalParses": 26941,
+                    "rankPercent": 69
                   },
                   {
                     "id": 105946429,
@@ -948,10 +948,10 @@
                     "amount": 1157.9762786866,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~28490",
+                    "rank": "~29699",
                     "best": "-",
-                    "totalParses": 43832,
-                    "rankPercent": 35
+                    "totalParses": 44999,
+                    "rankPercent": 34
                   },
                   {
                     "id": 106762872,
@@ -966,10 +966,10 @@
                     "amount": 1762.6780523444,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~4383",
-                    "best": "~4383",
-                    "totalParses": 43832,
-                    "rankPercent": 90
+                    "rank": "~4949",
+                    "best": "~4949",
+                    "totalParses": 44999,
+                    "rankPercent": 89
                   },
                   {
                     "id": 105958807,
@@ -984,10 +984,10 @@
                     "amount": 1245.8819323181,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~4659",
-                    "best": "~4659",
-                    "totalParses": 10836,
-                    "rankPercent": 57
+                    "rank": "~4995",
+                    "best": "~4995",
+                    "totalParses": 11102,
+                    "rankPercent": 55
                   }
                 ]
               }
@@ -1005,16 +1005,16 @@
             },
             "reportsBlacklistForCharacters": [],
             "speed": {
-              "rank": "~10760",
-              "best": "~10760",
-              "totalParses": 34711,
-              "rankPercent": 69
+              "rank": "~11724",
+              "best": "~11724",
+              "totalParses": 35528,
+              "rankPercent": 67
             },
             "execution": {
-              "rank": "~18049",
-              "best": "~18049",
-              "totalParses": 34711,
-              "rankPercent": 48
+              "rank": "~21316",
+              "best": "~21316",
+              "totalParses": 35528,
+              "rankPercent": 40
             }
           },
           {
@@ -1049,9 +1049,9 @@
                     "amount": 763.75185933043,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~1827",
-                    "best": "~1827",
-                    "totalParses": 9138,
+                    "rank": "~1877",
+                    "best": "~1877",
+                    "totalParses": 9387,
                     "rankPercent": 80
                   },
                   {
@@ -1067,10 +1067,10 @@
                     "amount": 308.69555844585,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~6219",
+                    "rank": "~6525",
                     "best": "-",
-                    "totalParses": 15948,
-                    "rankPercent": 61
+                    "totalParses": 16313,
+                    "rankPercent": 60
                   },
                   {
                     "id": 103883686,
@@ -1085,10 +1085,10 @@
                     "amount": 591.48624275131,
                     "bracketData": 124,
                     "bracket": 0,
-                    "rank": "~556",
-                    "best": "~556",
-                    "totalParses": 5055,
-                    "rankPercent": 89
+                    "rank": "~641",
+                    "best": "~641",
+                    "totalParses": 5346,
+                    "rankPercent": 88
                   }
                 ]
               },
@@ -1108,10 +1108,10 @@
                     "amount": 330.56918864928,
                     "bracketData": 114,
                     "bracket": 0,
-                    "rank": "~821",
+                    "rank": "~844",
                     "best": "-",
-                    "totalParses": 16437,
-                    "rankPercent": 29
+                    "totalParses": 16891,
+                    "rankPercent": 28
                   },
                   {
                     "id": 108782668,
@@ -1126,9 +1126,9 @@
                     "amount": 405.60350093056,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~821",
-                    "best": "~821",
-                    "totalParses": 16437,
+                    "rank": "~844",
+                    "best": "~844",
+                    "totalParses": 16891,
                     "rankPercent": 51
                   },
                   {
@@ -1144,9 +1144,9 @@
                     "amount": 830.25660556326,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~6519",
+                    "rank": "~6702",
                     "best": "-",
-                    "totalParses": 26078,
+                    "totalParses": 26811,
                     "rankPercent": 76
                   },
                   {
@@ -1162,9 +1162,9 @@
                     "amount": 547.91144197811,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~8344",
-                    "best": "~8344",
-                    "totalParses": 26078,
+                    "rank": "~8579",
+                    "best": "~8579",
+                    "totalParses": 26811,
                     "rankPercent": 22
                   },
                   {
@@ -1180,9 +1180,9 @@
                     "amount": 757.65109978946,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~11149",
+                    "rank": "~11346",
                     "best": "-",
-                    "totalParses": 27874,
+                    "totalParses": 28367,
                     "rankPercent": 87
                   }
                 ]
@@ -1203,9 +1203,9 @@
                     "amount": 702.17658429324,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~10333",
+                    "rank": "~10642",
                     "best": "-",
-                    "totalParses": 13420,
+                    "totalParses": 13822,
                     "rankPercent": 23
                   },
                   {
@@ -1221,10 +1221,10 @@
                     "amount": 1009.8948714816,
                     "bracketData": 120,
                     "bracket": 0,
-                    "rank": "~3891",
-                    "best": "~3891",
-                    "totalParses": 13420,
-                    "rankPercent": 71
+                    "rank": "~4146",
+                    "best": "~4146",
+                    "totalParses": 13822,
+                    "rankPercent": 70
                   },
                   {
                     "id": 104146025,
@@ -1239,10 +1239,10 @@
                     "amount": 1884.3658156263,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~3406",
-                    "best": "~3406",
-                    "totalParses": 37855,
-                    "rankPercent": 91
+                    "rank": "~3889",
+                    "best": "~3889",
+                    "totalParses": 38894,
+                    "rankPercent": 90
                   },
                   {
                     "id": 109899037,
@@ -1257,10 +1257,10 @@
                     "amount": 1764.94470513,
                     "bracketData": 113,
                     "bracket": 0,
-                    "rank": "~5678",
-                    "best": "~5678",
-                    "totalParses": 37855,
-                    "rankPercent": 85
+                    "rank": "~6223",
+                    "best": "~6223",
+                    "totalParses": 38894,
+                    "rankPercent": 84
                   },
                   {
                     "id": 109827601,
@@ -1275,9 +1275,9 @@
                     "amount": 843.88810244102,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~9214",
-                    "best": "~9214",
-                    "totalParses": 10591,
+                    "rank": "~9447",
+                    "best": "~9447",
+                    "totalParses": 10859,
                     "rankPercent": 13
                   },
                   {
@@ -1293,10 +1293,10 @@
                     "amount": 1549.4995077715,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~10436",
+                    "rank": "~11329",
                     "best": "-",
-                    "totalParses": 43484,
-                    "rankPercent": 76
+                    "totalParses": 45318,
+                    "rankPercent": 75
                   },
                   {
                     "id": 108538985,
@@ -1311,10 +1311,10 @@
                     "amount": 1627.2141301927,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~8261",
-                    "best": "~8261",
-                    "totalParses": 43484,
-                    "rankPercent": 81
+                    "rank": "~9063",
+                    "best": "~9063",
+                    "totalParses": 45318,
+                    "rankPercent": 80
                   },
                   {
                     "id": 105946414,
@@ -1329,10 +1329,10 @@
                     "amount": 1380.1154042382,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~4479",
+                    "rank": "~4741",
                     "best": "-",
-                    "totalParses": 15446,
-                    "rankPercent": 71
+                    "totalParses": 15805,
+                    "rankPercent": 70
                   },
                   {
                     "id": 105946416,
@@ -1347,10 +1347,10 @@
                     "amount": 1090.3832196776,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~3186",
-                    "best": "~3186",
-                    "totalParses": 17704,
-                    "rankPercent": 82
+                    "rank": "~3466",
+                    "best": "~3466",
+                    "totalParses": 18244,
+                    "rankPercent": 81
                   },
                   {
                     "id": 105958809,
@@ -1365,9 +1365,9 @@
                     "amount": 1161.1275985715,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~9409",
-                    "best": "~9409",
-                    "totalParses": 23523,
+                    "rank": "~9742",
+                    "best": "~9742",
+                    "totalParses": 24355,
                     "rankPercent": 60
                   },
                   {
@@ -1383,10 +1383,10 @@
                     "amount": 1327.8170203287,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~5410",
-                    "best": "~5410",
-                    "totalParses": 23523,
-                    "rankPercent": 77
+                    "rank": "~5845",
+                    "best": "~5845",
+                    "totalParses": 24355,
+                    "rankPercent": 76
                   },
                   {
                     "id": 105958811,
@@ -1401,10 +1401,10 @@
                     "amount": 1117.73244325,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~5126",
+                    "rank": "~5519",
                     "best": "-",
-                    "totalParses": 22289,
-                    "rankPercent": 77
+                    "totalParses": 22999,
+                    "rankPercent": 76
                   },
                   {
                     "id": 105946428,
@@ -1419,10 +1419,10 @@
                     "amount": 731.02764384211,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~23772",
+                    "rank": "~24635",
                     "best": "-",
-                    "totalParses": 26414,
-                    "rankPercent": 10
+                    "totalParses": 27072,
+                    "rankPercent": 9
                   },
                   {
                     "id": 106454912,
@@ -1437,10 +1437,10 @@
                     "amount": 1349.683464714,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~5811",
-                    "best": "~5811",
-                    "totalParses": 26414,
-                    "rankPercent": 78
+                    "rank": "~6226",
+                    "best": "~6226",
+                    "totalParses": 27072,
+                    "rankPercent": 77
                   },
                   {
                     "id": 105946429,
@@ -1455,10 +1455,10 @@
                     "amount": 1174.0045845519,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~21982",
+                    "rank": "~23012",
                     "best": "-",
-                    "totalParses": 43964,
-                    "rankPercent": 50
+                    "totalParses": 45122,
+                    "rankPercent": 49
                   },
                   {
                     "id": 106762872,
@@ -1473,10 +1473,10 @@
                     "amount": 1505.1198953745,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~6154",
-                    "best": "~6154",
-                    "totalParses": 43964,
-                    "rankPercent": 86
+                    "rank": "~6768",
+                    "best": "~6768",
+                    "totalParses": 45122,
+                    "rankPercent": 85
                   },
                   {
                     "id": 105958807,
@@ -1491,10 +1491,10 @@
                     "amount": 1098.5463090045,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~5880",
-                    "best": "~5880",
-                    "totalParses": 11308,
-                    "rankPercent": 48
+                    "rank": "~6131",
+                    "best": "~6131",
+                    "totalParses": 11568,
+                    "rankPercent": 47
                   }
                 ]
               }
@@ -1512,15 +1512,15 @@
             },
             "reportsBlacklistForCharacters": [],
             "speed": {
-              "rank": "~11054",
-              "best": "~11054",
-              "totalParses": 34545,
-              "rankPercent": 68
+              "rank": "~12038",
+              "best": "~12038",
+              "totalParses": 35407,
+              "rankPercent": 66
             },
             "execution": {
-              "rank": "~27636",
-              "best": "~27636",
-              "totalParses": 34545,
+              "rank": "~28325",
+              "best": "~28325",
+              "totalParses": 35407,
               "rankPercent": 20
             }
           },
@@ -1556,9 +1556,9 @@
                     "amount": 192.21294072859,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~8711",
+                    "rank": "~9183",
                     "best": "-",
-                    "totalParses": 11772,
+                    "totalParses": 12410,
                     "rankPercent": 26
                   },
                   {
@@ -1574,9 +1574,9 @@
                     "amount": 408.32186365234,
                     "bracketData": 131,
                     "bracket": 0,
-                    "rank": "~1208",
+                    "rank": "~1283",
                     "best": "-",
-                    "totalParses": 8635,
+                    "totalParses": 9165,
                     "rankPercent": 86
                   }
                 ]
@@ -1597,9 +1597,9 @@
                     "amount": 505.71958826286,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~4219",
+                    "rank": "~4441",
                     "best": "-",
-                    "totalParses": 14064,
+                    "totalParses": 14806,
                     "rankPercent": 39
                   },
                   {
@@ -1615,10 +1615,10 @@
                     "amount": 507.17099098044,
                     "bracketData": 120,
                     "bracket": 0,
-                    "rank": "~4219",
+                    "rank": "~4441",
                     "best": "-",
-                    "totalParses": 14064,
-                    "rankPercent": 39
+                    "totalParses": 14806,
+                    "rankPercent": 40
                   },
                   {
                     "id": 105946422,
@@ -1633,9 +1633,9 @@
                     "amount": 601.08022431768,
                     "bracketData": 124,
                     "bracket": 0,
-                    "rank": "~6231",
+                    "rank": "~6539",
                     "best": "-",
-                    "totalParses": 22257,
+                    "totalParses": 23356,
                     "rankPercent": 47
                   },
                   {
@@ -1651,9 +1651,9 @@
                     "amount": 456.84776560853,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~8902",
+                    "rank": "~9342",
                     "best": "-",
-                    "totalParses": 22257,
+                    "totalParses": 23356,
                     "rankPercent": 12
                   },
                   {
@@ -1669,9 +1669,9 @@
                     "amount": 510.16530982781,
                     "bracketData": 125,
                     "bracket": 0,
-                    "rank": "~9688",
+                    "rank": "~10032",
                     "best": "-",
-                    "totalParses": 25496,
+                    "totalParses": 26401,
                     "rankPercent": 53
                   }
                 ]
@@ -1692,9 +1692,9 @@
                     "amount": 581.60800046855,
                     "bracketData": 124,
                     "bracket": 0,
-                    "rank": "~8289",
+                    "rank": "~8689",
                     "best": "-",
-                    "totalParses": 11355,
+                    "totalParses": 11903,
                     "rankPercent": 27
                   },
                   {
@@ -1710,10 +1710,10 @@
                     "amount": 740.60340283472,
                     "bracketData": 127,
                     "bracket": 0,
-                    "rank": "~2952",
+                    "rank": "~3213",
                     "best": "-",
-                    "totalParses": 11355,
-                    "rankPercent": 74
+                    "totalParses": 11903,
+                    "rankPercent": 73
                   },
                   {
                     "id": 105958808,
@@ -1728,9 +1728,9 @@
                     "amount": 405.85466205927,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~9569",
+                    "rank": "~10014",
                     "best": "-",
-                    "totalParses": 15434,
+                    "totalParses": 16152,
                     "rankPercent": 38
                   },
                   {
@@ -1746,10 +1746,10 @@
                     "amount": 867.1335070868,
                     "bracketData": 127,
                     "bracket": 0,
-                    "rank": "~14829",
+                    "rank": "~15844",
                     "best": "-",
-                    "totalParses": 32954,
-                    "rankPercent": 55
+                    "totalParses": 34445,
+                    "rankPercent": 54
                   },
                   {
                     "id": 109899037,
@@ -1764,9 +1764,9 @@
                     "amount": 1160.4358234743,
                     "bracketData": 120,
                     "bracket": 0,
-                    "rank": "~2636",
+                    "rank": "~2755",
                     "best": "-",
-                    "totalParses": 32954,
+                    "totalParses": 34445,
                     "rankPercent": 92
                   },
                   {
@@ -1782,9 +1782,9 @@
                     "amount": 765.14180918355,
                     "bracketData": 124,
                     "bracket": 0,
-                    "rank": "~5332",
+                    "rank": "~5557",
                     "best": "-",
-                    "totalParses": 9522,
+                    "totalParses": 9924,
                     "rankPercent": 44
                   },
                   {
@@ -1800,10 +1800,10 @@
                     "amount": 1087.841894108,
                     "bracketData": 126,
                     "bracket": 0,
-                    "rank": "~10996",
+                    "rank": "~12072",
                     "best": "-",
-                    "totalParses": 37918,
-                    "rankPercent": 71
+                    "totalParses": 40240,
+                    "rankPercent": 70
                   },
                   {
                     "id": 108538985,
@@ -1818,9 +1818,9 @@
                     "amount": 363.45832845262,
                     "bracketData": 125,
                     "bracket": 0,
-                    "rank": "~37159",
+                    "rank": "~39435",
                     "best": "-",
-                    "totalParses": 37918,
+                    "totalParses": 40240,
                     "rankPercent": 2
                   },
                   {
@@ -1836,10 +1836,10 @@
                     "amount": 813.74824294249,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~5663",
+                    "rank": "~6017",
                     "best": "-",
-                    "totalParses": 13170,
-                    "rankPercent": 57
+                    "totalParses": 13675,
+                    "rankPercent": 56
                   },
                   {
                     "id": 105946416,
@@ -1854,9 +1854,9 @@
                     "amount": 731.81079419,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~7824",
+                    "rank": "~8201",
                     "best": "-",
-                    "totalParses": 15343,
+                    "totalParses": 16081,
                     "rankPercent": 49
                   },
                   {
@@ -1872,10 +1872,10 @@
                     "amount": 610.66899964859,
                     "bracketData": 124,
                     "bracket": 0,
-                    "rank": "~12728",
+                    "rank": "~13726",
                     "best": "-",
-                    "totalParses": 19889,
-                    "rankPercent": 36
+                    "totalParses": 21117,
+                    "rankPercent": 35
                   },
                   {
                     "id": 106105246,
@@ -1890,10 +1890,10 @@
                     "amount": 831.68121119831,
                     "bracketData": 127,
                     "bracket": 0,
-                    "rank": "~4773",
+                    "rank": "~5279",
                     "best": "-",
-                    "totalParses": 19889,
-                    "rankPercent": 76
+                    "totalParses": 21117,
+                    "rankPercent": 75
                   },
                   {
                     "id": 105958811,
@@ -1908,10 +1908,10 @@
                     "amount": 750.54541993675,
                     "bracketData": 124,
                     "bracket": 0,
-                    "rank": "~9048",
+                    "rank": "~9687",
                     "best": "-",
-                    "totalParses": 19253,
-                    "rankPercent": 53
+                    "totalParses": 20182,
+                    "rankPercent": 52
                   },
                   {
                     "id": 105946428,
@@ -1926,10 +1926,10 @@
                     "amount": 785.58590547031,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~6450",
+                    "rank": "~6967",
                     "best": "-",
-                    "totalParses": 23037,
-                    "rankPercent": 72
+                    "totalParses": 24026,
+                    "rankPercent": 71
                   },
                   {
                     "id": 106454912,
@@ -1944,10 +1944,10 @@
                     "amount": 948.94100679396,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~921",
+                    "rank": "~1201",
                     "best": "-",
-                    "totalParses": 23037,
-                    "rankPercent": 96
+                    "totalParses": 24026,
+                    "rankPercent": 95
                   },
                   {
                     "id": 105946429,
@@ -1962,9 +1962,9 @@
                     "amount": 640.48589961345,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~33314",
+                    "rank": "~34796",
                     "best": "-",
-                    "totalParses": 38293,
+                    "totalParses": 39996,
                     "rankPercent": 13
                   },
                   {
@@ -1980,10 +1980,10 @@
                     "amount": 434.156099918,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~36761",
+                    "rank": "~38796",
                     "best": "-",
-                    "totalParses": 38293,
-                    "rankPercent": 4
+                    "totalParses": 39996,
+                    "rankPercent": 3
                   },
                   {
                     "id": 105958807,
@@ -1998,10 +1998,10 @@
                     "amount": 970.7541437273,
                     "bracketData": 126,
                     "bracket": 0,
-                    "rank": "~956",
+                    "rank": "~1108",
                     "best": "-",
-                    "totalParses": 9567,
-                    "rankPercent": 90
+                    "totalParses": 10077,
+                    "rankPercent": 89
                   }
                 ]
               }
@@ -2019,16 +2019,16 @@
             },
             "reportsBlacklistForCharacters": [],
             "speed": {
-              "rank": "~14919",
-              "best": "~14919",
-              "totalParses": 29839,
-              "rankPercent": 50
+              "rank": "~16000",
+              "best": "~16000",
+              "totalParses": 31373,
+              "rankPercent": 49
             },
             "execution": {
-              "rank": "~9250",
-              "best": "~9250",
-              "totalParses": 29839,
-              "rankPercent": 69
+              "rank": "~12549",
+              "best": "~12549",
+              "totalParses": 31373,
+              "rankPercent": 60
             }
           },
           {
@@ -2063,9 +2063,9 @@
                     "amount": 165.06576621199,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~11376",
+                    "rank": "~12184",
                     "best": "-",
-                    "totalParses": 13707,
+                    "totalParses": 14680,
                     "rankPercent": 17
                   },
                   {
@@ -2081,10 +2081,10 @@
                     "amount": 414.9932036178,
                     "bracketData": 125,
                     "bracket": 0,
-                    "rank": "~1407",
+                    "rank": "~1576",
                     "best": "-",
-                    "totalParses": 5629,
-                    "rankPercent": 75
+                    "totalParses": 6065,
+                    "rankPercent": 74
                   }
                 ]
               },
@@ -2104,9 +2104,9 @@
                     "amount": 577.48214960183,
                     "bracketData": 114,
                     "bracket": 0,
-                    "rank": "~4917",
+                    "rank": "~5272",
                     "best": "-",
-                    "totalParses": 12293,
+                    "totalParses": 13181,
                     "rankPercent": 35
                   },
                   {
@@ -2122,9 +2122,9 @@
                     "amount": 563.84565917368,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~4917",
+                    "rank": "~5272",
                     "best": "-",
-                    "totalParses": 12293,
+                    "totalParses": 13181,
                     "rankPercent": 31
                   },
                   {
@@ -2140,10 +2140,10 @@
                     "amount": 888.1231807521,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~9426",
+                    "rank": "~10127",
                     "best": "-",
-                    "totalParses": 20056,
-                    "rankPercent": 61
+                    "totalParses": 21547,
+                    "rankPercent": 60
                   },
                   {
                     "id": 109658684,
@@ -2158,9 +2158,9 @@
                     "amount": 646.70573361348,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~8423",
+                    "rank": "~9049",
                     "best": "-",
-                    "totalParses": 20056,
+                    "totalParses": 21547,
                     "rankPercent": 12
                   },
                   {
@@ -2176,9 +2176,9 @@
                     "amount": 697.63374322718,
                     "bracketData": 122,
                     "bracket": 0,
-                    "rank": "~11647",
+                    "rank": "~12312",
                     "best": "-",
-                    "totalParses": 22838,
+                    "totalParses": 24142,
                     "rankPercent": 70
                   }
                 ]
@@ -2199,10 +2199,10 @@
                     "amount": 684.86725003223,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~7380",
+                    "rank": "~8035",
                     "best": "-",
-                    "totalParses": 10544,
-                    "rankPercent": 30
+                    "totalParses": 11318,
+                    "rankPercent": 29
                   },
                   {
                     "id": 109084221,
@@ -2217,10 +2217,10 @@
                     "amount": 753.58346130736,
                     "bracketData": 120,
                     "bracket": 0,
-                    "rank": "~5588",
+                    "rank": "~6111",
                     "best": "-",
-                    "totalParses": 10544,
-                    "rankPercent": 47
+                    "totalParses": 11318,
+                    "rankPercent": 46
                   },
                   {
                     "id": 105958808,
@@ -2235,9 +2235,9 @@
                     "amount": 445.55242185668,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~9080",
+                    "rank": "~9678",
                     "best": "-",
-                    "totalParses": 11793,
+                    "totalParses": 12569,
                     "rankPercent": 23
                   },
                   {
@@ -2253,10 +2253,10 @@
                     "amount": 1027.3740030653,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~11061",
+                    "rank": "~12133",
                     "best": "-",
-                    "totalParses": 29109,
-                    "rankPercent": 62
+                    "totalParses": 31111,
+                    "rankPercent": 61
                   },
                   {
                     "id": 109899037,
@@ -2271,9 +2271,9 @@
                     "amount": 1178.7060261255,
                     "bracketData": 113,
                     "bracket": 0,
-                    "rank": "~5821",
+                    "rank": "~6222",
                     "best": "-",
-                    "totalParses": 29109,
+                    "totalParses": 31111,
                     "rankPercent": 80
                   },
                   {
@@ -2289,10 +2289,10 @@
                     "amount": 717.2358212691,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~6966",
+                    "rank": "~7572",
                     "best": "-",
-                    "totalParses": 8818,
-                    "rankPercent": 21
+                    "totalParses": 9349,
+                    "rankPercent": 19
                   },
                   {
                     "id": 105958812,
@@ -2307,10 +2307,10 @@
                     "amount": 1306.370958075,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~7404",
+                    "rank": "~8424",
                     "best": "-",
-                    "totalParses": 33657,
-                    "rankPercent": 78
+                    "totalParses": 36627,
+                    "rankPercent": 77
                   },
                   {
                     "id": 108538985,
@@ -2325,10 +2325,10 @@
                     "amount": 795.24004460055,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~28945",
+                    "rank": "~31865",
                     "best": "-",
-                    "totalParses": 33657,
-                    "rankPercent": 14
+                    "totalParses": 36627,
+                    "rankPercent": 13
                   },
                   {
                     "id": 105946414,
@@ -2343,10 +2343,10 @@
                     "amount": 808.36237721844,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~8067",
+                    "rank": "~8682",
                     "best": "-",
-                    "totalParses": 12412,
-                    "rankPercent": 35
+                    "totalParses": 13155,
+                    "rankPercent": 34
                   },
                   {
                     "id": 105946416,
@@ -2361,10 +2361,10 @@
                     "amount": 861.94561235667,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~6061",
+                    "rank": "~6628",
                     "best": "-",
-                    "totalParses": 14097,
-                    "rankPercent": 57
+                    "totalParses": 15065,
+                    "rankPercent": 56
                   },
                   {
                     "id": 105958809,
@@ -2379,10 +2379,10 @@
                     "amount": 771.58576974023,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~10294",
+                    "rank": "~11510",
                     "best": "-",
-                    "totalParses": 17449,
-                    "rankPercent": 41
+                    "totalParses": 18870,
+                    "rankPercent": 39
                   },
                   {
                     "id": 106105246,
@@ -2397,10 +2397,10 @@
                     "amount": 758.87280323814,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~10643",
+                    "rank": "~11888",
                     "best": "-",
-                    "totalParses": 17449,
-                    "rankPercent": 39
+                    "totalParses": 18870,
+                    "rankPercent": 37
                   },
                   {
                     "id": 105958811,
@@ -2415,10 +2415,10 @@
                     "amount": 856.67210226463,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~8291",
+                    "rank": "~9061",
                     "best": "-",
-                    "totalParses": 17274,
-                    "rankPercent": 52
+                    "totalParses": 18493,
+                    "rankPercent": 51
                   },
                   {
                     "id": 105946428,
@@ -2433,10 +2433,10 @@
                     "amount": 789.58053920227,
                     "bracketData": 118,
                     "bracket": 0,
-                    "rank": "~13834",
+                    "rank": "~14966",
                     "best": "-",
-                    "totalParses": 21617,
-                    "rankPercent": 36
+                    "totalParses": 23026,
+                    "rankPercent": 35
                   },
                   {
                     "id": 106454912,
@@ -2451,10 +2451,10 @@
                     "amount": 1003.1211339215,
                     "bracketData": 116,
                     "bracket": 0,
-                    "rank": "~4323",
+                    "rank": "~4835",
                     "best": "-",
-                    "totalParses": 21617,
-                    "rankPercent": 80
+                    "totalParses": 23026,
+                    "rankPercent": 79
                   },
                   {
                     "id": 105946429,
@@ -2469,9 +2469,9 @@
                     "amount": 883.87647848642,
                     "bracketData": 117,
                     "bracket": 0,
-                    "rank": "~26926",
+                    "rank": "~28684",
                     "best": "-",
-                    "totalParses": 34521,
+                    "totalParses": 36775,
                     "rankPercent": 22
                   },
                   {
@@ -2487,10 +2487,10 @@
                     "amount": 961.8105893892,
                     "bracketData": 119,
                     "bracket": 0,
-                    "rank": "~22783",
+                    "rank": "~24639",
                     "best": "-",
-                    "totalParses": 34521,
-                    "rankPercent": 34
+                    "totalParses": 36775,
+                    "rankPercent": 33
                   },
                   {
                     "id": 105958807,
@@ -2505,9 +2505,9 @@
                     "amount": 898.49680460722,
                     "bracketData": 121,
                     "bracket": 0,
-                    "rank": "~3502",
+                    "rank": "~3702",
                     "best": "-",
-                    "totalParses": 8980,
+                    "totalParses": 9494,
                     "rankPercent": 61
                   }
                 ]
@@ -2526,16 +2526,16 @@
             },
             "reportsBlacklistForCharacters": [],
             "speed": {
-              "rank": "~18688",
-              "best": "~18688",
-              "totalParses": 23960,
-              "rankPercent": 22
+              "rank": "~20818",
+              "best": "~20818",
+              "totalParses": 25389,
+              "rankPercent": 18
             },
             "execution": {
-              "rank": "~14615",
-              "best": "~14615",
-              "totalParses": 23960,
-              "rankPercent": 39
+              "rank": "~16756",
+              "best": "~16756",
+              "totalParses": 25389,
+              "rankPercent": 34
             }
           }
         ]

@@ -75,10 +75,12 @@ _EDGE_YD = 17.0
 # seconds to hold a meaningful formation, and snapshots within a few seconds of each other are merged.
 _PLANT_RADIUS_YD = 12.0   # boss stays within this of the stand's anchor = same plant
 _MIN_PLANT_SEC = 6.0      # a stand shorter than this isn't a settled formation
-_PLANT_STAB_SEC = 3.0     # skip the arrival scramble at the start of a stand
-_PLANT_WINDOW_SEC = 10.0  # max length of a snapshot window
+_PLANT_STAB_SEC = 3.0     # floor offset: skip the immediate arrival scramble at the start of a stand
+_PLANT_WINDOW_SEC = 10.0  # length of a snapshot window
+_PLANT_SEARCH_SEC = 25.0  # horizon AFTER a moment to hunt for the calmest (most raid-settled) window
+_PLANT_GAP_SEC = 2.0      # a boss-untargetable (None) gap up to this long is bridged within one stand
 _PLANT_MERGE_SEC = 6.0    # moments closer than this are the same moment (keep the earlier/phase-labelled one)
-_MAX_MOMENTS = 6          # cap snapshots per side so a long fight isn't a wall of maps
+_MAX_MOMENTS = 6          # cap snapshots per side so a long fight isn't a wall of maps (opener/phases kept first)
 
 
 # ----------------------------------------------------------------------------- data loading + small geom
@@ -670,13 +672,58 @@ def _trail_one_svg(xys, col, frame, W=260):
         W, H, "".join(parts))
 
 
+def _raid_wander(tracks, lo, hi):
+    """How STILL the raid is over the window [lo,hi) — the mean (median-across-players) per-player wander:
+    for each player, the median distance of its real in-window samples from that player's OWN in-window
+    median spot. ~0 when everyone is parked (a settled formation); large while players are still moving.
+    Deliberately independent of how SPREAD the raid is — a wide but stationary formation scores as settled,
+    a tight but churning one does not — so this measures stillness, not stacking. Median across players
+    resists a single roamer (one player who ran out for a mechanic). None when too few players have data.
+    Raw tracks (not carry-forward-filled): a filled gap would fake stillness, so only real samples count."""
+    wanders = []
+    for t in tracks:
+        pts = [t[bi] for bi in range(lo, min(hi, len(t))) if t[bi]]
+        if len(pts) < 2:
+            continue
+        cx = _median([p[0] for p in pts])
+        cy = _median([p[1] for p in pts])
+        wanders.append(_median([math.hypot(p[0] - cx, p[1] - cy) for p in pts]))
+    if len(wanders) < 3:
+        return None
+    return _median(wanders)
+
+
+def _settled_window(tracks, search_lo, search_hi, win_len_bins, step_bins):
+    """Within [search_lo, search_hi), slide a length-`win_len_bins` window by `step_bins` and return the
+    (lo, hi) where the RAID wanders least — its most settled formation in the search horizon. This is the
+    raid-stability refinement on top of boss-stability: the boss-stand already says the BOSS is planted; this
+    finds where, inside that, the PLAYERS are also most parked. Falls back to the whole span when it's shorter
+    than one window, or when no window has enough samples to score."""
+    if search_hi - search_lo <= win_len_bins:
+        return search_lo, search_hi
+    best_lo, best_w = None, None
+    s = search_lo
+    while s + win_len_bins <= search_hi:
+        w = _raid_wander(tracks, s, s + win_len_bins)
+        if w is not None and (best_w is None or w < best_w):
+            best_w, best_lo = w, s
+        s += step_bins
+    if best_lo is None:
+        return search_lo, search_lo + win_len_bins
+    return best_lo, best_lo + win_len_bins
+
+
 def _boss_stands(bb, bin_ms):
     """Maximal STATIONARY segments [start_bin, end_bin) of the boss anchor track `bb` — runs where the boss
-    stays within `_PLANT_RADIUS_YD` of the segment's anchor. A None bin (boss not being hit — typically in
-    flight / untargetable) breaks a segment, so the next run is a fresh stand. The first stand is the pull
-    position; every later stand is a RE-PLANT (the boss moved away and settled somewhere new)."""
+    stays within `_PLANT_RADIUS_YD` of the segment's anchor. A SHORT run of None bins (boss briefly not being
+    hit — a phase/immunity flicker, typically under `_PLANT_GAP_SEC`) is BRIDGED within the stand as long as
+    the boss reappears within the plant radius, so a momentary loss of target doesn't shatter one settled
+    formation into sub-`_MIN_PLANT_SEC` fragments. A LONGER gap (real flight / untargetable), or reappearing
+    outside the radius, ends the stand and starts a fresh one. The first stand is the pull position; every
+    later stand is a RE-PLANT (the boss moved away and settled somewhere new)."""
     nb = len(bb)
     plant_r = _PLANT_RADIUS_YD * SCALE
+    gap_bins = max(1, int(round(_PLANT_GAP_SEC * 1000.0 / bin_ms)))
     segs = []
     i = 0
     while i < nb:
@@ -685,28 +732,51 @@ def _boss_stands(bb, bin_ms):
             continue
         anchor = bb[i]
         j = i + 1
-        while j < nb and bb[j] and math.hypot(bb[j][0] - anchor[0], bb[j][1] - anchor[1]) <= plant_r:
+        gap = 0
+        while j < nb:
+            if not bb[j]:
+                gap += 1
+                if gap > gap_bins:   # untargetable too long → the stand is over
+                    break
+                j += 1
+                continue
+            if math.hypot(bb[j][0] - anchor[0], bb[j][1] - anchor[1]) > plant_r:
+                break               # moved away → a fresh stand starts at this bin
+            gap = 0
             j += 1
-        segs.append((i, j))
+        end = j                     # trim a bridged trailing gap so the segment ends on a real bin
+        while end > i and not bb[end - 1]:
+            end -= 1
+        segs.append((i, end))
         i = j
     return segs
 
 
-def _plant_windows(pos, phases, phase_names):
+def _plant_windows(pos, phases, phase_names, roles=None):
     """Labelled snapshot windows for one side — the moments worth freezing the formation at:
       * the OPENING (settled a few seconds after the pull),
       * the start of each named PHASE (`phases` = [{id, tSec}]), and
       * every boss RE-PLANT — anytime the boss moves and settles into a NEW stand, even mid-phase (so a boss
         that hops between platforms or repositions within a phase gets a snapshot per stand, not just one).
     Candidate moments from those three sources are merged (moments within `_PLANT_MERGE_SEC` collapse to one,
-    keeping the phase-labelled one), each window runs from a short stabilization offset for up to
-    `_PLANT_WINDOW_SEC` (not past the next moment), and the list is capped at `_MAX_MOMENTS`. Returns dicts
-    {label, lo, hi, sec}; times are labelled (approximate), never claimed exact."""
+    keeping the phase-labelled one). For each moment, the boss-stand says the BOSS is planted; we then search
+    a `_PLANT_SEARCH_SEC` horizon after the moment (past a short arrival-scramble floor) for the
+    `_PLANT_WINDOW_SEC` sub-window where the RAID is also most settled (`_settled_window`, when `roles` is
+    given), so the frozen formation is one both boss and players had stopped moving in — not a blind fixed
+    offset. The list is then capped at `_MAX_MOMENTS`, PRIORITISING the opener + phase moments (always kept)
+    and filling the rest with the earliest re-plants. Returns dicts {label, lo, hi, sec, bossXY}; times are
+    labelled (approximate), never claimed exact."""
     nb = pos.get("nBins") or 0
     bin_ms = pos.get("binMs") or 1
     dur_sec = (pos.get("durMs") or 0) / 1000.0
     if nb < 4 or dur_sec <= 0:
         return []
+
+    # Raw (un-filled) per-bin tracks of this side's real raiders — drives the raid-settled window search.
+    actors = pos.get("actors") or {}
+    settle_tracks = [actors[a]["bins"] for a in (roles or {}) if a in actors] if roles else []
+    win_len_bins = max(2, int(round(_PLANT_WINDOW_SEC * 1000.0 / bin_ms)))
+    step_bins = max(1, int(round(500.0 / bin_ms)))   # slide the search in ~0.5s steps
 
     def to_bin(s):
         return max(0, min(nb, int(round(s * 1000.0 / bin_ms))))
@@ -752,21 +822,33 @@ def _plant_windows(pos, phases, phase_names):
     wins = []
     for idx, (sec, lab) in enumerate(merged):
         nxt = starts[idx + 1] if idx + 1 < len(starts) else dur_sec
-        stab = min(_PLANT_STAB_SEC, max(0.0, (nxt - sec) * 0.25))
-        win_start = sec + stab
-        win_end = min(nxt, win_start + _PLANT_WINDOW_SEC, dur_sec)
-        lo, hi = to_bin(win_start), to_bin(win_end)
+        stab = min(_PLANT_STAB_SEC, max(0.0, (nxt - sec) * 0.25))   # floor past the immediate arrival scramble
+        # Search a bounded horizon after the moment (never into the next moment) for the calmest sub-window.
+        search_lo = to_bin(sec + stab)
+        search_hi = to_bin(min(nxt, sec + stab + _PLANT_SEARCH_SEC, dur_sec))
+        if settle_tracks and search_hi - search_lo > win_len_bins:
+            lo, hi = _settled_window(settle_tracks, search_lo, search_hi, win_len_bins, step_bins)
+        else:
+            lo, hi = search_lo, min(search_hi, search_lo + win_len_bins)
         if hi - lo >= 2:
-            # The boss's median position over this window — lets _match_moments tell whether ours and theirs
-            # re-planted at the SAME stand (a fair side-by-side) or at different platforms (must not be paired).
+            # The boss's median position over this window — its settled spot, used to draw the boss-movement
+            # trail across tabs. (Matching across raids is by label + chronological order in `_match_moments`,
+            # NOT by bossXY: comparing the two raids' ABSOLUTE opener/phase positions is the whole point — a
+            # gap reads as a real offset to learn from. Re-plants pair chronologically within their phase.)
             bxy = None
             if bb:
                 bpts = [p for p in _fill(bb)[lo:hi] if p]
                 if bpts:
                     bxy = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
             wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy})
-        if len(wins) >= _MAX_MOMENTS:
-            break
+
+    # Priority-aware cap: opener + phase moments (the cross-raid matchups that matter) are always kept; the
+    # remaining slots go to the EARLIEST re-plants. Chronological order is restored before returning.
+    if len(wins) > _MAX_MOMENTS:
+        anchors = [w for w in wins if "re-plant" not in w["label"].lower()]
+        replants = [w for w in wins if "re-plant" in w["label"].lower()]
+        keep = anchors[:_MAX_MOMENTS] + replants[:max(0, _MAX_MOMENTS - len(anchors))]
+        wins = sorted(keep, key=lambda w: w["lo"])
     return wins
 
 
@@ -866,8 +948,8 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
         # moves within a stable window); a MOBILE boss uses a tight per-moment frame (its stands are different
         # platforms, so one arena-wide frame would shrink every snapshot to a corner clump). Moments render as
         # labelled TABS (Opener / numbered re-plants / phase tags) in chronological order, not a wall of maps.
-        o_wins = _plant_windows(o_pos, o_phases, phase_names)
-        t_wins = _plant_windows(t_pos, t_phases, phase_names)
+        o_wins = _plant_windows(o_pos, o_phases, phase_names, o_roles)
+        t_wins = _plant_windows(t_pos, t_phases, phase_names, t_roles)
         rows_m = _match_moments(o_wins, t_wins)
         if rows_m:
             # ONE CONSTANT frame for the whole boss (used by every tab) — the tightest box that still contains

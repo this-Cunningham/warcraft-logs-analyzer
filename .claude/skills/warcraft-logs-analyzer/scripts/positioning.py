@@ -1095,9 +1095,24 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
             def _hdr(text):
                 return '<div class="posnote" style="margin:12px 0 2px;opacity:.75">{}</div>'.format(text)
 
+            # Alphabetical sub-labels for an add the raid adapted to MORE THAN ONCE (the spawn, then each add
+            # re-plant the raid moved to accommodate) — "Add: Lord Sanguinar:a", ":b", ... Display only: the
+            # matching is still name + order, so the k-th adaptation ours sits beside the k-th theirs and the
+            # letters line up across raids. A one-time add stays plain (no letter).
+            add_rows = {}
+            for i, r in enumerate(rows_m):
+                if r["label"].lower().startswith("add:"):
+                    add_rows.setdefault(r["label"], []).append(i)
+            add_sub = {}
+            for _lab, idxs in add_rows.items():
+                if len(idxs) > 1:
+                    for k, i in enumerate(idxs):
+                        add_sub[i] = chr(ord('a') + k) if k < 26 else str(k + 1)
+
             tabs, panels, replant_n = [], [], 0
             for idx, r in enumerate(rows_m):
                 ow, tw = r["o"], r["t"]
+                disp_label = r["label"] + (":" + add_sub[idx] if idx in add_sub else "")
                 # The formation in the ONE FIXED frame (constant across tabs) AND the same stand ZOOMED tight
                 # to just this moment's positions (NOT boss-centered) — shown via a "Fixed frame / Zoom" TOGGLE
                 # (one at a time, switched by the delegated .poszoombtn handler), not stacked vertically.
@@ -1134,17 +1149,19 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                 oc, tc = (ow.get("cause") if ow else None), (tw.get("cause") if tw else None)
                 if r["label"].lower().startswith("add:"):
                     # Add-triggered moment: the snapshot exists BECAUSE the raid moved to accommodate this add.
-                    panel = _hdr("Triggered by the <b>{}</b> add — the raid relocated to accommodate it "
-                                 "(boss may be stationary).".format(esc(r["label"].split(":", 1)[1].strip())) ) + panel
+                    nm_only = r["label"].split(":", 1)[1].strip()
+                    sub = (" (adaptation <b>{}</b>)".format(add_sub[idx]) if idx in add_sub else "")
+                    panel = _hdr("Triggered by the <b>{}</b> add{} — the raid relocated to accommodate it "
+                                 "(boss may be stationary).".format(esc(nm_only), sub)) + panel
                 elif oc and tc and oc == tc:
                     panel += _hdr("Both raids re-planted <b>toward</b> {} that spawned here.".format(_cause_phrase(oc)))
                 elif oc or tc:
                     bits = ([("ours", oc)] if oc else []) + ([("benchmark", tc)] if tc else [])
                     panel += _hdr("Re-planted <b>toward</b> a freshly-spawned add ({}).".format(
                         "; ".join("{} → {}".format(side, _cause_phrase(c)) for side, c in bits)))
-                tlab, replant_n = _moment_tab_label(r["label"], replant_n)
+                tlab, replant_n = _moment_tab_label(disp_label, replant_n)
                 row_cause = (ow.get("cause") if ow else None) or (tw.get("cause") if tw else None)
-                ttl = r["label"] + (" — moved toward add ({})".format(row_cause) if row_cause else "")
+                ttl = disp_label + (" — moved toward add ({})".format(row_cause) if row_cause else "")
                 tabs.append('<button class="postab{}" data-pos="{}" type="button" title="{}">{}</button>'.format(
                     " active" if idx == 0 else "", idx, esc(ttl), esc(tlab)))
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(

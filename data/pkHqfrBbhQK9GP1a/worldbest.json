@@ -11,6 +11,206 @@
   ],
   "specs": [
     {
+      "class": "Paladin",
+      "spec": "Justicar",
+      "role": "tank",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Splad",
+            "guild": "WEEWOO",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 444.4438983634,
+            "globalRank": 3,
+            "sameFaction": true,
+            "reportCode": "kFDLZf8qcvYBHXAw",
+            "fightID": 65
+          },
+          "abilities": {
+            "Seal of Righteousness": 21,
+            "Judgment": 19,
+            "Consecration": 15,
+            "Holy Shield": 14,
+            "Avenging Wrath": 2
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Healthls",
+            "guild": "ChatGPT",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1003.1808093838,
+            "globalRank": 2,
+            "sameFaction": true,
+            "reportCode": "RVGAXbnqz4CKctHm",
+            "fightID": 21
+          },
+          "abilities": {
+            "Seal of Command": 32,
+            "Seal of Blood": 31,
+            "Seals of Command": 14,
+            "Judgment": 11,
+            "Super Sapper Charge": 1
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Aetreus",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 1625.4517611026,
+            "globalRank": 1,
+            "sameFaction": true,
+            "reportCode": "Rb3xFPpcjh1KvCwr",
+            "fightID": 72
+          },
+          "abilities": {
+            "Seal of Command": 12,
+            "Seal of Blood": 11,
+            "Judgment": 7,
+            "Seals of Command": 5,
+            "Consecration": 1
+          }
+        },
+        {
+          "encounterID": 100733,
+          "name": "Kael'thas Sunstrider",
+          "metric": "dps",
+          "player": {
+            "name": "Yennytimé",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 719.60374456199,
+            "globalRank": 1,
+            "sameFaction": false,
+            "reportCode": "jk6qQAB1pCc2YtrZ",
+            "fightID": 91
+          },
+          "abilities": {
+            "Seal of Righteousness": 43,
+            "Judgment": 35,
+            "Consecration": 29,
+            "Holy Shield": 21,
+            "Fire Shield": 5
+          }
+        }
+      ]
+    },
+    {
+      "class": "Warrior",
+      "spec": "Protection",
+      "role": "tank",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Bronzerker",
+            "guild": "Simplexity",
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 793.90890087988,
+            "globalRank": 1,
+            "sameFaction": true,
+            "reportCode": "6Xk3fd417yN2AgPC",
+            "fightID": 54
+          },
+          "abilities": {
+            "Devastate": 78,
+            "Heroic Strike": 53,
+            "Berserker Stance": 5,
+            "Whirlwind": 5,
+            "Taunt": 5
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Whyman",
+            "guild": "Vindication",
+            "server": "Thunderstrike",
+            "region": "EU",
+            "amount": 1279.9909631749,
+            "globalRank": 1,
+            "sameFaction": true,
+            "reportCode": "kYZtvFVCHPyw9Dqh",
+            "fightID": 22
+          },
+          "abilities": {
+            "Devastate": 68,
+            "Heroic Strike": 62,
+            "Thunder Clap": 4,
+            "Vanguard": 2,
+            "Shield Slam": 2
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Whyman",
+            "guild": "Vindication",
+            "server": "Thunderstrike",
+            "region": "EU",
+            "amount": 1277.4253516808,
+            "globalRank": 4,
+            "sameFaction": true,
+            "reportCode": "AtvdrGYLZh4kHqJW",
+            "fightID": 28
+          },
+          "abilities": {
+            "Devastate": 48,
+            "Heroic Strike": 26,
+            "Cleave": 7,
+            "Revenge": 1,
+            "Whirlwind": 1
+          }
+        },
+        {
+          "encounterID": 100733,
+          "name": "Kael'thas Sunstrider",
+          "metric": "dps",
+          "player": {
+            "name": "Caffeinex",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 827.87725504365,
+            "globalRank": 1,
+            "sameFaction": false,
+            "reportCode": "AcjkR2vxhGdbKnNq",
+            "fightID": 75
+          },
+          "abilities": {
+            "Devastate": 174,
+            "Heroic Strike": 95,
+            "Cleave": 19,
+            "Shield Block": 8,
+            "Throw": 7
+          }
+        }
+      ]
+    },
+    {
       "class": "Druid",
       "spec": "Restoration",
       "role": "healer",
@@ -21,22 +221,22 @@
           "name": "Al'ar",
           "metric": "hps",
           "player": {
-            "name": "旋鳯狼",
-            "guild": "矩阵TBC周年服",
-            "server": "铁血",
-            "region": "CN",
-            "amount": 1133.9559314424,
-            "globalRank": 2,
+            "name": "신화월드",
+            "guild": "Waves",
+            "server": "펜구스의 흉포",
+            "region": "KR",
+            "amount": 1188.0076019658,
+            "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "rhwDWcapkZmqKT8g",
-            "fightID": 1
+            "reportCode": "pZ1xNPdm9tjGcy2Q",
+            "fightID": 11
           },
           "abilities": {
-            "Lifebloom": 191,
-            "Rejuvenation": 67,
-            "Regrowth": 14,
-            "Swiftmend": 13,
-            "Essence of the Martyr": 4
+            "Lifebloom": 85,
+            "Rejuvenation": 24,
+            "Regrowth": 18,
+            "Swiftmend": 4,
+            "Endless Blessings": 2
           }
         },
         {
@@ -57,9 +257,9 @@
           "abilities": {
             "Regrowth": 63,
             "Rejuvenation": 4,
-            "Power of Prayer": 2,
             "Essence of the Martyr": 2,
-            "Dark Rune": 1
+            "Power of Prayer": 2,
+            "Restore Mana": 1
           }
         },
         {
@@ -80,9 +280,9 @@
           "abilities": {
             "Rejuvenation": 60,
             "Regrowth": 13,
-            "Swiftmend": 5,
             "Lifebloom": 5,
-            "Restore Mana": 1
+            "Swiftmend": 5,
+            "Essence of the Martyr": 1
           }
         },
         {
@@ -159,7 +359,7 @@
             "Prayer of Mending": 5,
             "Prayer of Healing": 3,
             "Essence of the Martyr": 2,
-            "Renew": 1
+            "Restore Mana": 1
           }
         },
         {
@@ -180,9 +380,9 @@
           "abilities": {
             "Flash Heal": 22,
             "Circle of Healing": 16,
-            "Shadowfiend": 1,
-            "Restore Mana": 1,
-            "Power Word: Shield": 1
+            "Power Word: Shield": 1,
+            "Essence of the Martyr": 1,
+            "Power of Prayer": 1
           }
         },
         {
@@ -205,7 +405,7 @@
             "Circle of Healing": 60,
             "Renew": 31,
             "Prayer of Mending": 18,
-            "Power Word: Shield": 6
+            "Binding Heal": 6
           }
         }
       ]
@@ -254,9 +454,9 @@
           },
           "abilities": {
             "Chain Heal": 70,
+            "Wrath of Air Totem": 2,
             "Stoneskin Totem": 2,
             "Essence of the Martyr": 2,
-            "Wrath of Air Totem": 2,
             "Healing Stream Totem": 2
           }
         },
@@ -280,7 +480,7 @@
             "Chain Heal": 24,
             "Healing Wave": 2,
             "Healing Stream Totem": 2,
-            "Mana Tide Totem": 1
+            "Ancestral Swiftness": 1
           }
         },
         {
@@ -357,7 +557,7 @@
             "Moonfire": 9,
             "Faerie Fire": 4,
             "Barkskin": 2,
-            "Force of Nature": 1
+            "Destruction": 1
           }
         },
         {
@@ -433,8 +633,8 @@
             "Shred": 73,
             "Cat Form": 32,
             "Ferocious Bite": 12,
-            "Mangle (Cat)": 8,
-            "Rip": 8
+            "Rip": 8,
+            "Mangle (Cat)": 8
           }
         },
         {
@@ -465,22 +665,22 @@
           "name": "High Astromancer Solarian",
           "metric": "dps",
           "player": {
-            "name": "Futzeh",
-            "guild": "No Hard Feelings",
-            "server": "Nightslayer",
-            "region": "US",
-            "amount": 2824.2654490955,
+            "name": "Kurumiswipe",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 2932.6386375326,
             "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "Lf3br9716Rt8NzpV",
+            "reportCode": "2jYzZDHLrbWFmtA6",
             "fightID": 30
           },
           "abilities": {
             "Shred": 22,
-            "Cat Form": 10,
+            "Cat Form": 9,
+            "Mangle (Cat)": 3,
             "Ferocious Bite": 3,
-            "Tiger's Fury": 2,
-            "Rip": 2
+            "Rip": 3
           }
         },
         {
@@ -619,22 +819,22 @@
           "name": "Al'ar",
           "metric": "dps",
           "player": {
-            "name": "Odesza",
+            "name": "Cavyxtwo",
             "guild": null,
             "server": "Spineshatter",
             "region": "EU",
-            "amount": 1565.6933195814,
+            "amount": 1598.4523212699,
             "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "6GfbnK8t9rHqVvJR",
-            "fightID": 56
+            "reportCode": "2jYzZDHLrbWFmtA6",
+            "fightID": 7
           },
           "abilities": {
-            "Auto Shot": 113,
-            "Steady Shot": 64,
-            "Kill Command": 41,
-            "Arcane Shot": 31,
-            "Multi-Shot": 22
+            "Auto Shot": 61,
+            "Steady Shot": 46,
+            "Kill Command": 26,
+            "Multi-Shot": 15,
+            "Raptor Strike": 14
           }
         },
         {
@@ -719,22 +919,22 @@
           "name": "Al'ar",
           "metric": "dps",
           "player": {
-            "name": "Yeazy",
-            "guild": "The Pond pug",
+            "name": "Skuggez",
+            "guild": null,
             "server": "Spineshatter",
             "region": "EU",
-            "amount": 2124.0988271818,
-            "globalRank": 2,
+            "amount": 2158.2275653594,
+            "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "RfkmYwWGp2MtTF4y",
-            "fightID": 58
+            "reportCode": "2jYzZDHLrbWFmtA6",
+            "fightID": 7
           },
           "abilities": {
-            "Arcane Blast": 136,
-            "Blink": 3,
+            "Arcane Blast": 114,
+            "Frostbolt": 3,
             "Icy Veins": 3,
-            "Presence of Mind": 2,
-            "Arcane Power": 2
+            "Replenish Mana": 2,
+            "Berserking": 2
           }
         },
         {
@@ -743,21 +943,21 @@
           "metric": "dps",
           "player": {
             "name": "Skuggez",
-            "guild": "is a problem",
+            "guild": null,
             "server": "Spineshatter",
             "region": "EU",
-            "amount": 2793.5988129852,
+            "amount": 2980.9627817578,
             "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "QxJK2wWb6B4YRr1c",
-            "fightID": 19
+            "reportCode": "ydXDBQK7ngc8hbTN",
+            "fightID": 32
           },
           "abilities": {
-            "Arcane Blast": 95,
+            "Arcane Blast": 83,
             "Icy Veins": 2,
-            "Berserking": 1,
-            "Cold Snap": 1,
-            "Destruction": 1
+            "Power Surge": 1,
+            "Arcane Power": 1,
+            "Berserking": 1
           }
         },
         {
@@ -778,9 +978,9 @@
           "abilities": {
             "Arcane Blast": 49,
             "Icy Veins": 2,
-            "Berserking": 1,
+            "Blessing of the Silver Crescent": 1,
             "Cold Snap": 1,
-            "Presence of Mind": 1
+            "Replenish Mana": 1
           }
         },
         {
@@ -793,7 +993,7 @@
             "server": "Spineshatter",
             "region": "EU",
             "amount": 1611.521780955,
-            "globalRank": 46,
+            "globalRank": 50,
             "sameFaction": true,
             "reportCode": "pQ7GmqLHcZM9PAt4",
             "fightID": 32
@@ -802,7 +1002,7 @@
             "Arcane Blast": 152,
             "Arcane Explosion": 29,
             "Icy Veins": 4,
-            "Replenish Mana": 3,
+            "Blessing of the Silver Crescent": 3,
             "Arcane Power": 3
           }
         }
@@ -853,8 +1053,8 @@
             "fightID": 32
           },
           "abilities": {
-            "Seal of Blood": 24,
             "Seal of Command": 24,
+            "Seal of Blood": 24,
             "Crusader Strike": 16,
             "Seals of Command": 15,
             "Judgment": 12
@@ -995,7 +1195,7 @@
             "amount": 1240.7066307766,
             "globalRank": 1,
             "sameFaction": false,
-            "reportCode": "R4xZbMBHyc3dngNq",
+            "reportCode": "tzA9QJ4jYrKnNydw",
             "fightID": 17
           },
           "abilities": {
@@ -1033,8 +1233,8 @@
             "Sinister Strike": 58,
             "Slice and Dice": 10,
             "Expose Armor": 8,
-            "Blade Flurry": 2,
-            "Berserking": 2
+            "Eviscerate": 2,
+            "Blade Flurry": 2
           }
         },
         {
@@ -1057,7 +1257,7 @@
             "Slice and Dice": 8,
             "Expose Armor": 5,
             "Rupture": 3,
-            "Haste": 2
+            "Blood Fury": 2
           }
         },
         {
@@ -1079,8 +1279,8 @@
             "Sinister Strike": 27,
             "Slice and Dice": 4,
             "Eviscerate": 4,
-            "Rupture": 2,
-            "Expose Armor": 2
+            "Expose Armor": 2,
+            "Rupture": 2
           }
         },
         {
@@ -1102,8 +1302,8 @@
             "Sinister Strike": 94,
             "Slice and Dice": 16,
             "Eviscerate": 6,
-            "Lust for Battle": 4,
-            "Blade Flurry": 4
+            "Expose Armor": 4,
+            "Lust for Battle": 4
           }
         }
       ]
@@ -1119,22 +1319,22 @@
           "name": "Al'ar",
           "metric": "dps",
           "player": {
-            "name": "Scrawnynerd",
-            "guild": "burger",
-            "server": "Nightslayer",
-            "region": "US",
-            "amount": 1369.7781453971,
+            "name": "Brandø",
+            "guild": "Pulse",
+            "server": "Thunderstrike",
+            "region": "EU",
+            "amount": 1386.8945766314,
             "globalRank": 5,
             "sameFaction": true,
-            "reportCode": "wJfjDPT9gyzkdQVm",
-            "fightID": 7
+            "reportCode": "bDHzFRf728hACdQy",
+            "fightID": 11
           },
           "abilities": {
-            "Lightning Bolt": 79,
-            "Chain Lightning": 26,
+            "Lightning Bolt": 75,
+            "Chain Lightning": 23,
             "Totem of Wrath": 3,
-            "Water Shield": 3,
-            "Mana Spring Totem": 3
+            "Wrath of Air Totem": 3,
+            "Destruction": 2
           }
         },
         {
@@ -1142,22 +1342,22 @@
           "name": "Void Reaver",
           "metric": "dps",
           "player": {
-            "name": "Darmare",
+            "name": "Swåcky",
             "guild": null,
             "server": "Spineshatter",
             "region": "EU",
-            "amount": 1769.4562361027,
-            "globalRank": 1,
+            "amount": 1837.7424427748,
+            "globalRank": 2,
             "sameFaction": true,
-            "reportCode": "3NLpKMC2tT6W19qx",
-            "fightID": 62
+            "reportCode": "ydXDBQK7ngc8hbTN",
+            "fightID": 32
           },
           "abilities": {
-            "Lightning Bolt": 51,
+            "Lightning Bolt": 43,
             "Chain Lightning": 14,
-            "Frost Shock": 1,
-            "Wrath of Air Totem": 1,
-            "Power Surge": 1
+            "Earth Shock": 1,
+            "Destruction": 1,
+            "Master of the Elements": 1
           }
         },
         {
@@ -1178,9 +1378,9 @@
           "abilities": {
             "Lightning Bolt": 29,
             "Chain Lightning": 8,
-            "Master of the Elements": 1,
-            "Destruction": 1,
-            "Blood Fury": 1
+            "Blood Fury": 1,
+            "Blessing of the Silver Crescent": 1,
+            "Earth Shock": 1
           }
         },
         {
@@ -1252,10 +1452,10 @@
             "fightID": 68
           },
           "abilities": {
-            "Grace of Air Totem": 15,
             "Windfury Totem": 15,
-            "Stormstrike": 26,
-            "Stormstrike Off-Hand": 13
+            "Grace of Air Totem": 15,
+            "Stormstrike Off-Hand": 13,
+            "Stormstrike": 26
           }
         },
         {
@@ -1275,8 +1475,8 @@
           },
           "abilities": {
             "Grace of Air Totem": 6,
-            "Stormstrike Off-Hand": 6,
             "Stormstrike": 12,
+            "Stormstrike Off-Hand": 6,
             "Windfury Totem": 5
           }
         },
@@ -1328,9 +1528,9 @@
           "abilities": {
             "Shadow Bolt": 70,
             "Life Tap": 9,
-            "Blessing of the Silver Crescent": 2,
-            "Shadowburn": 2,
-            "Blood Fury": 2
+            "Blood Fury": 2,
+            "Curse of Agony": 2,
+            "Blessing of the Silver Crescent": 2
           }
         },
         {
@@ -1352,7 +1552,7 @@
             "Shadow Bolt": 50,
             "Life Tap": 4,
             "Curse of Doom": 2,
-            "Soulshatter": 1,
+            "Blessing of the Silver Crescent": 1,
             "Super Sapper Charge": 1
           }
         },
@@ -1374,9 +1574,9 @@
           "abilities": {
             "Shadow Bolt": 27,
             "Immolate": 2,
-            "Destruction": 1,
+            "Blessing of the Silver Crescent": 1,
             "Dark Rune": 1,
-            "Shadowburn": 1
+            "Destruction": 1
           }
         },
         {
@@ -1453,7 +1653,7 @@
             "Heroic Strike": 16,
             "Mortal Strike": 12,
             "Whirlwind": 7,
-            "Recklessness": 1
+            "Bloodbath": 1
           }
         },
         {
@@ -1500,6 +1700,106 @@
             "Whirlwind": 21,
             "Cleave": 18,
             "Berserker Rage": 8
+          }
+        }
+      ]
+    },
+    {
+      "class": "Druid",
+      "spec": "Feral",
+      "role": "tank",
+      "metric": "dps",
+      "bosses": [
+        {
+          "encounterID": 100730,
+          "name": "Al'ar",
+          "metric": "dps",
+          "player": {
+            "name": "Moebunga",
+            "guild": "II High",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1565.452517218,
+            "globalRank": 1,
+            "sameFaction": true,
+            "reportCode": "DzwWnN6pfbM7FCj1",
+            "fightID": 58
+          },
+          "abilities": {
+            "Shred": 73,
+            "Cat Form": 32,
+            "Ferocious Bite": 12,
+            "Rip": 8,
+            "Mangle (Cat)": 8
+          }
+        },
+        {
+          "encounterID": 100731,
+          "name": "Void Reaver",
+          "metric": "dps",
+          "player": {
+            "name": "Mindificwank",
+            "guild": "burger",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 2261.4593397899,
+            "globalRank": 1,
+            "sameFaction": true,
+            "reportCode": "CkXwZ8y6zcVPDGrp",
+            "fightID": 9
+          },
+          "abilities": {
+            "Shred": 55,
+            "Cat Form": 26,
+            "Rip": 8,
+            "Ferocious Bite": 7,
+            "Mangle (Cat)": 2
+          }
+        },
+        {
+          "encounterID": 100732,
+          "name": "High Astromancer Solarian",
+          "metric": "dps",
+          "player": {
+            "name": "Kurumiswipe",
+            "guild": null,
+            "server": "Spineshatter",
+            "region": "EU",
+            "amount": 2932.6386375326,
+            "globalRank": 1,
+            "sameFaction": true,
+            "reportCode": "2jYzZDHLrbWFmtA6",
+            "fightID": 30
+          },
+          "abilities": {
+            "Shred": 22,
+            "Cat Form": 9,
+            "Mangle (Cat)": 3,
+            "Ferocious Bite": 3,
+            "Rip": 3
+          }
+        },
+        {
+          "encounterID": 100733,
+          "name": "Kael'thas Sunstrider",
+          "metric": "dps",
+          "player": {
+            "name": "Røvsniffer",
+            "guild": "Parse in Pyjamas",
+            "server": "Thunderstrike",
+            "region": "EU",
+            "amount": 1263.0383425385,
+            "globalRank": 1,
+            "sameFaction": false,
+            "reportCode": "3MJ8cwR1AbTkVqHW",
+            "fightID": 35
+          },
+          "abilities": {
+            "Shred": 92,
+            "Cat Form": 50,
+            "Mangle (Cat)": 36,
+            "Ferocious Bite": 18,
+            "Rip": 14
           }
         }
       ]

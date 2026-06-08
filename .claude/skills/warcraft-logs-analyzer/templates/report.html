@@ -1376,42 +1376,6 @@ function ghostInner(b){
     <div class="ghostbar">${master}${readout}</div>${toggles}${note}
     ${tlChart(tl.ours.dps,tl.theirs.dps,tl.ours,tl.theirs,chartGhost)}`;
 }
-// Raid spread-over-time curve: the squishy-cohort spread radius (yd) across the fight, ours vs benchmark, on
-// the SAME absolute-seconds axis as the DPS curves above — so a spike (the raid scattering, often a mechanic)
-// lines up with where DPS dipped. Null buckets (too few actors sampled) break the line into segments rather
-// than drawing through a gap. Frame-independent metric (within-raid spacing), so it's valid on every boss.
-function spreadChart(o,t,m1,m2){
-  const OUR="#4ea1ff",THEIR="#e268a8",GRID="#262f40",MUT="#8a96aa";
-  const W=1000,padL=48,padR=14,padT=16,plotW=W-padL-padR,plotH=140,axisY=padT+plotH;
-  o=asArr(o); t=asArr(t);
-  const nums=[...o,...t].filter(v=>v!=null).map(Number);
-  if(nums.length<2) return "";
-  const max=Math.max(1,...nums)*1.12;
-  const oDur=m1.durSec||0, tDur=m2.durSec||0, axisMax=Math.max(oDur,tDur,1);
-  const H=axisY+40;
-  const Y=v=>padT+plotH-(v/max)*plotH;
-  const Xs=sec=>padL+(Math.max(0,Math.min(axisMax,sec))/axisMax)*plotW;
-  const pathFor=(a,dur)=>{const n=a.length; let d="",pen=false;
-    for(let i=0;i<n;i++){const v=a[i]; if(v==null){pen=false;continue;}
-      const x=Xs(n>1?i/(n-1)*dur:0), y=Y(Number(v));
-      d+=(pen?" L":" M")+x.toFixed(1)+","+y.toFixed(1); pen=true;}
-    return d.trim();};
-  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;height:auto;max-width:100%">`;
-  for(let g=0;g<=4;g++){const yy=axisY-(g/4)*plotH;
-    s+=`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" stroke="${GRID}"/>`+
-       `<text x="${padL-6}" y="${(yy+3.5).toFixed(1)}" fill="${MUT}" font-size="11" text-anchor="end">${Math.round(max*g/4)}yd</text>`;}
-  for(let g=0;g<=4;g++){const sec=axisMax*g/4, xx=Xs(sec);s+=`<text x="${xx.toFixed(1)}" y="${axisY+31}" fill="${MUT}" font-size="11" text-anchor="middle">${fmtTime(sec*1000)}</text>`;}
-  s+=`<path d="${pathFor(t,tDur)}" fill="none" stroke="${THEIR}" stroke-width="2" opacity=".85"/>`;
-  s+=`<path d="${pathFor(o,oDur)}" fill="none" stroke="${OUR}" stroke-width="2.3"/>`;
-  return s+`</svg>`;
-}
-function spreadView(b){
-  const tl=b.timeline, sp=tl&&tl.spread; if(!sp) return "";
-  const chart=spreadChart(sp.ours,sp.theirs,tl.ours,tl.theirs); if(!chart) return "";
-  return `<h4 style="margin:16px 0 2px">Raid spread over time <span class="xp">Experimental</span></h4>
-    <p class="srcs" style="margin:2px 0 8px">Spread radius of <b>ranged + healers</b> (yd) across the fight, ours vs the benchmark, on the same seconds axis as the DPS curves above — so a spike (the raid scattering, often a mechanic) lines up with where output dipped. Higher = looser spacing. Measures the cohort's internal spacing (frame-independent), so it's valid even when the boss moves.</p>
-    ${chart}`;
-}
 function timelineChart(b){
   const tl=b.timeline; if(!tl||!tl.ours) return `<p class="num" style="padding:8px 2px">No timeline data for this fight.</p>`;
   const enc=b.encounterID;
@@ -1436,8 +1400,7 @@ function timelineChart(b){
   let tabs=tabBtn("raid","Raid",null,cur==="raid");
   let panes=pane("raid",
     `<div class="ghostwrap" data-enc="${enc}">${ghostInner(b)}</div>
-     <h4 style="margin:16px 0 2px">Raid HPS over time</h4>${tlChart(tl.ours.hps,tl.theirs.hps,tl.ours,tl.theirs)}
-     ${spreadView(b)}`,
+     <h4 style="margin:16px 0 2px">Raid HPS over time</h4>${tlChart(tl.ours.hps,tl.theirs.hps,tl.ours,tl.theirs)}`,
     cur==="raid");
 
   // Shared chart title for a spec (aggregate vs individual).

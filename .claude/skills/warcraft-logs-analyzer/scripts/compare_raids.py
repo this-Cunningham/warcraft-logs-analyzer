@@ -13,6 +13,7 @@ Optional: --ours-name / --theirs-name to override labels, --out-file to set the 
 """
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -26,7 +27,7 @@ import build_deepdive
 import fetch_report
 import fetch_worldbest
 
-META_Q = "query M($code:String!){reportData{report(code:$code){title zone{name} fights(killType:Kills){encounterID}}}}"
+META_Q = "query M($code:String!){reportData{report(code:$code){title startTime zone{name} fights(killType:Kills){encounterID}}}}"
 # rankings(compare:Parses) defaults to the DPS metric for EVERY role — so a healer's rankPercent/amount
 # come back as a meaningless DPS parse (their incidental damage), NOT their HPS parse. We pull the HPS
 # metric alongside it and merge it over the healers so each healer carries their real (HPS) parse.
@@ -114,7 +115,9 @@ def cached_for(code, data_root, shared):
     fetched for the SAME shared-boss set. The deep fetch is scoped to `shared`, which depends on BOTH
     report codes — so cached data is only valid for the identical pairing, not just a matching code. We
     record the shared set in a `.shared.json` marker at fetch time and compare against it here. Pinned
-    reports are immutable, so a match means the bytes are guaranteed current — no API call needed."""
+    reports are immutable, so a match means the bytes are guaranteed current — no API call needed.
+    Also verifies that per-encounter artifacts added after the cache was written (positions) are present;
+    a folder cached before those features existed will be missing them and must be re-fetched."""
     parses = os.path.join(data_root, "{}-parses.json".format(code))
     directory = os.path.join(data_root, code)
     marker = os.path.join(directory, ".shared.json")
@@ -122,9 +125,16 @@ def cached_for(code, data_root, shared):
         return False
     try:
         with open(marker, encoding="utf-8") as fh:
-            return sorted(json.load(fh)) == sorted(shared)
+            if sorted(json.load(fh)) != sorted(shared):
+                return False
     except (OSError, ValueError):
         return False
+    # Per-encounter artifacts added after early caches were written — if any are missing the folder
+    # predates that feature and needs a re-fetch, not a silent skip of the feature.
+    for enc in shared:
+        if not os.path.isfile(os.path.join(directory, "positions-{}.json".format(enc))):
+            return False
+    return True
 
 
 def get_meta(code):
@@ -132,7 +142,9 @@ def get_meta(code):
     if not r:
         raise RuntimeError("Report '{}' not found or not public.".format(code))
     encounters = sorted({int(f["encounterID"]) for f in r["fights"] if int(f["encounterID"]) != 0})
-    return {"title": r["title"], "zone": (r.get("zone") or {}).get("name"), "encounters": encounters}
+    start_ms = r.get("startTime") or 0
+    start_date = datetime.datetime.fromtimestamp(start_ms / 1000, datetime.timezone.utc).strftime("%Y-%m-%d") if start_ms else ""
+    return {"title": r["title"], "zone": (r.get("zone") or {}).get("name"), "encounters": encounters, "start_date": start_date}
 
 
 def open_file(path):
@@ -241,9 +253,14 @@ def main(argv=None):
     ours_name = args.ours_name or trunc_name(ours_guild or ours_meta["title"])
     theirs_name = args.theirs_name or (
         "Benchmark ({})".format(trunc_name(theirs_guild, 8)) if theirs_guild else trunc_name(theirs_meta["title"], 8))
-    # File named after the guilds (slugified), not the opaque report codes.
+    # Uniform format: "{ours}-vs-{theirs}--{zone}--{date}"
+    # Zone + date disambiguate same-guild self-comparisons across weeks, and add useful context to
+    # cross-guild reports too (same pairing can recur across tiers/dates).
+    _vs = "{}-vs-{}".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code))
+    _zone = slug(zone or "raid")
+    _date = ours_meta.get("start_date", "")
     out_file = args.out_file or os.path.join(
-        root, "reports", "{}-vs-{}.html".format(slug(ours_guild or ours_code), slug(theirs_guild or theirs_code)))
+        root, "reports", "{}--{}--{}.html".format(_vs, _zone, _date))
 
     # Deep data (heavy output tables only for the shared bosses) — the bulk of the API cost — plus the
     # same-faction world-best rotations for the Optimize tab. These three jobs (our deep data, their deep

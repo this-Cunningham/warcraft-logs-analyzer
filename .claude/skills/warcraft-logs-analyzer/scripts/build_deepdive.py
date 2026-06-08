@@ -352,9 +352,11 @@ def avg_ilvl(directory, enc_ids):
 #              an assumption from the meta, not a read.
 #   • raid   — Improved Faerie Fire (+3% spell hit, `IMP_FAERIE_FIRE_HIT`), credited when a Balance Druid
 #              is in the roster (raid-wide boss debuff — the one reliably detectable raid source).
-# NOT modeled (party-scoped or murky, and they cancel between similar raids): Totem of Wrath / Heroic
-# Presence (party-range), Warlock Suppression (Affliction DoTs only, not Shadow Bolt). (Note: Misery is
+# NOT modeled (party-scoped or murky, and they cancel between similar raids): Heroic Presence
+# (party-range), Warlock Suppression (Affliction DoTs only, not Shadow Bolt). (Note: Misery is
 # +5% spell DAMAGE, not hit.) Melee has no detectable raid hit buff → raid = 0 for melee/ranged.
+# Totem of Wrath IS baked into Elemental Shaman's SPEC_TALENT_HIT — it's the capstone Elemental
+# talent, Elemental Shamans always drop it in raids, and they benefit from their own totem.
 SPELL_HIT_PER_PCT = 12.6    # spell hit rating per 1% (TBC)
 PHYS_HIT_PER_PCT = 15.77    # melee/ranged hit rating per 1% (TBC)
 HIT_CAP = {"spell": 16.0, "melee": 9.0, "ranged": 9.0}  # textbook gear hit caps vs a +3 raid boss (the target ceiling)
@@ -377,7 +379,7 @@ SPEC_TALENT_HIT = {
     ("Druid", "Balance"):         4.0,  # Balance of Power 2/2 (+2%/pt, all spells)
     ("Mage", "Fire"):             3.0,  # Elemental Precision 3/3 (Fire & Frost spells)
     ("Mage", "Frost"):            3.0,  # Elemental Precision 3/3
-    ("Shaman", "Elemental"):      3.0,  # Nature's Guidance 3/3 (the standard 41/0/20 Resto dip)
+    ("Shaman", "Elemental"):      9.0,  # Elemental Precision 3/3 (+3%) + Nature's Guidance 3/3 (+3%, standard 41/0/20 Resto dip) + Totem of Wrath (+3%, capstone Elemental talent — always self-active in raids)
     # melee / ranged hit
     ("Rogue", "Combat"):          5.0,  # Precision 5/5 (+1%/pt) — every rogue build takes it
     ("Rogue", "Assassination"):   5.0,  # Precision 5/5 (Mutilate dips 20 Combat for it)
@@ -2036,9 +2038,16 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
         return boss_meta[enc]
 
     by_class = {}
+    # Guards against stale worldbest.json with duplicate (spec, role) entries.  Keyed by (spec, role)
+    # not just spec — (Feral, dps) and (Feral, tank) are legitimately different and must both render.
+    seen_cls_spec = {}
     for sp in (wb.get("specs") or []):
         cls, spec, role = sp.get("class"), sp.get("spec"), sp.get("role")
         metric = sp.get("metric")
+        pair = (spec, role)
+        if pair in seen_cls_spec.setdefault(cls, set()):
+            continue
+        seen_cls_spec[cls].add(pair)
         slot = by_class.setdefault(cls, [])
         spec_bosses = []
         shared_set = {int(e) for e in (shared_encs or [])}

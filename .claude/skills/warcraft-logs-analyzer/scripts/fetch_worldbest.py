@@ -224,13 +224,19 @@ def _specs_from_parses(parses_path, shared_encs):
     seen, out = set(), []
     for enc in enc_strs:
         for p in idx.get(enc, {}).get("players", []):
-            if p["role"] not in ("dps", "healer"):
+            if p["role"] not in ("dps", "healer", "tank"):
                 continue
             spec = prim.get(p["name"], p["spec"])
             key = (p["class"], spec, p["role"])
             if spec and key not in seen:
                 seen.add(key)
                 out.append({"class": p["class"], "spec": spec, "role": p["role"]})
+    # Drop (class, spec, "healer") when a (class, spec, "dps") entry also exists — WCL
+    # occasionally miscategorizes a DPS player as "healer" for one encounter, producing two
+    # entries for the same spec name and rendering duplicate tab buttons.  "tank" entries are
+    # intentionally kept alongside any "dps" entry (Feral Druids legitimately do both).
+    dps_pairs = {(e["class"], e["spec"]) for e in out if e["role"] == "dps"}
+    out = [e for e in out if e["role"] != "healer" or (e["class"], e["spec"]) not in dps_pairs]
     return out
 
 

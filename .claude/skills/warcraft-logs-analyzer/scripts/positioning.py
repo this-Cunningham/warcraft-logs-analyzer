@@ -81,7 +81,10 @@ _PLANT_SEARCH_SEC = 25.0  # horizon AFTER a moment to hunt for the calmest (most
 _PLANT_GAP_SEC = 2.0      # a boss-untargetable (None) gap up to this long is bridged within one stand
 _PLANT_MERGE_SEC = 6.0    # moments closer than this are the same moment (keep the earlier/phase-labelled one)
 _MAX_MOMENTS = 6          # cap snapshots per side so a long fight isn't a wall of maps (opener/phases kept first)
-_ADD_REPLANT_SEC = 8.0    # an add SPAWN this long before a re-plant is treated as that re-plant's trigger
+_ADD_REPLANT_SEC = 8.0    # an add SPAWN this long before a re-plant is a CANDIDATE trigger (temporal gate)
+_ADD_TOWARD_YD = 8.0      # ...and only a trigger if the new stand closes >= this much distance to that add
+                          # vs the previous stand (the raid relocated in the add's direction — spatial gate
+                          # against coincidence; a re-plant that didn't head toward the add is left untagged)
 
 
 # ----------------------------------------------------------------------------- data loading + small geom
@@ -715,27 +718,42 @@ def _settled_window(tracks, search_lo, search_hi, win_len_bins, step_bins):
 
 
 def _add_spawns(pos):
-    """[(spawn_bin, name)] for every tracked enemy add — its spawn approximated by the FIRST bin it appears
-    in (when it first took/dealt damage, i.e. was engaged). Used only to ANNOTATE a re-plant the boss-stand
-    detector already found; an add spawn never creates a snapshot on its own (no boss/raid shift, no moment)."""
+    """[(spawn_bin, name, spawn_xy)] for every tracked enemy add — its spawn approximated by the FIRST bin it
+    appears in (when it first took/dealt damage, i.e. was engaged) and where it was then. Used only to
+    ANNOTATE a re-plant the boss-stand detector already found; an add spawn never creates a snapshot on its
+    own (no boss/raid shift, no moment)."""
     out = []
     for a in (pos.get("adds") or {}).values():
         bins = a.get("bins") or []
         sb = next((bi for bi, p in enumerate(bins) if p), None)
         if sb is not None:
-            out.append((sb, a.get("name")))
+            out.append((sb, a.get("name"), bins[sb]))
     return out
 
 
-def _add_cause(add_spawns, start_bin, lookback_bins):
-    """If any add first appears in [start_bin - lookback_bins, start_bin + 1], the re-plant lines up with an
-    add SPAWN → return a short cause label (the add's name when the matching adds share one, else 'adds');
-    None otherwise. The +1 bin of lookahead absorbs bin-granularity slop; adds alive since the pull (spawn
-    bin near 0) won't match a later re-plant, so only a NEWLY-spawned add tags a re-plant."""
-    names = [nm for sb, nm in add_spawns if start_bin - lookback_bins <= sb <= start_bin + 1]
-    if not names:
+def _add_cause(add_spawns, start_bin, lookback_bins, prev_xy, new_xy):
+    """Name the add a re-plant relocated TOWARD — the honest causal test, not mere co-occurrence. An add is a
+    candidate when it first appears in [start_bin - lookback_bins, start_bin + 1] (temporal gate; the +1 bin
+    absorbs granularity slop, and an add alive since the pull won't match a later re-plant). It only counts as
+    the TRIGGER when the new stand sits at least `_ADD_TOWARD_YD` closer to that add's spawn spot than the
+    previous stand did (spatial gate — the raid actually moved in the add's direction, so the spawn drove the
+    move rather than coinciding with it). The add with the largest qualifying closing wins; 'adds' if several
+    distinct adds qualify. None when nothing spawned in the window, the boss track is missing (no stands to
+    compare), or the move didn't head toward any spawned add — left UNTAGGED rather than claiming a coincidence."""
+    if prev_xy is None or new_xy is None:
         return None
-    distinct = {n for n in names if n}
+    margin = _ADD_TOWARD_YD * SCALE
+    qualifying = []  # (closing_distance, name)
+    for sb, nm, axy in add_spawns:
+        if axy is None or not (start_bin - lookback_bins <= sb <= start_bin + 1):
+            continue
+        closing = (math.hypot(prev_xy[0] - axy[0], prev_xy[1] - axy[1])
+                   - math.hypot(new_xy[0] - axy[0], new_xy[1] - axy[1]))
+        if closing >= margin:
+            qualifying.append((closing, nm))
+    if not qualifying:
+        return None
+    distinct = {nm for _c, nm in qualifying if nm}
     return next(iter(distinct)) if len(distinct) == 1 else "adds"
 
 
@@ -868,10 +886,13 @@ def _plant_windows(pos, phases, phase_names, roles=None):
                 bpts = [p for p in _fill(bb)[lo:hi] if p]
                 if bpts:
                     bxy = (_median([p[0] for p in bpts]), _median([p[1] for p in bpts]))
-            # Annotate a re-plant with the add spawn that lines up with it (display only — `cause` never feeds
-            # `_match_moments`, so re-plants still pair across raids on the structural label). Opener/phase
-            # moments aren't tagged: an add spawn at a phase edge is already explained by the phase.
-            cause = (_add_cause(add_spawns, to_bin(sec), add_lookback_bins)
+            # Annotate a re-plant ONLY when the boss relocated TOWARD an add that spawned around then (display
+            # only — `cause` never feeds `_match_moments`, so re-plants still pair across raids on the
+            # structural label). `prev_xy` is the previous snapshot's boss stand, so the spatial test measures
+            # the move this re-plant actually made. Opener/phase moments aren't tagged (a spawn at a phase edge
+            # is already explained by the phase).
+            prev_xy = wins[-1]["bossXY"] if wins else None
+            cause = (_add_cause(add_spawns, to_bin(sec), add_lookback_bins, prev_xy, bxy)
                      if add_spawns and "re-plant" in lab.lower() else None)
             wins.append({"label": lab, "lo": lo, "hi": hi, "sec": round(sec), "bossXY": bxy, "cause": cause})
 
@@ -1040,21 +1061,21 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                               + _dual(_trail_one_svg(o_trail, OURS_TRAIL, win_frame),
                                       _trail_one_svg(t_trail, THEIRS_TRAIL, win_frame),
                                       o_name, t_name, ""))
-                # WHY this re-plant happened, when it lines up with an add SPAWN (display only). Per side, since
-                # one raid may have shifted to the add and the other not. Phrased "near an add spawn" for the
-                # generic case, naming the add when known.
+                # WHY this re-plant happened, when the raid relocated TOWARD a freshly-spawned add (display
+                # only). Per side, since one raid may have moved to the add and the other not. Names the add
+                # when known, else "an add".
                 def _cause_phrase(c):
-                    return "an add spawn" if c == "adds" else "the <b>{}</b> spawn".format(esc(c))
+                    return "an add" if c == "adds" else "the <b>{}</b>".format(esc(c))
                 oc, tc = (ow.get("cause") if ow else None), (tw.get("cause") if tw else None)
                 if oc and tc and oc == tc:
-                    panel += _hdr("This re-plant lines up with {} — both raids shifted in response.".format(_cause_phrase(oc)))
+                    panel += _hdr("Both raids re-planted <b>toward</b> {} that spawned here.".format(_cause_phrase(oc)))
                 elif oc or tc:
                     bits = ([("ours", oc)] if oc else []) + ([("benchmark", tc)] if tc else [])
-                    panel += _hdr("This re-plant lines up with an <b>add spawn</b> ({}).".format(
-                        "; ".join("{} near {}".format(side, _cause_phrase(c)) for side, c in bits)))
+                    panel += _hdr("Re-planted <b>toward</b> a freshly-spawned add ({}).".format(
+                        "; ".join("{} → {}".format(side, _cause_phrase(c)) for side, c in bits)))
                 tlab, replant_n = _moment_tab_label(r["label"], replant_n)
                 row_cause = (ow.get("cause") if ow else None) or (tw.get("cause") if tw else None)
-                ttl = r["label"] + (" — add spawn ({})".format(row_cause) if row_cause else "")
+                ttl = r["label"] + (" — moved toward add ({})".format(row_cause) if row_cause else "")
                 tabs.append('<button class="postab{}" data-pos="{}" type="button" title="{}">{}</button>'.format(
                     " active" if idx == 0 else "", idx, esc(ttl), esc(tlab)))
                 panels.append('<div class="pospanel" style="display:{}">{}</div>'.format(
@@ -1065,8 +1086,9 @@ def boss_positioning(o_pos, t_pos, o_roles, t_roles, o_tank_ids, t_tank_ids,
                     'offset — the positioning gap. The top map uses <b>one fixed window</b> (constant across '
                     'tabs); below it the same stand is also shown <b>zoomed to this moment</b>, and the '
                     '<b>Boss path</b> trail (ours and benchmark in separate windows) grows tab by tab to show '
-                    'how each raid moved the boss. A re-plant that lines up with an <b>add spawn</b> is '
-                    'flagged with what triggered it. A moment only one raid reached is '
+                    'how each raid moved the boss. A re-plant where the raid moved <b>toward</b> a '
+                    'freshly-spawned add is flagged with that add (a spawn the raid did NOT move toward is '
+                    'left unflagged — we don\'t claim a coincidence). A moment only one raid reached is '
                     'shown alone. Arrows are each actor\'s (and the boss\'s) facing where captured; tanks are '
                     'painted on top; white squares are enemy adds.')
             maps_html = ('<div class="posblock"><div class="postabs">' + "".join(tabs) + '</div>'

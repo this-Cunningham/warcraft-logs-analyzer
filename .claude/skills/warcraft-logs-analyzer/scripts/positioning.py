@@ -220,15 +220,23 @@ def _arrow_svg(px, py, heading, col, ln=12.0, r0=0.0):
 
 
 def _fill(track):
-    """Carry-forward fill of an actor's per-bin position track (and back-fill the leading gap with the
-    first known point), so a sparse/idle actor isn't dropped from a time bin. All-None stays all-None."""
+    """Carry-forward fill of an actor's per-bin position track WITHIN its active span only (plus a back-fill of
+    the leading gap with the first known point), so a sparse/idle-but-alive actor isn't dropped from a bin.
+    Bins AFTER the actor's LAST real sample are left None: a player who DIED (or an add that despawned) must
+    not be carry-forwarded as a ghost standing at their last spot — that would pad later snapshots, spread and
+    framing with the dead. (A living raider in a fight generates DamageTaken/Casts events steadily, so 'last
+    real sample' is a sound end-of-presence proxy — the same assumption the adds path already relies on.)
+    All-None stays all-None."""
     nb = len(track)
     out = list(track)
+    last_idx = max((i for i in range(nb) if track[i]), default=None)
+    if last_idx is None:
+        return out
     last = None
     for i in range(nb):
         if out[i]:
             last = out[i]
-        elif last is not None:
+        elif last is not None and i < last_idx:   # fill internal gaps only — never past the last real sample
             out[i] = last
     first = next((p for p in track if p), None)
     for i in range(nb):

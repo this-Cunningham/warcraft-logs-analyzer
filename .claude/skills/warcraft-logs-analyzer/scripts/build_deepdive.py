@@ -368,15 +368,15 @@ IMP_FAERIE_FIRE_HIT = 3.0   # Improved Faerie Fire (Balance Druid): +3% spell hi
 # roster; the value is added to that spec's hit type (a caster spec → spell, a melee spec → melee/ranged).
 # Deliberately OMITTED (partial / no standard hit talent, and they cancel same-spec anyway): Warlock
 # Affliction (Suppression helps DoTs but NOT Shadow Bolt — they gear to the SB cap), Destruction/Demonology
-# Warlock, Mage Arcane (Elemental Precision is Fire/Frost only), BM/Marksmanship Hunter, Ret Paladin, Feral
-# Druid, and the TANKS (Prot Warrior/Paladin, bear) — they itemize to their cap without a counted hit
-# talent (e.g. a prot warrior gears to ~9% rather than relying on a talent). (Note: per-spec, so it cancels
-# in the same-spec flag; its value is an HONEST effective hit vs the cap — a Shadow Priest at 6% gear is
-# capped via Shadow Focus, not under.)
+# Warlock, BM/Marksmanship Hunter, Feral Druid, and the TANKS (Prot Warrior/Paladin, bear) — they
+# itemize to their cap without a counted hit talent. (Note: per-spec, so it cancels in the same-spec
+# flag; its value is an HONEST effective hit vs the cap — a Shadow Priest at 6% gear is capped via
+# Shadow Focus, not under.)
 SPEC_TALENT_HIT = {
     # spell hit
     ("Priest", "Shadow"):        10.0,  # Shadow Focus 5/5 (+2%/pt)
     ("Druid", "Balance"):         4.0,  # Balance of Power 2/2 (+2%/pt, all spells)
+    ("Mage", "Arcane"):          10.0,  # Arcane Focus 5/5 (+2%/pt) — mandatory; Elemental Precision is Fire/Frost only
     ("Mage", "Fire"):             3.0,  # Elemental Precision 3/3 (Fire & Frost spells)
     ("Mage", "Frost"):            3.0,  # Elemental Precision 3/3
     ("Shaman", "Elemental"):      9.0,  # Elemental Precision 3/3 (+3%) + Nature's Guidance 3/3 (+3%, standard 41/0/20 Resto dip) + Totem of Wrath (+3%, capstone Elemental talent — always self-active in raids)
@@ -384,6 +384,7 @@ SPEC_TALENT_HIT = {
     ("Rogue", "Combat"):          5.0,  # Precision 5/5 (+1%/pt) — every rogue build takes it
     ("Rogue", "Assassination"):   5.0,  # Precision 5/5 (Mutilate dips 20 Combat for it)
     ("Rogue", "Subtlety"):        5.0,  # Precision 5/5
+    ("Paladin", "Retribution"):   3.0,  # Precision 3/3 (Protection dip) — standard in every Ret raiding build
     ("Warrior", "Arms"):          3.0,  # Precision 3/3 (Arms; Fury dips Arms for it)
     ("Warrior", "Fury"):          3.0,  # Precision 3/3
     ("Shaman", "Enhancement"):    3.0,  # Nature's Guidance 3/3 (the standard 0/41/20 Resto dip)

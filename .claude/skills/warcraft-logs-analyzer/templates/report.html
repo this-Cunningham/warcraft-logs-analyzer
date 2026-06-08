@@ -1643,10 +1643,16 @@ function renderOptimize(d){
   h+=`<div class="btabs">`+classes.map((c,i)=>`<button class="btab tltab ${i===0?"on":""}" data-octab="${esc(c.class)}" style="--tlc:${cc(c.class)}">${esc(c.class)}</button>`).join("")+`</div>`;
   classes.forEach((c,ci)=>{
     const specs=rowsOf(c.specs);
+    // When the same spec name appears more than once (e.g. Feral DPS + Feral tank), include the
+    // role in the skey so each entry gets a unique data-ospec and a readable disambiguated label.
+    const specCounts={};specs.forEach(s=>{specCounts[s.spec]=(specCounts[s.spec]||0)+1;});
+    const roleLabel=r=>r==='dps'?'DPS':r?r[0].toUpperCase()+r.slice(1):'';
+    const specKey=(s)=>specCounts[s.spec]>1?`${esc(c.class)}|${esc(s.spec)}|${esc(s.role||'')}`:`${esc(c.class)}|${esc(s.spec)}`;
+    const specLabel=(s)=>specCounts[s.spec]>1?`${esc(s.spec)} (${roleLabel(s.role)})`:esc(s.spec);
     h+=`<div class="osub ${ci===0?"active":""}" data-octab="${esc(c.class)}">`;
-    h+=`<div class="btabs ospecs">`+specs.map((s,j)=>`<button class="btab tltab ${j===0?"on":""}" data-ospec="${esc(c.class)}|${esc(s.spec)}" data-ocls="${esc(c.class)}" style="--tlc:${cc(c.class)}">${esc(s.spec)}</button>`).join("")+`</div>`;
+    h+=`<div class="btabs ospecs">`+specs.map((s,j)=>`<button class="btab tltab ${j===0?"on":""}" data-ospec="${specKey(s)}" data-ocls="${esc(c.class)}" style="--tlc:${cc(c.class)}">${specLabel(s)}</button>`).join("")+`</div>`;
     specs.forEach((s,si)=>{
-      const skey=`${esc(c.class)}|${esc(s.spec)}`;
+      const skey=specKey(s);
       h+=`<div class="ossub ${si===0?"active":""}" data-ospec="${skey}">`;
       const bosses=rowsOf(s.bosses);
       if(!bosses.length){

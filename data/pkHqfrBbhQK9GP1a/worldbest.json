@@ -955,9 +955,9 @@
           "abilities": {
             "Arcane Blast": 83,
             "Icy Veins": 2,
-            "Power Surge": 1,
             "Arcane Power": 1,
-            "Berserking": 1
+            "Berserking": 1,
+            "Presence of Mind": 1
           }
         },
         {
@@ -1332,9 +1332,9 @@
           "abilities": {
             "Lightning Bolt": 75,
             "Chain Lightning": 23,
-            "Totem of Wrath": 3,
             "Wrath of Air Totem": 3,
-            "Destruction": 2
+            "Totem of Wrath": 3,
+            "Mana Spring Totem": 2
           }
         },
         {
@@ -1355,9 +1355,9 @@
           "abilities": {
             "Lightning Bolt": 43,
             "Chain Lightning": 14,
-            "Earth Shock": 1,
-            "Destruction": 1,
-            "Master of the Elements": 1
+            "Master of the Elements": 1,
+            "Drums of Battle": 1,
+            "Blood Fury": 1
           }
         },
         {
@@ -1706,7 +1706,7 @@
     },
     {
       "class": "Druid",
-      "spec": "Feral",
+      "spec": "Guardian",
       "role": "tank",
       "metric": "dps",
       "bosses": [
@@ -1715,22 +1715,22 @@
           "name": "Al'ar",
           "metric": "dps",
           "player": {
-            "name": "Moebunga",
-            "guild": "II High",
+            "name": "Rockiedruid",
+            "guild": "who",
             "server": "Nightslayer",
             "region": "US",
-            "amount": 1565.452517218,
-            "globalRank": 1,
+            "amount": 802.8175422197,
+            "globalRank": 2,
             "sameFaction": true,
-            "reportCode": "DzwWnN6pfbM7FCj1",
-            "fightID": 58
+            "reportCode": "3bdG94vJMxqwnrjB",
+            "fightID": 7
           },
           "abilities": {
-            "Shred": 73,
-            "Cat Form": 32,
-            "Ferocious Bite": 12,
-            "Rip": 8,
-            "Mangle (Cat)": 8
+            "Lacerate": 38,
+            "Maul": 36,
+            "Swipe (Bear)": 26,
+            "Mangle (Bear)": 24,
+            "Shred": 11
           }
         },
         {
@@ -1738,22 +1738,22 @@
           "name": "Void Reaver",
           "metric": "dps",
           "player": {
-            "name": "Mindificwank",
-            "guild": "burger",
+            "name": "Fvtvre",
+            "guild": "Refined",
             "server": "Nightslayer",
             "region": "US",
-            "amount": 2261.4593397899,
+            "amount": 1246.1481748969,
             "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "CkXwZ8y6zcVPDGrp",
-            "fightID": 9
+            "reportCode": "NAL7QPH98WJ1XdCp",
+            "fightID": 64
           },
           "abilities": {
-            "Shred": 55,
-            "Cat Form": 26,
-            "Rip": 8,
-            "Ferocious Bite": 7,
-            "Mangle (Cat)": 2
+            "Maul": 48,
+            "Swipe (Bear)": 44,
+            "Mangle (Bear)": 20,
+            "Lacerate": 17,
+            "Lust for Battle": 2
           }
         },
         {
@@ -1761,22 +1761,22 @@
           "name": "High Astromancer Solarian",
           "metric": "dps",
           "player": {
-            "name": "Kurumiswipe",
-            "guild": null,
-            "server": "Spineshatter",
-            "region": "EU",
-            "amount": 2932.6386375326,
+            "name": "Fvtvre",
+            "guild": "Refined",
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 1584.4796003331,
             "globalRank": 1,
             "sameFaction": true,
-            "reportCode": "2jYzZDHLrbWFmtA6",
-            "fightID": 30
+            "reportCode": "NAL7QPH98WJ1XdCp",
+            "fightID": 76
           },
           "abilities": {
-            "Shred": 22,
-            "Cat Form": 9,
-            "Mangle (Cat)": 3,
-            "Ferocious Bite": 3,
-            "Rip": 3
+            "Swipe (Bear)": 20,
+            "Maul": 19,
+            "Mangle (Bear)": 10,
+            "Lacerate": 8,
+            "Super Sapper Charge": 1
           }
         },
         {
@@ -1784,22 +1784,22 @@
           "name": "Kael'thas Sunstrider",
           "metric": "dps",
           "player": {
-            "name": "Røvsniffer",
-            "guild": "Parse in Pyjamas",
-            "server": "Thunderstrike",
-            "region": "EU",
-            "amount": 1263.0383425385,
+            "name": "Fvtvre",
+            "guild": null,
+            "server": "Nightslayer",
+            "region": "US",
+            "amount": 762.1501438078,
             "globalRank": 1,
             "sameFaction": false,
-            "reportCode": "3MJ8cwR1AbTkVqHW",
-            "fightID": 35
+            "reportCode": "4my3NLBYhCQJtbWf",
+            "fightID": 60
           },
           "abilities": {
-            "Shred": 92,
-            "Cat Form": 50,
-            "Mangle (Cat)": 36,
-            "Ferocious Bite": 18,
-            "Rip": 14
+            "Maul": 73,
+            "Swipe (Bear)": 69,
+            "Lacerate": 60,
+            "Mangle (Bear)": 43,
+            "Dire Bear Form": 8
           }
         }
       ]

@@ -214,27 +214,43 @@ def fetch_for_report(ours_code, ours_parses, shared_encs, enc_names, out_path):
 
 
 def _specs_from_parses(parses_path, shared_encs):
-    """Distinct DPS/healer (class, primary-spec) combos in our roster — the CLI helper for manual runs.
+    """Distinct (class, spec, role) combos in our roster — the CLI helper for manual runs.
     Imports the build's roster helpers so spec derivation stays identical to the report."""
     import report_common as rc
     import build_deepdive as bd
     idx = rc.index_by_encounter(rc.get_fights(parses_path))
     enc_strs = [str(e) for e in shared_encs]
     prim = bd.primary_spec_map(idx, enc_strs)
+
+    # For tank players, use their MODAL (most common) per-boss WCL spec — not their primary spec,
+    # which may come from DPS bosses.  A Feral Druid who bear-tanks gets spec="Guardian" from WCL
+    # on tanking bosses; their primary "Feral" is their cat-DPS identity.  Using the modal tank spec
+    # means we fetch a Guardian world-best (bear rotation) not a Feral world-best (cat rotation),
+    # and avoids single-boss quirks like WCL labeling a warrior "Gladiator" on one fight.
+    tank_spec_counts = {}  # {name: {raw_spec: count}}
+    for enc in enc_strs:
+        for p in idx.get(enc, {}).get("players", []):
+            if p["role"] == "tank":
+                cnts = tank_spec_counts.setdefault(p["name"], {})
+                cnts[p["spec"]] = cnts.get(p["spec"], 0) + 1
+    modal_tank_spec = {nm: max(cnts, key=cnts.get) for nm, cnts in tank_spec_counts.items()}
+
     seen, out = set(), []
     for enc in enc_strs:
         for p in idx.get(enc, {}).get("players", []):
             if p["role"] not in ("dps", "healer", "tank"):
                 continue
-            spec = prim.get(p["name"], p["spec"])
+            if p["role"] == "tank":
+                spec = modal_tank_spec.get(p["name"], p["spec"])
+            else:
+                spec = prim.get(p["name"], p["spec"])
             key = (p["class"], spec, p["role"])
             if spec and key not in seen:
                 seen.add(key)
                 out.append({"class": p["class"], "spec": spec, "role": p["role"]})
     # Drop (class, spec, "healer") when a (class, spec, "dps") entry also exists — WCL
     # occasionally miscategorizes a DPS player as "healer" for one encounter, producing two
-    # entries for the same spec name and rendering duplicate tab buttons.  "tank" entries are
-    # intentionally kept alongside any "dps" entry (Feral Druids legitimately do both).
+    # entries for the same spec name and rendering duplicate tab buttons.
     dps_pairs = {(e["class"], e["spec"]) for e in out if e["role"] == "dps"}
     out = [e for e in out if e["role"] != "healer" or (e["class"], e["spec"]) not in dps_pairs]
     return out

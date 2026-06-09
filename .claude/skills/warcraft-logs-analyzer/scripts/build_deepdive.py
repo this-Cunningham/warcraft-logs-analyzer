@@ -1011,19 +1011,37 @@ def npc_name_map(directory):
             if a.get("id") is not None}
 
 
-KEY_BUFFS =["Bloodlust", "Heroism", "Battle Shout", "Blessing of Kings", "Gift of the Wild",
-             "Ferocious Inspiration", "Leader of the Pack", "Drums of Battle", "Arcane Brilliance", "Windfury"]
-KEY_DEBUFFS = ["Sunder Armor", "Expose Armor", "Curse of the Elements", "Faerie Fire", "Misery",
-               "Judgement of Wisdom", "Judgement of the Crusader", "Demoralizing Shout"]
+KEY_BUFFS = [
+    {"display": "Bloodlust",             "names": ["Bloodlust", "Heroism"]},
+    {"display": "Battle Shout",          "names": ["Battle Shout"]},
+    {"display": "Blessing of Kings",     "names": ["Blessing of Kings", "Greater Blessing of Kings"]},
+    {"display": "Gift of the Wild",      "names": ["Gift of the Wild"]},
+    {"display": "Ferocious Inspiration", "names": ["Ferocious Inspiration"]},
+    {"display": "Leader of the Pack",    "names": ["Leader of the Pack"]},
+    {"display": "Drums of Battle",       "names": ["Drums of Battle"]},
+    {"display": "Arcane Brilliance",     "names": ["Arcane Brilliance"]},
+    {"display": "Windfury",              "names": ["Windfury Attack"]},
+]
+KEY_DEBUFFS = [
+    {"display": "Sunder Armor",               "names": ["Sunder Armor"]},
+    {"display": "Expose Armor",               "names": ["Expose Armor"]},
+    {"display": "Curse of the Elements",      "names": ["Curse of the Elements"]},
+    {"display": "Faerie Fire",                "names": ["Faerie Fire", "Faerie Fire (Feral)"]},
+    {"display": "Misery",                     "names": ["Misery"]},
+    {"display": "Judgement of Wisdom",        "names": ["Judgement of Wisdom"]},
+    {"display": "Judgement of the Crusader",  "names": ["Judgement of the Crusader"]},
+    {"display": "Demoralizing Shout",         "names": ["Demoralizing Shout"]},
+]
 
 
-def uptime_pct(auras, name, dur_ms):
+def uptime_pct(auras, names, dur_ms):
     if dur_ms <= 0:
         return None
-    a = next((x for x in auras if x.get("name") == name), None)
-    if not a:
+    candidates = [x for x in auras if x.get("name") in names]
+    if not candidates:
         return 0
-    return min(100, round(float(a["totalUptime"]) / dur_ms * 100))
+    best = max(candidates, key=lambda x: float(x.get("totalUptime", 0)))
+    return min(100, round(float(best["totalUptime"]) / dur_ms * 100))
 
 
 # Real shaman Bloodlust (2825) / Heroism (32182). Matched by SPELL ID, not name: the benchmark's logs
@@ -1090,14 +1108,20 @@ def cooldown_lust_alignment(buff_auras, lust_sec_val, fight_start, window=40):
     return {"aligned": aligned, "used": used, "pct": round(100 * aligned / used)}
 
 
-def debuff_timing(auras, fight_start, dur_ms, names):
+def debuff_timing(auras, fight_start, dur_ms, keys):
     """Per key debuff: when it was first ESTABLISHED (sec into fight) and its longest continuous GAP after
     that (sec) — the two TIME dimensions a flat uptime % misses. From the aura `bands` (start/end
-    intervals). EXPERIMENTAL. Returns {name: {"est", "gap"}} for the debuffs actually present."""
+    intervals). EXPERIMENTAL. Returns {display: {"est", "gap"}} for the debuffs actually present."""
     out = {}
-    for nm in names:
-        a = next((x for x in auras if x.get("name") == nm), None)
-        bands = sorted((a or {}).get("bands") or [], key=lambda b: b["startTime"])
+    for k in keys:
+        display = k["display"]
+        lookup = k["names"]
+        # Merge bands across all matching aura names (e.g. Faerie Fire + Faerie Fire (Feral))
+        bands = []
+        for x in auras:
+            if x.get("name") in lookup:
+                bands.extend(x.get("bands") or [])
+        bands = sorted(bands, key=lambda b: b["startTime"])
         if not bands:
             continue
         est = max(0, round((bands[0]["startTime"] - fight_start) / 1000))
@@ -1106,7 +1130,7 @@ def debuff_timing(auras, fight_start, dur_ms, names):
             g = bands[i + 1]["startTime"] - bands[i]["endTime"]
             if g > gap:
                 gap = g
-        out[nm] = {"est": est, "gap": round(gap / 1000)}
+        out[display] = {"est": est, "gap": round(gap / 1000)}
     return out
 
 
@@ -1759,7 +1783,7 @@ def per_target_debuffs(o_dir, t_dir, enc):
         return {tg["name"]: tg for tg in ((side or {}).get("targets") or [])}
     om, tm = by_name(o), by_name(t)
 
-    def upt(tg, ability):
+    def upt(tg, names):
         """(value, ok): uptime % over the enemy's engaged window, or 0 when the debuff was never applied /
         the enemy is absent on this side. ok=False when the raw debuff ms is implausibly larger than that
         enemy's active window — a multi-instance pooling / fight-end force-close artifact (seen at 600-1500%
@@ -1768,9 +1792,11 @@ def per_target_debuffs(o_dir, t_dir, enc):
         if not tg:
             return 0, True  # enemy not present on this side -> an honest 0%
         active = tg.get("activeMs") or 0
-        ms = (tg.get("debuffs") or {}).get(ability)
-        if not active or ms is None:
+        debuffs = tg.get("debuffs") or {}
+        ms_vals = [debuffs[n] for n in names if n in debuffs]
+        if not active or not ms_vals:
             return 0, True  # debuff never landed on this enemy -> 0%
+        ms = sum(ms_vals)
         if ms > active * 1.1:
             return None, False  # raw uptime far exceeds the engaged window -> data artifact, unmeasurable
         return min(100, round(ms / active * 100)), True
@@ -1779,14 +1805,14 @@ def per_target_debuffs(o_dir, t_dir, enc):
     for nm in sorted(set(om) | set(tm)):
         o_tg, t_tg = om.get(nm), tm.get(nm)
         rows = []
-        for ability in KEY_DEBUFFS:
-            o_u, o_ok = upt(o_tg, ability)
-            t_u, t_ok = upt(t_tg, ability)
+        for kb in KEY_DEBUFFS:
+            o_u, o_ok = upt(o_tg, kb["names"])
+            t_u, t_ok = upt(t_tg, kb["names"])
             if not o_ok or not t_ok:
                 continue  # unmeasurable on at least one side -> not a valid comparison, drop the row
             if (o_u or 0) < 5 and (t_u or 0) < 5:
                 continue  # neither raid meaningfully held this debuff on this enemy
-            rows.append({"name": ability, "ours": o_u or 0, "theirs": t_u or 0,
+            rows.append({"name": kb["display"], "ours": o_u or 0, "theirs": t_u or 0,
                          "deficit": (t_u or 0) - (o_u or 0)})
         if rows:
             rows.sort(key=lambda r: -r["deficit"])
@@ -2030,11 +2056,11 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
             boss_casts[enc] = _casts_by_name(rep) if rep else {}
         return boss_casts[enc]
 
-    def _meta_for(enc):  # enc: str -> {name: {"role","parse"}} from THIS boss's parse rankings
+    def _meta_for(enc):  # enc: str -> {name: {"role","spec","parse"}} from THIS boss's parse rankings
         if enc not in boss_meta:
             m = {}
             for p in (ours_idx.get(enc, {}).get("players") or []):
-                m.setdefault(p["name"], {"role": p.get("role"), "parse": p.get("parse")})
+                m.setdefault(p["name"], {"role": p.get("role"), "spec": p.get("spec"), "parse": p.get("parse")})
             boss_meta[enc] = m
         return boss_meta[enc]
 
@@ -2062,22 +2088,32 @@ def build_optimize(ours_dir, ours_idx, ours_spec, ours_cls, shared_encs,
             w_abil = bn.get("abilities") or {}
             casts = _casts_for(str(enc))
             meta = _meta_for(str(enc))
-            # For a Feral spec, the benchmark's own form on THIS boss (cat for a DPS world best) — our
-            # raiders must match it, so a bear isn't compared to a cat rotation.
+            # For a Feral (DPS) spec, bench_form is the world-best's form (cat for top DPS) — our
+            # raiders must match it so a bear isn't compared to a cat rotation.
             bench_form = _druid_form(w_abil) if (cls == "Druid" and spec == "Feral") else None
+            # Guardian (bear) matching uses form-from-casts instead of WCL role/spec, because WCL
+            # inconsistently labels a bear tank "Feral/dps" on some bosses and "Guardian/tank" on
+            # others — the cast mix is the only reliable signal that a player was actually in bear form.
+            is_guardian_bear = (cls == "Druid" and spec == "Guardian" and role == "tank")
             players = []
             for nm, p_abil in casts.items():
                 mm = meta.get(nm)
                 if not mm:
                     continue
-                # Same class + roster primary spec, AND the raider played THIS role on THIS boss
-                # (form/role-aware — excludes a bear-tank from the cat-DPS benchmark).
-                if ours_cls.get(nm) != cls or ours_spec.get(nm) != spec or mm.get("role") != role:
-                    continue
-                # Feral form check from CASTS: even when WCL labels a bear "dps", their bear cast mix
-                # (Lacerate/Maul) must not be benchmarked against a cat-DPS world best (Shred/Rake).
-                if bench_form is not None and _druid_form(p_abil) not in (None, bench_form):
-                    continue
+                if is_guardian_bear:
+                    # Include any Druid whose cast mix is bear form, regardless of WCL role/spec.
+                    if ours_cls.get(nm) != "Druid" or _druid_form(p_abil) != "bear":
+                        continue
+                else:
+                    # Same class + correct spec for this boss, AND the raider played THIS role on THIS boss.
+                    # For tanks: match per-boss WCL spec (mm["spec"]); for DPS/healer: primary spec.
+                    match_spec = mm.get("spec") if role == "tank" else ours_spec.get(nm)
+                    if ours_cls.get(nm) != cls or match_spec != spec or mm.get("role") != role:
+                        continue
+                    # Feral (DPS) form check: even when WCL labels a bear "dps", exclude them from
+                    # the cat-DPS world-best benchmark.
+                    if bench_form is not None and _druid_form(p_abil) not in (None, bench_form):
+                        continue
                 abil = _rotation_diff(p_abil, w_abil, min_share, top)
                 if not abil:
                     continue
@@ -3768,21 +3804,19 @@ def build(ours_dir, theirs_dir, ours_parses, theirs_parses, out_file,
                 _e["leaked"] += _v["leaked"]
 
         buff_rows = []
-        for name in KEY_BUFFS:
-            if name == "Heroism":
-                continue  # folded into Bloodlust row
-            o_u = uptime_pct(_auras(o_b, "buffs"), name, o_dur)
-            t_u = uptime_pct(_auras(t_b, "buffs"), name, t_dur)
+        for kb in KEY_BUFFS:
+            o_u = uptime_pct(_auras(o_b, "buffs"), kb["names"], o_dur)
+            t_u = uptime_pct(_auras(t_b, "buffs"), kb["names"], t_dur)
             if o_u == 0 and t_u == 0:
                 continue
-            buff_rows.append({"name": name, "ours": o_u, "theirs": t_u})
+            buff_rows.append({"name": kb["display"], "ours": o_u, "theirs": t_u})
         debuff_rows = []
-        for name in KEY_DEBUFFS:
-            o_u = uptime_pct(_auras(o_b, "debuffs"), name, o_dur)
-            t_u = uptime_pct(_auras(t_b, "debuffs"), name, t_dur)
+        for kb in KEY_DEBUFFS:
+            o_u = uptime_pct(_auras(o_b, "debuffs"), kb["names"], o_dur)
+            t_u = uptime_pct(_auras(t_b, "debuffs"), kb["names"], t_dur)
             if o_u == 0 and t_u == 0:
                 continue
-            debuff_rows.append({"name": name, "ours": o_u, "theirs": t_u})
+            debuff_rows.append({"name": kb["display"], "ours": o_u, "theirs": t_u})
         # Debuff RAMP + CONTINUITY (EXPERIMENTAL): when each key debuff first landed + its longest gap.
         o_dt = debuff_timing(_auras(o_b, "debuffs"), ours_fights[enc]["start"], o_dur, KEY_DEBUFFS)
         t_dt = debuff_timing(_auras(t_b, "debuffs"), theirs_fights[enc]["start"], t_dur, KEY_DEBUFFS)

@@ -350,6 +350,16 @@ knows.
 
 ---
 
+## TODO: BUG — KEY_BUFFS list is incomplete and includes non-raid (group) buffs
+
+> BUG: the raid buff coverage section is missing buffs like Prayer of Fortitude / Greater Prayer of Fortitude and probably others; also group buffs (Battle Shout, Windfury, etc.) are still in the list when they should be removed — those are already covered by PROVIDER_CHECKS. Audit a sample benchmark raid's buff aura data to pull the full set of true raid-wide buffs and their Greater/variant counterparts, then replace KEY_BUFFS with a complete, correctly-aliased list.
+
+A raid leader reading the Buff Coverage section needs to trust that every buff that *should* be on the raid is accounted for — a missing entry (Prayer of Fortitude, etc.) silently drops a real coverage lever; a wrongly-included group buff (Battle Shout, Windfury) double-counts something PROVIDER_CHECKS already surfaces. The benchmark raid's aura data is the right sample — it's a known-good raid and will show exactly which raid-wide buffs were active and under what names they log.
+
+**Data is already present:** `data/<code>/boss-<enc>.json` → `reportData.report.buffs.data.auras` for any cached report. Cross-reference that list against the current `KEY_BUFFS` in `build_deepdive.py` to find gaps and wrong entries.
+
+---
+
 ## TODO: Link back to the source Warcraft Logs reports
 
 > urls that point at the warcraft logs reports from the report

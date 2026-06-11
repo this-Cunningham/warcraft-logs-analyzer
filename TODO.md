@@ -383,3 +383,15 @@ render anchors on the header chips. Use the host the report was fetched from
 **Scope:** small — pass the source URLs through to the template, render as links. Open question: link the whole
 report (header) only, or also deep-link per-boss to that fight (`?fight=<id>`) once fight IDs are threaded
 through to the per-boss sections.
+
+---
+
+## TODO: Enchants & Gear — add gem data
+
+> add gems data to enchants & gear tab -- doesnt need to be crazy
+
+**What to add:** surface which players are missing gems in their socketed gear, alongside the existing enchant check — same tab, same impersonal per-player format. A leader already using this tab to confirm raid prep gets a complete picture: enchants *and* gems in one place, without switching to Warcraft Logs.
+
+**Leader decision this serves:** *"Is anyone showing up under-prepared in a way I can fix with a quick reminder before next pull?"* Gems are the other half of that question that enchants alone can't answer.
+
+**Data source:** WCL `playerDetails` already includes equipped gear with socket info and gem IDs — check `data/<code>/player-details.json` to confirm the gem fields are present before building.
